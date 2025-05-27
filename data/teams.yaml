@@ -1,0 +1,14 @@
+pool1:
+  - Team A
+  - Team B
+  - Team C
+  - Team I
+  - Team J
+pool2:
+  - Team D
+  - Team E
+  - Team F
+  - Team K
+pool3:
+  - Team G
+  - Team H

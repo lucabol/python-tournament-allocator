@@ -1,0 +1,5 @@
+Flask
+pandas
+numpy
+jsonschema
+PyYAML==6.0.1

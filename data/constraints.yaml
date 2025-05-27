@@ -1,0 +1,23 @@
+match_duration_minutes: 45
+min_break_between_matches_minutes: 15
+time_slot_increment_minutes: 15
+day_end_time_limit: "22:00"
+
+team_specific_constraints:
+  - team_name: Team A
+    play_after: "10:00"
+    note: Team A prefers to play after 10 AM
+  - team_name: Team B
+    play_before: "14:00"
+    note: Team B prefers to play before 2 PM
+
+general_constraints: []
+
+tournament_settings:
+  type: pool_play
+  advancement_rules:
+    top_teams_per_pool_to_advance: 2
+
+elimination_bracket_settings:
+  seeding_method: pool_ranking
+  matchups: []
