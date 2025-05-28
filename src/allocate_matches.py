@@ -99,13 +99,35 @@ def main():
     schedule_output = allocation_manager.get_schedule_output()
     
     if schedule_output:
+        # Organize by day
+        from collections import defaultdict
+        days = defaultdict(lambda: defaultdict(list))  # days[day][court] = list of matches
         for court_schedule in schedule_output:
-            print(f"\nCourt: {court_schedule['court_name']}")
-            if court_schedule['matches']:
-                for match in court_schedule['matches']:
-                    print(f"{match['start_time']} - {match['end_time']}: {match['teams'][0]} vs {match['teams'][1]}")
-            else:
-                print("No matches scheduled.")
+            court_name = court_schedule['court_name']
+            for match in court_schedule['matches']:
+                # Extract day as an integer (Day 1, Day 2, ...)
+                day_str = match.get('day')
+                # Try to parse the day as a date, fallback to string
+                try:
+                    import datetime
+                    base_date = datetime.date.today()
+                    match_date = datetime.date.fromisoformat(day_str)
+                    day_num = (match_date - base_date).days + 1
+                    day_label = f"Day {day_num}"
+                except Exception:
+                    day_label = f"Day {day_str}"
+                days[day_label][court_name].append(match)
+
+        for day_label in sorted(days, key=lambda d: int(d.split()[-1])):
+            print(f"\n# {day_label}")
+            for court_name in sorted(days[day_label]):
+                print(f"Court: {court_name}")
+                matches = days[day_label][court_name]
+                if matches:
+                    for match in matches:
+                        print(f"  {match['start_time']} - {match['end_time']}: {match['teams'][0]} vs {match['teams'][1]}")
+                else:
+                    print("  No matches scheduled.")
 
 if __name__ == '__main__':
     main()

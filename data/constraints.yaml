@@ -1,4 +1,5 @@
 match_duration_minutes: 45
+days_number: 2
 min_break_between_matches_minutes: 15
 time_slot_increment_minutes: 15
 day_end_time_limit: "22:00"
