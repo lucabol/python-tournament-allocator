@@ -1,0 +1,123 @@
+{
+  "matches": [
+    {
+      "teams": [
+        "Team A",
+        "Team B"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team A",
+        "Team C"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team A",
+        "Team I"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team A",
+        "Team J"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team B",
+        "Team C"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team B",
+        "Team I"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team B",
+        "Team J"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team C",
+        "Team I"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team C",
+        "Team J"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team I",
+        "Team J"
+      ],
+      "pool": "pool1"
+    },
+    {
+      "teams": [
+        "Team D",
+        "Team E"
+      ],
+      "pool": "pool2"
+    },
+    {
+      "teams": [
+        "Team D",
+        "Team F"
+      ],
+      "pool": "pool2"
+    },
+    {
+      "teams": [
+        "Team D",
+        "Team K"
+      ],
+      "pool": "pool2"
+    },
+    {
+      "teams": [
+        "Team E",
+        "Team F"
+      ],
+      "pool": "pool2"
+    },
+    {
+      "teams": [
+        "Team E",
+        "Team K"
+      ],
+      "pool": "pool2"
+    },
+    {
+      "teams": [
+        "Team F",
+        "Team K"
+      ],
+      "pool": "pool2"
+    },
+    {
+      "teams": [
+        "Team G",
+        "Team H"
+      ],
+      "pool": "pool3"
+    }
+  ]
+}
