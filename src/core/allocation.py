@@ -2,6 +2,16 @@ import datetime
 from itertools import combinations
 
 class AllocationManager:
+
+    def _has_team_overlap(self, team_names, start_time, end_time):
+        """Return True if any team in team_names has an overlapping match at the given time."""
+        for team_name in team_names:
+            for court_schedule in self.schedule.values():
+                for _, scheduled_start, scheduled_end, scheduled_match_teams in court_schedule:
+                    if team_name in map(str, scheduled_match_teams):
+                        if max(scheduled_start, start_time) < min(scheduled_end, end_time):
+                            return True
+        return False
     def __init__(self, teams, courts, constraints):
         self.teams = {team.name: team for team in teams}
         self.courts = courts
@@ -70,10 +80,17 @@ class AllocationManager:
             
             # Check for conflicts with existing matches for this team
             team_existing_matches = []
-            for court_schedule in self.schedule.values():
-                for _, scheduled_start, scheduled_end, scheduled_match_teams in court_schedule:
-                    if current_team_name in map(str, scheduled_match_teams):
-                        team_existing_matches.append((scheduled_start, scheduled_end))
+            for court_schedule_items in self.schedule.values(): # Iterate through list of matches for each court
+                for scheduled_item_day, scheduled_item_start, scheduled_item_end, scheduled_item_teams_tuple in court_schedule_items:
+                    # If this 'scheduled_item' is the exact match currently being validated by _check_team_constraints,
+                    # skip it to avoid comparing a match against itself.
+                    # 'team_names' and 'match_start_time' are the primary arguments to _check_team_constraints,
+                    # identifying the match under validation.
+                    if scheduled_item_teams_tuple == team_names and scheduled_item_start == match_start_time:
+                        continue
+
+                    if current_team_name in map(str, scheduled_item_teams_tuple):
+                        team_existing_matches.append((scheduled_item_start, scheduled_item_end))
             
             if debug and team_existing_matches:
                 print(f"      {current_team_name} has {len(team_existing_matches)} existing matches")
@@ -147,6 +164,12 @@ class AllocationManager:
                 while current_time <= day_end_dt - match_duration and not scheduled_this_match:
                     potential_start_time = current_time
                     potential_end_time = potential_start_time + match_duration
+                    
+                    # Check for team overlaps BEFORE trying any courts for this time slot
+                    if self._has_team_overlap((team1_name, team2_name), potential_start_time, potential_end_time):
+                        current_time += time_slot_increment
+                        continue  # Skip this entire time slot due to overlap
+                    
                     sorted_courts = sorted(self.courts, key=lambda c: len(self.schedule[c.name]))
                     for court in sorted_courts:
                         court_start_dt = self._datetime_from_time(self._parse_time(court.start_time), day)
