@@ -100,19 +100,6 @@ class AllocationManager:
             print(f"    ✓ All constraints satisfied for {team_names}")
         return True
 
-    def _generate_pool_play_matches(self):
-        matches = []
-        tournament_settings = self.constraints.get('tournament_settings', {})
-        if tournament_settings.get('type') == 'pool_play':
-            pools = tournament_settings.get('pools', {})
-            for pool_name, team_names_in_pool in pools.items():
-                valid_teams_in_pool = [name for name in team_names_in_pool if name in self.teams]
-                if len(valid_teams_in_pool) < 2:
-                    print(f"Warning: Pool {pool_name} has fewer than 2 valid teams ({len(valid_teams_in_pool)} found: {valid_teams_in_pool}). Skipping match generation.")
-                    continue
-                for team1_name, team2_name in combinations(valid_teams_in_pool, 2):
-                    matches.append(((self.teams[team1_name].name, self.teams[team2_name].name), pool_name))
-        return matches
 
     def allocate_teams_to_courts(self):
         print("Starting allocation process...")
