@@ -8,6 +8,8 @@ def load_teams(file_path):
     teams = []
     with open(file_path, mode='r', encoding='utf-8') as file:
         pools_data = yaml.safe_load(file)
+        if not pools_data:
+            return teams
         for pool_name, team_names in pools_data.items():
             for team_name in team_names:
                 teams.append(Team(name=team_name, attributes={'pool': pool_name}))

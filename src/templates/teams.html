@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Teams - Tournament Allocator{% endblock %}
+
+{% block content %}
+<h1>Team Management</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<section class="section">
+    <h2>Add New Pool</h2>
+    <form method="POST" class="inline-form">
+        <input type="hidden" name="action" value="add_pool">
+        <input type="text" name="pool_name" placeholder="Pool name (e.g., Pool A)" required>
+        <button type="submit" class="btn btn-primary">Add Pool</button>
+    </form>
+</section>
+
+{% if pools %}
+<section class="section">
+    <h2>Pools & Teams</h2>
+    
+    <div class="pools-grid">
+        {% for pool_name, team_list in pools.items() %}
+        <div class="pool-card">
+            <div class="pool-header">
+                <h3>{{ pool_name }}</h3>
+                <form method="POST" class="inline" onsubmit="return confirm('Delete this pool and all its teams?');">
+                    <input type="hidden" name="action" value="delete_pool">
+                    <input type="hidden" name="pool_name" value="{{ pool_name }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Delete Pool</button>
+                </form>
+            </div>
+            
+            <form method="POST" class="add-team-form">
+                <input type="hidden" name="action" value="add_team">
+                <input type="hidden" name="pool_name" value="{{ pool_name }}">
+                <input type="text" name="team_name" placeholder="Team name" required>
+                <button type="submit" class="btn btn-success btn-sm">Add Team</button>
+            </form>
+            
+            {% if team_list %}
+            <ul class="team-list">
+                {% for team in team_list %}
+                <li>
+                    <span>{{ team }}</span>
+                    <form method="POST" class="inline">
+                        <input type="hidden" name="action" value="delete_team">
+                        <input type="hidden" name="pool_name" value="{{ pool_name }}">
+                        <input type="hidden" name="team_name" value="{{ team }}">
+                        <button type="submit" class="btn btn-danger btn-xs">×</button>
+                    </form>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="empty-message">No teams in this pool yet.</p>
+            {% endif %}
+            
+            <p class="pool-stats">
+                {{ team_list|length }} team(s) • 
+                {{ (team_list|length * (team_list|length - 1)) // 2 }} match(es)
+            </p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% else %}
+<div class="empty-state">
+    <h2>No pools yet</h2>
+    <p>Create a pool above to get started.</p>
+</div>
+{% endif %}
+{% endblock %}

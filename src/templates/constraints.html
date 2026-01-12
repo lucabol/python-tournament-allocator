@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Constraints - Tournament Allocator{% endblock %}
+
+{% block content %}
+<h1>Tournament Constraints</h1>
+
+<section class="section">
+    <h2>General Settings</h2>
+    <form method="POST" class="form-card">
+        <input type="hidden" name="action" value="update_general">
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="match_duration">Match Duration (minutes)</label>
+                <input type="number" id="match_duration" name="match_duration" 
+                       value="{{ constraints.match_duration_minutes }}" min="15" max="180" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="days_number">Number of Days</label>
+                <input type="number" id="days_number" name="days_number" 
+                       value="{{ constraints.days_number }}" min="1" max="14" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="min_break">Min Break Between Matches (minutes)</label>
+                <input type="number" id="min_break" name="min_break" 
+                       value="{{ constraints.min_break_between_matches_minutes }}" min="0" max="120" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="time_increment">Time Slot Increment (minutes)</label>
+                <input type="number" id="time_increment" name="time_increment" 
+                       value="{{ constraints.time_slot_increment_minutes }}" min="5" max="60" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="day_end_time">Day End Time</label>
+                <input type="time" id="day_end_time" name="day_end_time" 
+                       value="{{ constraints.day_end_time_limit }}" required>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+    </form>
+</section>
+
+<section class="section">
+    <h2>Team-Specific Constraints</h2>
+    <p class="help-text">Set time preferences for specific teams (e.g., "Team A can only play after 10:00 AM").</p>
+    
+    <form method="POST" class="form-card">
+        <input type="hidden" name="action" value="add_team_constraint">
+        
+        <div class="form-grid">
+            <div class="form-group">
+                <label for="team_name">Team</label>
+                <select id="team_name" name="team_name" required>
+                    <option value="">Select a team...</option>
+                    {% for team in all_teams %}
+                    <option value="{{ team }}">{{ team }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="play_after">Must Play After (optional)</label>
+                <input type="time" id="play_after" name="play_after">
+            </div>
+            
+            <div class="form-group">
+                <label for="play_before">Must End Before (optional)</label>
+                <input type="time" id="play_before" name="play_before">
+            </div>
+            
+            <div class="form-group">
+                <label for="note">Note (optional)</label>
+                <input type="text" id="note" name="note" placeholder="Reason for constraint">
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-success">Add Constraint</button>
+    </form>
+    
+    {% if constraints.team_specific_constraints %}
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Team</th>
+                <th>Play After</th>
+                <th>End Before</th>
+                <th>Note</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tc in constraints.team_specific_constraints %}
+            <tr>
+                <td>{{ tc.team_name }}</td>
+                <td>{{ tc.play_after if tc.play_after else '-' }}</td>
+                <td>{{ tc.play_before if tc.play_before else '-' }}</td>
+                <td>{{ tc.note if tc.note else '-' }}</td>
+                <td>
+                    <form method="POST" class="inline">
+                        <input type="hidden" name="action" value="delete_team_constraint">
+                        <input type="hidden" name="team_name" value="{{ tc.team_name }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-message">No team-specific constraints defined.</p>
+    {% endif %}
+</section>
+{% endblock %}

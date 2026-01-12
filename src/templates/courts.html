@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Courts - Tournament Allocator{% endblock %}
+
+{% block content %}
+<h1>Court Management</h1>
+
+<section class="section">
+    <h2>Add New Court</h2>
+    <form method="POST" class="form-grid">
+        <input type="hidden" name="action" value="add_court">
+        <div class="form-group">
+            <label for="court_name">Court Name</label>
+            <input type="text" id="court_name" name="court_name" placeholder="e.g., Court 1" required>
+        </div>
+        <div class="form-group">
+            <label for="start_time">Opens At</label>
+            <input type="time" id="start_time" name="start_time" value="08:00" required>
+        </div>
+        <div class="form-group">
+            <label for="end_time">Closes At</label>
+            <input type="time" id="end_time" name="end_time" value="22:00" required>
+        </div>
+        <div class="form-group">
+            <button type="submit" class="btn btn-primary">Add Court</button>
+        </div>
+    </form>
+</section>
+
+{% if courts %}
+<section class="section">
+    <h2>Available Courts</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Court Name</th>
+                <th>Opens</th>
+                <th>Closes</th>
+                <th>Hours Available</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for court in courts %}
+            <tr>
+                <td>{{ court.name }}</td>
+                <td>{{ court.start_time }}</td>
+                <td>{{ court.end_time }}</td>
+                <td>
+                    {% set start_parts = court.start_time.split(':') %}
+                    {% set end_parts = court.end_time.split(':') %}
+                    {% set hours = (end_parts[0]|int - start_parts[0]|int) %}
+                    {{ hours }} hours
+                </td>
+                <td>
+                    <form method="POST" class="inline" onsubmit="return confirm('Delete this court?');">
+                        <input type="hidden" name="action" value="delete_court">
+                        <input type="hidden" name="court_name" value="{{ court.name }}">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% else %}
+<div class="empty-state">
+    <h2>No courts yet</h2>
+    <p>Add a court above to get started.</p>
+</div>
+{% endif %}
+{% endblock %}

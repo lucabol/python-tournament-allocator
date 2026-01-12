@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Tournament Allocator{% endblock %}
+
+{% block content %}
+<h1>Tournament Dashboard</h1>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <h2>📋 Teams</h2>
+        <div class="stat-number">{{ total_teams }}</div>
+        <p>teams in {{ pools|length }} pools</p>
+        <a href="{{ url_for('teams') }}" class="btn btn-primary">Manage Teams</a>
+    </div>
+    
+    <div class="card">
+        <h2>🏟️ Courts</h2>
+        <div class="stat-number">{{ courts|length }}</div>
+        <p>courts available</p>
+        <a href="{{ url_for('courts') }}" class="btn btn-primary">Manage Courts</a>
+    </div>
+    
+    <div class="card">
+        <h2>⚙️ Settings</h2>
+        <div class="stat-number">{{ constraints.days_number }}</div>
+        <p>day(s), {{ constraints.match_duration_minutes }} min matches</p>
+        <a href="{{ url_for('constraints') }}" class="btn btn-primary">Edit Constraints</a>
+    </div>
+    
+    <div class="card highlight">
+        <h2>📅 Generate Schedule</h2>
+        <p>Create the tournament schedule based on your configuration.</p>
+        <a href="{{ url_for('schedule') }}" class="btn btn-success">Generate Schedule</a>
+    </div>
+</div>
+
+{% if pools %}
+<section class="section">
+    <h2>Pool Overview</h2>
+    <div class="pools-overview">
+        {% for pool_name, team_list in pools.items() %}
+        <div class="pool-card">
+            <h3>{{ pool_name }}</h3>
+            <ul>
+                {% for team in team_list %}
+                <li>{{ team }}</li>
+                {% endfor %}
+            </ul>
+            <p class="pool-matches">{{ (team_list|length * (team_list|length - 1)) // 2 }} matches</p>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% if courts %}
+<section class="section">
+    <h2>Court Schedule</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Court</th>
+                <th>Opens</th>
+                <th>Closes</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for court in courts %}
+            <tr>
+                <td>{{ court.name }}</td>
+                <td>{{ court.start_time }}</td>
+                <td>{{ court.end_time }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+{% endblock %}

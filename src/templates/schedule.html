@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Schedule - Tournament Allocator{% endblock %}
+
+{% block content %}
+<h1>Tournament Schedule</h1>
+
+<section class="section">
+    <form method="POST">
+        <button type="submit" class="btn btn-success btn-lg">🔄 Generate Schedule</button>
+    </form>
+</section>
+
+{% if error %}
+<div class="alert alert-error">
+    <strong>Error:</strong> {{ error }}
+</div>
+{% endif %}
+
+{% if stats %}
+<div class="stats-bar">
+    <div class="stat">
+        <span class="stat-value">{{ stats.total_matches }}</span>
+        <span class="stat-label">Total Matches</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value success">{{ stats.scheduled_matches }}</span>
+        <span class="stat-label">Scheduled</span>
+    </div>
+    {% if stats.unscheduled_matches > 0 %}
+    <div class="stat">
+        <span class="stat-value danger">{{ stats.unscheduled_matches }}</span>
+        <span class="stat-label">Unscheduled</span>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if schedule %}
+    {% for day, courts in schedule.items() %}
+    <section class="section day-section">
+        <h2>{{ day }}</h2>
+        
+        <div class="schedule-grid">
+            {% for court_name, matches in courts.items() %}
+            <div class="court-schedule">
+                <h3>{{ court_name }}</h3>
+                <div class="matches-list">
+                    {% for match in matches %}
+                    <div class="match-card">
+                        <div class="match-time">{{ match.start_time }} - {{ match.end_time }}</div>
+                        <div class="match-teams">
+                            <span class="team">{{ match.teams[0] }}</span>
+                            <span class="vs">vs</span>
+                            <span class="team">{{ match.teams[1] }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endfor %}
+{% elif not error %}
+<div class="empty-state">
+    <h2>No schedule generated yet</h2>
+    <p>Click "Generate Schedule" to create the tournament schedule based on your teams, courts, and constraints.</p>
+</div>
+{% endif %}
+{% endblock %}
