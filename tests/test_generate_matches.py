@@ -146,3 +146,82 @@ pool2:
         
         # Should return empty list or handle gracefully
         assert teams == [] or teams is None
+
+    def test_load_teams_new_format_with_advance(self, tmp_path):
+        """Test loading teams from new YAML format with teams list and advance count."""
+        yaml_content = """pool1:
+  teams:
+    - Team Alpha
+    - Team Beta
+    - Team Gamma
+  advance: 2
+pool2:
+  teams:
+    - Team Delta
+    - Team Epsilon
+  advance: 1
+"""
+        yaml_file = tmp_path / "teams_new_format.yaml"
+        yaml_file.write_text(yaml_content)
+        
+        teams = load_teams(str(yaml_file))
+        
+        assert len(teams) == 5
+        team_names = {t.name for t in teams}
+        assert team_names == {"Team Alpha", "Team Beta", "Team Gamma", "Team Delta", "Team Epsilon"}
+        
+        # Check pool assignments
+        pool1_teams = [t for t in teams if t.attributes["pool"] == "pool1"]
+        pool2_teams = [t for t in teams if t.attributes["pool"] == "pool2"]
+        
+        assert len(pool1_teams) == 3
+        assert len(pool2_teams) == 2
+
+    def test_load_teams_mixed_format(self, tmp_path):
+        """Test loading teams handles both old list format and new dict format."""
+        # Old format (list)
+        yaml_content_old = """pool1:
+  - Team A
+  - Team B
+"""
+        yaml_file_old = tmp_path / "teams_old.yaml"
+        yaml_file_old.write_text(yaml_content_old)
+        
+        teams_old = load_teams(str(yaml_file_old))
+        assert len(teams_old) == 2
+        
+        # New format (dict with teams and advance)
+        yaml_content_new = """pool1:
+  teams:
+    - Team A
+    - Team B
+  advance: 1
+"""
+        yaml_file_new = tmp_path / "teams_new.yaml"
+        yaml_file_new.write_text(yaml_content_new)
+        
+        teams_new = load_teams(str(yaml_file_new))
+        assert len(teams_new) == 2
+        
+        # Both should produce the same teams
+        assert {t.name for t in teams_old} == {t.name for t in teams_new}
+
+    def test_load_teams_new_format_empty_teams_list(self, tmp_path):
+        """Test loading teams with new format but empty teams list."""
+        yaml_content = """pool1:
+  teams: []
+  advance: 0
+pool2:
+  teams:
+    - Team A
+  advance: 1
+"""
+        yaml_file = tmp_path / "teams_partial.yaml"
+        yaml_file.write_text(yaml_content)
+        
+        teams = load_teams(str(yaml_file))
+        
+        # Only pool2 has teams
+        assert len(teams) == 1
+        assert teams[0].name == "Team A"
+        assert teams[0].attributes["pool"] == "pool2"

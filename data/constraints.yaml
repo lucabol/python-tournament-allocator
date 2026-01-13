@@ -1,3 +1,6 @@
+court_specific_constraints:
+- available_after: '13:00'
+  court_name: Court C
 day_end_time_limit: '22:00'
 days_number: 3
 elimination_bracket_settings:
@@ -7,15 +10,11 @@ general_constraints: []
 match_duration_minutes: 60
 min_break_between_matches_minutes: 0
 team_specific_constraints:
-- note: Team A prefers to play after 10 AM
-  play_after: '10:00'
-  team_name: Team A
-- note: Team B prefers to play before 2 PM
-  play_before: '14:00'
-  team_name: Team B
 - note: Dentist work
   play_after: '12:00'
   team_name: Team T
+- play_before: '11:01'
+  team_name: Team A
 time_slot_increment_minutes: 15
 tournament_settings:
   advancement_rules:

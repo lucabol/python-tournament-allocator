@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Elimination Schedule - Tournament Allocator{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🏆 Elimination Round Schedule</h1>
+    <p>Generate court assignments for single elimination bracket</p>
+</div>
+
+{% if error %}
+<div class="error-message">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if bracket_data %}
+<div class="bracket-summary">
+    <h3>Bracket Overview</h3>
+    <div class="bracket-stats compact">
+        <span><strong>{{ bracket_data.total_teams }}</strong> teams advancing</span>
+        <span><strong>{{ bracket_data.total_rounds }}</strong> rounds</span>
+        <span><strong>{{ bracket_data.byes }}</strong> byes</span>
+    </div>
+    <div class="matches-per-round">
+        {% for round_name, count in bracket_data.matches_per_round.items() %}
+        <span class="round-count">{{ round_name }}: {{ count }} matches</span>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="schedule-actions">
+    <form method="POST" class="schedule-form">
+        <button type="submit" class="btn btn-primary btn-large">Generate Elimination Schedule</button>
+    </form>
+    <a href="{{ url_for('sbracket') }}" class="btn btn-secondary">View Full Bracket</a>
+</div>
+
+{% if schedule %}
+<div class="schedule-section">
+    {% if stats %}
+    <div class="schedule-stats">
+        <div class="stat-item">
+            <span class="stat-label">Total Matches:</span>
+            <span class="stat-value">{{ stats.total_matches }}</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Scheduled:</span>
+            <span class="stat-value success">{{ stats.scheduled_matches }}</span>
+        </div>
+        {% if stats.unscheduled_matches > 0 %}
+        <div class="stat-item">
+            <span class="stat-label">Unscheduled:</span>
+            <span class="stat-value warning">{{ stats.unscheduled_matches }}</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% for day, courts in schedule.items()|sort %}
+    <div class="day-schedule">
+        <h2>{{ day }}</h2>
+        <div class="courts-grid">
+            {% for court_name, matches in courts.items()|sort %}
+            <div class="court-schedule">
+                <h3>{{ court_name }}</h3>
+                <div class="matches-list">
+                    {% for match in matches %}
+                    <div class="match-card elimination-match">
+                        <div class="match-time">{{ match.start_time }} - {{ match.end_time }}</div>
+                        <div class="match-teams">
+                            <span class="team">{{ match.teams[0] }}</span>
+                            <span class="vs">vs</span>
+                            <span class="team">{{ match.teams[1] }}</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% elif not error %}
+<div class="empty-state">
+    <p>Click "Generate Elimination Schedule" to create court assignments for elimination rounds.</p>
+    <p class="note">Note: Elimination matches use placeholder team names (e.g., "pool1_pos1") since actual results depend on pool play outcomes.</p>
+</div>
+{% endif %}
+{% endblock %}

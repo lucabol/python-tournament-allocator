@@ -38,15 +38,15 @@
 <section class="section">
     <h2>Pool Overview</h2>
     <div class="pools-overview">
-        {% for pool_name, team_list in pools.items() %}
+        {% for pool_name, pool_data in pools.items() %}
         <div class="pool-card">
             <h3>{{ pool_name }}</h3>
             <ul>
-                {% for team in team_list %}
+                {% for team in pool_data.teams %}
                 <li>{{ team }}</li>
                 {% endfor %}
             </ul>
-            <p class="pool-matches">{{ (team_list|length * (team_list|length - 1)) // 2 }} matches</p>
+            <p class="pool-matches">{{ (pool_data.teams|length * (pool_data.teams|length - 1)) // 2 }} matches • Top {{ pool_data.advance }} advance</p>
         </div>
         {% endfor %}
     </div>

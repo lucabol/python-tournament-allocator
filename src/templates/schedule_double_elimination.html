@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Double Elimination Schedule - Tournament Allocator{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🏆 Double Elimination Schedule</h1>
+    <p>Generate court assignments for double elimination bracket</p>
+</div>
+
+{% if error %}
+<div class="error-message">
+    {{ error }}
+</div>
+{% endif %}
+
+{% if bracket_data %}
+<div class="bracket-summary">
+    <h3>Bracket Overview</h3>
+    <div class="bracket-stats compact">
+        <span><strong>{{ bracket_data.total_teams }}</strong> teams advancing</span>
+        <span><strong>{{ bracket_data.total_winners_rounds }}</strong> winners rounds</span>
+        <span><strong>{{ bracket_data.total_losers_rounds }}</strong> losers rounds</span>
+        <span><strong>{{ bracket_data.byes }}</strong> byes</span>
+    </div>
+    <p class="note">Note: Only first-round Winners Bracket matches can be pre-scheduled. Subsequent rounds depend on results.</p>
+</div>
+{% endif %}
+
+<div class="schedule-actions">
+    <form method="POST" class="schedule-form">
+        <button type="submit" class="btn btn-primary btn-large">Generate Double Elimination Schedule</button>
+    </form>
+    <a href="{{ url_for('dbracket') }}" class="btn btn-secondary">View Full Bracket</a>
+</div>
+
+{% if schedule %}
+<div class="schedule-section">
+    {% if stats %}
+    <div class="schedule-stats">
+        <div class="stat-item">
+            <span class="stat-label">First Round Matches:</span>
+            <span class="stat-value">{{ stats.total_matches }}</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Scheduled:</span>
+            <span class="stat-value success">{{ stats.scheduled_matches }}</span>
+        </div>
+        {% if stats.unscheduled_matches > 0 %}
+        <div class="stat-item">
+            <span class="stat-label">Unscheduled:</span>
+            <span class="stat-value warning">{{ stats.unscheduled_matches }}</span>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% for day, courts in schedule.items()|sort %}
+    <div class="day-schedule">
+        <h2>{{ day }}</h2>
+        <div class="courts-grid">
+            {% for court_name, matches in courts.items()|sort %}
+            <div class="court-schedule">
+                <h3>{{ court_name }}</h3>
+                <div class="matches-list">
+                    {% for match in matches %}
+                    <div class="match-card elimination-match double-elim-match">
+                        <div class="match-time">{{ match.start_time }} - {{ match.end_time }}</div>
+                        <div class="match-teams">
+                            <span class="team">{{ match.teams[0] }}</span>
+                            <span class="vs">vs</span>
+                            <span class="team">{{ match.teams[1] }}</span>
+                        </div>
+                        <div class="match-round-tag">Winners Bracket</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% elif not error %}
+<div class="empty-state">
+    <p>Click "Generate Double Elimination Schedule" to create court assignments for the first round of double elimination.</p>
+    <p class="note">Note: Only the first round of the Winners Bracket can be pre-scheduled since subsequent matches depend on results.</p>
+</div>
+{% endif %}
+{% endblock %}

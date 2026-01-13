@@ -5,6 +5,16 @@
 {% block content %}
 <h1>Court Management</h1>
 
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
 <section class="section">
     <h2>Add New Court</h2>
     <form method="POST" class="form-grid">
@@ -43,7 +53,14 @@
         <tbody>
             {% for court in courts %}
             <tr>
-                <td>{{ court.name }}</td>
+                <td>
+                    <form method="POST" class="court-edit-form">
+                        <input type="hidden" name="action" value="edit_court">
+                        <input type="hidden" name="old_court_name" value="{{ court.name }}">
+                        <input type="text" name="new_court_name" value="{{ court.name }}" class="court-name-input" required>
+                        <button type="submit" class="btn btn-primary btn-xs court-save-btn" title="Save">✓</button>
+                    </form>
+                </td>
                 <td>{{ court.start_time }}</td>
                 <td>{{ court.end_time }}</td>
                 <td>

@@ -32,8 +32,23 @@ class AllocationManager:
         if match_start_time < court_start_dt: # Cannot start before court opens
             return False
 
-        # Add check for court end time if available in court model
-        # For now, assuming courts operate long enough for matches within the day_end_limit_dt
+        # Check court-specific constraints
+        for constraint in self.constraints.get('court_specific_constraints', []):
+            if constraint.get('court_name') == court.name:
+                if 'available_after' in constraint:
+                    available_after_dt = self._datetime_from_time(
+                        self._parse_time(constraint['available_after']), 
+                        match_start_time.date()
+                    )
+                    if match_start_time < available_after_dt:
+                        return False
+                if 'available_before' in constraint:
+                    available_before_dt = self._datetime_from_time(
+                        self._parse_time(constraint['available_before']), 
+                        match_start_time.date()
+                    )
+                    if match_end_time > available_before_dt:
+                        return False
 
         for _, scheduled_start, scheduled_end, _ in self.schedule[court.name]:
             if max(scheduled_start, match_start_time) < min(scheduled_end, match_end_time):

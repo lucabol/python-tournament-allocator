@@ -16,7 +16,9 @@
             <li><a href="{{ url_for('teams') }}" {% if request.endpoint == 'teams' %}class="active"{% endif %}>Teams</a></li>
             <li><a href="{{ url_for('courts') }}" {% if request.endpoint == 'courts' %}class="active"{% endif %}>Courts</a></li>
             <li><a href="{{ url_for('constraints') }}" {% if request.endpoint == 'constraints' %}class="active"{% endif %}>Constraints</a></li>
-            <li><a href="{{ url_for('schedule') }}" {% if request.endpoint == 'schedule' %}class="active"{% endif %}>Schedule</a></li>
+            <li><a href="{{ url_for('schedule') }}" {% if request.endpoint == 'schedule' %}class="active"{% endif %}>Pool Schedule</a></li>
+            <li><a href="{{ url_for('sbracket') }}" {% if request.endpoint == 'sbracket' or request.endpoint == 'schedule_single_elimination' %}class="active"{% endif %}>SBracket</a></li>
+            <li><a href="{{ url_for('dbracket') }}" {% if request.endpoint == 'dbracket' or request.endpoint == 'schedule_double_elimination' %}class="active"{% endif %}>DBracket</a></li>
         </ul>
     </nav>
     

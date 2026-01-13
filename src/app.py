@@ -7,7 +7,9 @@ import yaml
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from core.models import Team, Court
 from core.allocation import AllocationManager
-from generate_matches import generate_pool_play_matches
+from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling
+from core.double_elimination import get_double_elimination_bracket_display, generate_double_elimination_matches_for_scheduling
+from generate_matches import generate_pool_play_matches, generate_elimination_matches
 
 app = Flask(__name__)
 app.secret_key = 'tournament-allocator-secret-key'
@@ -26,7 +28,18 @@ def load_teams():
         return {}
     with open(TEAMS_FILE, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
-        return data if data else {}
+        if not data:
+            return {}
+        # Normalize format: each pool has 'teams' list and 'advance' count
+        normalized = {}
+        for pool_name, pool_data in data.items():
+            if isinstance(pool_data, list):
+                # Old format: just a list of teams
+                normalized[pool_name] = {'teams': pool_data, 'advance': 2}
+            else:
+                # New format: dict with teams and advance
+                normalized[pool_name] = pool_data
+        return normalized
 
 
 def save_teams(pools_data):
@@ -88,6 +101,7 @@ def get_default_constraints():
         'time_slot_increment_minutes': 15,
         'day_end_time_limit': '22:00',
         'team_specific_constraints': [],
+        'court_specific_constraints': [],
         'general_constraints': [],
         'tournament_settings': {
             'type': 'pool_play',
@@ -106,7 +120,7 @@ def index():
     constraints = load_constraints()
     
     # Count teams
-    total_teams = sum(len(teams) for teams in pools.values()) if pools else 0
+    total_teams = sum(len(pool_data['teams']) for pool_data in pools.values()) if pools else 0
     
     return render_template('index.html', 
                          pools=pools,
@@ -123,12 +137,13 @@ def teams():
         
         if action == 'add_pool':
             pool_name = request.form.get('pool_name', '').strip()
+            advance_count = int(request.form.get('advance_count', 2))
             if pool_name:
                 pools = load_teams()
                 if pool_name in pools:
                     flash(f'Pool "{pool_name}" already exists.', 'error')
                 else:
-                    pools[pool_name] = []
+                    pools[pool_name] = {'teams': [], 'advance': advance_count}
                     save_teams(pools)
         
         elif action == 'delete_pool':
@@ -145,23 +160,65 @@ def teams():
                 pools = load_teams()
                 # Check if team exists in any pool
                 all_teams = {}
-                for p_name, teams_in_pool in pools.items():
-                    for t in teams_in_pool:
+                for p_name, pool_data in pools.items():
+                    for t in pool_data['teams']:
                         all_teams[t] = p_name
                 
                 if team_name in all_teams:
                     flash(f'Team "{team_name}" already exists in {all_teams[team_name]}.', 'error')
                 elif pool_name in pools:
-                    pools[pool_name].append(team_name)
+                    pools[pool_name]['teams'].append(team_name)
                     save_teams(pools)
         
         elif action == 'delete_team':
             pool_name = request.form.get('pool_name')
             team_name = request.form.get('team_name')
             pools = load_teams()
-            if pool_name in pools and team_name in pools[pool_name]:
-                pools[pool_name].remove(team_name)
+            if pool_name in pools and team_name in pools[pool_name]['teams']:
+                pools[pool_name]['teams'].remove(team_name)
                 save_teams(pools)
+        
+        elif action == 'update_advance':
+            pool_name = request.form.get('pool_name')
+            advance_count = int(request.form.get('advance_count', 2))
+            pools = load_teams()
+            if pool_name in pools:
+                pools[pool_name]['advance'] = advance_count
+                save_teams(pools)
+        
+        elif action == 'edit_team':
+            pool_name = request.form.get('pool_name')
+            old_team_name = request.form.get('old_team_name', '').strip()
+            new_team_name = request.form.get('new_team_name', '').strip()
+            if pool_name and old_team_name and new_team_name:
+                pools = load_teams()
+                # Check if new name already exists in any pool
+                all_teams = {}
+                for p_name, pool_data in pools.items():
+                    for t in pool_data['teams']:
+                        if t != old_team_name:  # Exclude the team being renamed
+                            all_teams[t] = p_name
+                
+                if new_team_name in all_teams:
+                    flash(f'Team "{new_team_name}" already exists in {all_teams[new_team_name]}.', 'error')
+                elif pool_name in pools and old_team_name in pools[pool_name]['teams']:
+                    # Update team name in pool
+                    idx = pools[pool_name]['teams'].index(old_team_name)
+                    pools[pool_name]['teams'][idx] = new_team_name
+                    save_teams(pools)
+                    
+                    # Also update in constraints if referenced
+                    constraints = load_constraints()
+                    updated_constraints = False
+                    if 'team_specific_constraints' in constraints:
+                        for constraint in constraints['team_specific_constraints']:
+                            if constraint.get('team_name') == old_team_name:
+                                constraint['team_name'] = new_team_name
+                                updated_constraints = True
+                    if updated_constraints:
+                        save_constraints(constraints)
+                    
+                    flash(f'Team renamed from "{old_team_name}" to "{new_team_name}".', 'success')
         
         return redirect(url_for('teams'))
     
@@ -192,6 +249,23 @@ def courts():
             court_name = request.form.get('court_name')
             courts_list = [c for c in courts_list if c['name'] != court_name]
             save_courts(courts_list)
+        
+        elif action == 'edit_court':
+            old_court_name = request.form.get('old_court_name', '').strip()
+            new_court_name = request.form.get('new_court_name', '').strip()
+            if old_court_name and new_court_name:
+                # Check if new name already exists
+                existing_names = [c['name'] for c in courts_list if c['name'] != old_court_name]
+                if new_court_name in existing_names:
+                    flash(f'Court "{new_court_name}" already exists.', 'error')
+                else:
+                    # Update court name
+                    for court in courts_list:
+                        if court['name'] == old_court_name:
+                            court['name'] = new_court_name
+                            break
+                    save_courts(courts_list)
+                    flash(f'Court renamed from "{old_court_name}" to "{new_court_name}".', 'success')
         
         return redirect(url_for('courts'))
     
@@ -249,15 +323,53 @@ def constraints():
                 ]
                 save_constraints(constraints_data)
         
+        elif action == 'add_court_constraint':
+            court_name = request.form.get('court_name', '').strip()
+            available_after = request.form.get('available_after', '').strip()
+            available_before = request.form.get('available_before', '').strip()
+            note = request.form.get('court_note', '').strip()
+            
+            if court_name:
+                constraint = {'court_name': court_name}
+                if available_after:
+                    constraint['available_after'] = available_after
+                if available_before:
+                    constraint['available_before'] = available_before
+                if note:
+                    constraint['note'] = note
+                
+                if 'court_specific_constraints' not in constraints_data:
+                    constraints_data['court_specific_constraints'] = []
+                
+                # Remove existing constraint for this court
+                constraints_data['court_specific_constraints'] = [
+                    c for c in constraints_data['court_specific_constraints']
+                    if c.get('court_name') != court_name
+                ]
+                constraints_data['court_specific_constraints'].append(constraint)
+                save_constraints(constraints_data)
+        
+        elif action == 'delete_court_constraint':
+            court_name = request.form.get('court_name')
+            if 'court_specific_constraints' in constraints_data:
+                constraints_data['court_specific_constraints'] = [
+                    c for c in constraints_data['court_specific_constraints']
+                    if c.get('court_name') != court_name
+                ]
+                save_constraints(constraints_data)
+        
         return redirect(url_for('constraints'))
     
     constraints_data = load_constraints()
     pools = load_teams()
     all_teams = []
-    for pool_teams in pools.values():
-        all_teams.extend(pool_teams)
+    for pool_data in pools.values():
+        all_teams.extend(pool_data['teams'])
     
-    return render_template('constraints.html', constraints=constraints_data, all_teams=sorted(all_teams))
+    courts_list = load_courts()
+    all_courts = [c['name'] for c in courts_list]
+    
+    return render_template('constraints.html', constraints=constraints_data, all_teams=sorted(all_teams), all_courts=sorted(all_courts))
 
 
 @app.route('/schedule', methods=['GET', 'POST'])
@@ -281,8 +393,8 @@ def schedule():
             else:
                 # Create Team objects
                 teams = []
-                for pool_name, team_names in pools.items():
-                    for team_name in team_names:
+                for pool_name, pool_data in pools.items():
+                    for team_name in pool_data['teams']:
                         teams.append(Team(name=team_name, attributes={'pool': pool_name}))
                 
                 # Create Court objects
@@ -333,6 +445,232 @@ def schedule():
             error = f"Error generating schedule: {str(e)}"
     
     return render_template('schedule.html', schedule=schedule_data, error=error, stats=stats)
+
+
+@app.route('/sbracket')
+def sbracket():
+    """Display single elimination bracket."""
+    pools = load_teams()
+    
+    if not pools:
+        return render_template('sbracket.html', bracket_data=None, error="No pools defined. Please add teams first.")
+    
+    # Check if any teams will advance
+    total_advancing = sum(pool_data.get('advance', 2) for pool_data in pools.values())
+    if total_advancing < 2:
+        return render_template('sbracket.html', bracket_data=None, error="Not enough teams advancing to create a bracket.")
+    
+    bracket_data = get_elimination_bracket_display(pools)
+    
+    return render_template('sbracket.html', bracket_data=bracket_data, error=None)
+
+
+@app.route('/schedule/single_elimination', methods=['GET', 'POST'])
+def schedule_single_elimination():
+    """Generate and display single elimination round schedule."""
+    schedule_data = None
+    error = None
+    stats = None
+    bracket_data = None
+    
+    if request.method == 'POST':
+        try:
+            pools = load_teams()
+            courts_data = load_courts()
+            constraints_data = load_constraints()
+            
+            if not pools:
+                error = "No teams defined. Please add teams first."
+            elif not courts_data:
+                error = "No courts defined. Please add courts first."
+            else:
+                # Get bracket data for display
+                bracket_data = get_elimination_bracket_display(pools)
+                
+                if bracket_data['total_teams'] < 2:
+                    error = "Not enough teams advancing to create elimination bracket."
+                else:
+                    # Create Team objects for advancing teams
+                    teams = []
+                    for team_name, seed, pool_name in bracket_data['seeded_teams']:
+                        teams.append(Team(name=team_name, attributes={'pool': pool_name, 'seed': seed}))
+                    
+                    # Create Court objects
+                    courts = [Court(name=c['name'], start_time=c['start_time']) for c in courts_data]
+                    
+                    # Generate elimination matches
+                    elimination_matches = generate_elimination_matches_for_scheduling(pools)
+                    
+                    # Filter out byes
+                    match_tuples = [(teams_tuple, round_name) for teams_tuple, round_name in elimination_matches]
+                    
+                    if not match_tuples:
+                        error = "No elimination matches to schedule (all teams may have byes)."
+                    else:
+                        # Create allocation manager and schedule
+                        manager = AllocationManager(teams, courts, constraints_data)
+                        manager._generate_pool_play_matches = lambda: match_tuples
+                        manager.allocate_teams_to_courts()
+                        
+                        # Get schedule output
+                        schedule_output = manager.get_schedule_output()
+                        
+                        # Organize by day and round
+                        schedule_data = {}
+                        for court_info in schedule_output:
+                            for match in court_info['matches']:
+                                day = match['day']
+                                if day not in schedule_data:
+                                    schedule_data[day] = {}
+                                court_name = court_info['court_name']
+                                if court_name not in schedule_data[day]:
+                                    schedule_data[day][court_name] = []
+                                schedule_data[day][court_name].append(match)
+                        
+                        # Sort matches by time
+                        for day in schedule_data:
+                            for court in schedule_data[day]:
+                                schedule_data[day][court].sort(key=lambda x: x['start_time'])
+                        
+                        # Calculate stats
+                        total_scheduled = sum(
+                            len(court_matches) 
+                            for day_data in schedule_data.values() 
+                            for court_matches in day_data.values()
+                        )
+                        stats = {
+                            'total_matches': len(match_tuples),
+                            'scheduled_matches': total_scheduled,
+                            'unscheduled_matches': len(match_tuples) - total_scheduled
+                        }
+                        
+        except Exception as e:
+            import traceback
+            error = f"Error generating elimination schedule: {str(e)}"
+            traceback.print_exc()
+    
+    pools = load_teams()
+    if not bracket_data and pools:
+        bracket_data = get_elimination_bracket_display(pools)
+    
+    return render_template('schedule_single_elimination.html', 
+                         schedule=schedule_data, 
+                         error=error, 
+                         stats=stats,
+                         bracket_data=bracket_data)
+
+
+@app.route('/dbracket')
+def dbracket():
+    """Display double elimination bracket."""
+    pools = load_teams()
+    
+    if not pools:
+        return render_template('dbracket.html', bracket_data=None, error="No pools defined. Please add teams first.")
+    
+    # Check if any teams will advance
+    total_advancing = sum(pool_data.get('advance', 2) for pool_data in pools.values())
+    if total_advancing < 2:
+        return render_template('dbracket.html', bracket_data=None, error="Not enough teams advancing to create a bracket.")
+    
+    bracket_data = get_double_elimination_bracket_display(pools)
+    
+    return render_template('dbracket.html', bracket_data=bracket_data, error=None)
+
+
+@app.route('/schedule/double_elimination', methods=['GET', 'POST'])
+def schedule_double_elimination():
+    """Generate and display double elimination round schedule."""
+    schedule_data = None
+    error = None
+    stats = None
+    bracket_data = None
+    
+    if request.method == 'POST':
+        try:
+            pools = load_teams()
+            courts_data = load_courts()
+            constraints_data = load_constraints()
+            
+            if not pools:
+                error = "No teams defined. Please add teams first."
+            elif not courts_data:
+                error = "No courts defined. Please add courts first."
+            else:
+                # Get bracket data for display
+                bracket_data = get_double_elimination_bracket_display(pools)
+                
+                if bracket_data['total_teams'] < 2:
+                    error = "Not enough teams advancing to create double elimination bracket."
+                else:
+                    # Create Team objects for advancing teams
+                    teams = []
+                    for team_name, seed, pool_name in bracket_data['seeded_teams']:
+                        teams.append(Team(name=team_name, attributes={'pool': pool_name, 'seed': seed}))
+                    
+                    # Create Court objects
+                    courts = [Court(name=c['name'], start_time=c['start_time']) for c in courts_data]
+                    
+                    # Generate double elimination matches (first round only)
+                    elimination_matches = generate_double_elimination_matches_for_scheduling(pools)
+                    
+                    # Filter out byes
+                    match_tuples = [(teams_tuple, round_name) for teams_tuple, round_name in elimination_matches]
+                    
+                    if not match_tuples:
+                        error = "No double elimination matches to schedule (all teams may have byes)."
+                    else:
+                        # Create allocation manager and schedule
+                        manager = AllocationManager(teams, courts, constraints_data)
+                        manager._generate_pool_play_matches = lambda: match_tuples
+                        manager.allocate_teams_to_courts()
+                        
+                        # Get schedule output
+                        schedule_output = manager.get_schedule_output()
+                        
+                        # Organize by day
+                        schedule_data = {}
+                        for court_info in schedule_output:
+                            for match in court_info['matches']:
+                                day = match['day']
+                                if day not in schedule_data:
+                                    schedule_data[day] = {}
+                                court_name = court_info['court_name']
+                                if court_name not in schedule_data[day]:
+                                    schedule_data[day][court_name] = []
+                                schedule_data[day][court_name].append(match)
+                        
+                        # Sort matches by time
+                        for day in schedule_data:
+                            for court in schedule_data[day]:
+                                schedule_data[day][court].sort(key=lambda x: x['start_time'])
+                        
+                        # Calculate stats
+                        total_scheduled = sum(
+                            len(court_matches) 
+                            for day_data in schedule_data.values() 
+                            for court_matches in day_data.values()
+                        )
+                        stats = {
+                            'total_matches': len(match_tuples),
+                            'scheduled_matches': total_scheduled,
+                            'unscheduled_matches': len(match_tuples) - total_scheduled
+                        }
+                        
+        except Exception as e:
+            import traceback
+            error = f"Error generating double elimination schedule: {str(e)}"
+            traceback.print_exc()
+    
+    pools = load_teams()
+    if not bracket_data and pools:
+        bracket_data = get_double_elimination_bracket_display(pools)
+    
+    return render_template('schedule_double_elimination.html', 
+                         schedule=schedule_data, 
+                         error=error, 
+                         stats=stats,
+                         bracket_data=bracket_data)
 
 
 if __name__ == '__main__':

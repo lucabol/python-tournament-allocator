@@ -20,6 +20,8 @@
     <form method="POST" class="inline-form">
         <input type="hidden" name="action" value="add_pool">
         <input type="text" name="pool_name" placeholder="Pool name (e.g., Pool A)" required>
+        <input type="number" name="advance_count" value="2" min="1" max="10" style="width: 80px;" title="Teams advancing">
+        <span class="help-inline">advance</span>
         <button type="submit" class="btn btn-primary">Add Pool</button>
     </form>
 </section>
@@ -29,7 +31,7 @@
     <h2>Pools & Teams</h2>
     
     <div class="pools-grid">
-        {% for pool_name, team_list in pools.items() %}
+        {% for pool_name, pool_data in pools.items() %}
         <div class="pool-card">
             <div class="pool-header">
                 <h3>{{ pool_name }}</h3>
@@ -40,6 +42,17 @@
                 </form>
             </div>
             
+            <div class="advance-setting">
+                <form method="POST" class="inline-form">
+                    <input type="hidden" name="action" value="update_advance">
+                    <input type="hidden" name="pool_name" value="{{ pool_name }}">
+                    <label>Top</label>
+                    <input type="number" name="advance_count" value="{{ pool_data.advance }}" min="1" max="10" style="width: 60px;">
+                    <label>advance</label>
+                    <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                </form>
+            </div>
+            
             <form method="POST" class="add-team-form">
                 <input type="hidden" name="action" value="add_team">
                 <input type="hidden" name="pool_name" value="{{ pool_name }}">
@@ -47,11 +60,17 @@
                 <button type="submit" class="btn btn-success btn-sm">Add Team</button>
             </form>
             
-            {% if team_list %}
+            {% if pool_data.teams %}
             <ul class="team-list">
-                {% for team in team_list %}
+                {% for team in pool_data.teams %}
                 <li>
-                    <span>{{ team }}</span>
+                    <form method="POST" class="team-edit-form">
+                        <input type="hidden" name="action" value="edit_team">
+                        <input type="hidden" name="pool_name" value="{{ pool_name }}">
+                        <input type="hidden" name="old_team_name" value="{{ team }}">
+                        <input type="text" name="new_team_name" value="{{ team }}" class="team-name-input" required>
+                        <button type="submit" class="btn btn-primary btn-xs team-save-btn" title="Save">✓</button>
+                    </form>
                     <form method="POST" class="inline">
                         <input type="hidden" name="action" value="delete_team">
                         <input type="hidden" name="pool_name" value="{{ pool_name }}">
@@ -66,8 +85,9 @@
             {% endif %}
             
             <p class="pool-stats">
-                {{ team_list|length }} team(s) • 
-                {{ (team_list|length * (team_list|length - 1)) // 2 }} match(es)
+                {{ pool_data.teams|length }} team(s) • 
+                {{ (pool_data.teams|length * (pool_data.teams|length - 1)) // 2 }} match(es) •
+                Top {{ pool_data.advance }} advance
             </p>
         </div>
         {% endfor %}

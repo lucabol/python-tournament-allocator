@@ -1,36 +1,39 @@
-pool1:
-- Team A
-- Team B
-- Team C
-- Team I
-- Team J
-- Team Z
 pool2:
-- Team D
-- Team E
-- Team F
-- Team K
+  advance: 2
+  teams:
+  - Team D
+  - Team EM
+  - Team F
+  - Team K
 pool3:
-- Team G
-- Team H
-- Team L
-- Team M
-- Team N
+  advance: 2
+  teams:
+  - Team G
+  - Team H
+  - Team L
+  - Team M
+  - Team N
 pool4:
-- Team O
-- Team P
-- Team Q
-- Team R
-- Team S
+  advance: 2
+  teams:
+  - Team O
+  - Team P
+  - Team Q
+  - Team R
+  - Team S
 pool5:
-- Team T
-- Team U
-- Team V
-- Team W
-- Team X
+  advance: 2
+  teams:
+  - Team T
+  - Team U
+  - Team V
+  - Team W
+  - Team X
 pool6:
-- Team Y
-- Team Z
-- Team AA
-- Team AB
-- Team AC
+  advance: 2
+  teams:
+  - Team Y
+  - Team Z
+  - Team A
+  - Team AB
+  - Team AC

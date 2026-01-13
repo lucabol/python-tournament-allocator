@@ -1,0 +1,290 @@
+"""
+Single elimination bracket generation and management.
+"""
+import math
+from typing import List, Dict, Tuple, Optional
+
+
+def get_round_name(teams_in_round: int, total_teams: int) -> str:
+    """Get the name of a round based on number of teams."""
+    if teams_in_round == 2:
+        return "Final"
+    elif teams_in_round == 4:
+        return "Semifinal"
+    elif teams_in_round == 8:
+        return "Quarterfinal"
+    elif teams_in_round == 16:
+        return "Round of 16"
+    elif teams_in_round == 32:
+        return "Round of 32"
+    elif teams_in_round == 64:
+        return "Round of 64"
+    else:
+        return f"Round of {teams_in_round}"
+
+
+def calculate_bracket_size(num_teams: int) -> int:
+    """Calculate the bracket size (next power of 2)."""
+    if num_teams <= 0:
+        return 0
+    return 2 ** math.ceil(math.log2(num_teams))
+
+
+def calculate_byes(num_teams: int) -> int:
+    """Calculate number of byes needed."""
+    bracket_size = calculate_bracket_size(num_teams)
+    return bracket_size - num_teams
+
+
+def seed_teams_from_pools(pools: Dict[str, Dict]) -> List[Tuple[str, int, str]]:
+    """
+    Create seeded list of teams advancing from pools.
+    Returns list of (team_name, seed, pool_name) tuples.
+    
+    Seeding is done by pool finish position:
+    - All 1st place finishers get top seeds
+    - All 2nd place finishers get next seeds
+    - etc.
+    
+    For now, we use placeholder teams since actual results aren't known yet.
+    """
+    seeded_teams = []
+    
+    # Get max advance count to determine how many positions we need
+    if not pools:
+        return seeded_teams
+    
+    max_advance = max(pool_data.get('advance', 2) for pool_data in pools.values())
+    pool_names = sorted(pools.keys())
+    
+    seed = 1
+    # For each finishing position (1st, 2nd, etc.)
+    for position in range(1, max_advance + 1):
+        for pool_name in pool_names:
+            pool_data = pools[pool_name]
+            advance_count = pool_data.get('advance', 2)
+            if position <= advance_count:
+                # Create placeholder name for team in this position
+                team_placeholder = f"{pool_name}_pos{position}"
+                seeded_teams.append((team_placeholder, seed, pool_name))
+                seed += 1
+    
+    return seeded_teams
+
+
+def create_bracket_matchups(seeded_teams: List[Tuple[str, int, str]]) -> List[Dict]:
+    """
+    Create first round matchups for single elimination bracket.
+    Uses standard bracket seeding (1 vs 16, 8 vs 9, etc.)
+    
+    Returns list of match dicts with:
+    - teams: tuple of (team1, team2) or (team1, 'BYE')
+    - round: round name
+    - match_number: position in bracket
+    - seeds: tuple of seed numbers
+    """
+    num_teams = len(seeded_teams)
+    if num_teams < 2:
+        return []
+    
+    bracket_size = calculate_bracket_size(num_teams)
+    num_byes = calculate_byes(num_teams)
+    
+    # Create seed-to-team mapping
+    seed_to_team = {seed: team for team, seed, _ in seeded_teams}
+    
+    # Standard bracket positions for first round
+    # For a bracket of N teams, seed 1 plays seed N, seed 2 plays seed N-1, etc.
+    # But they're arranged so winners meet in proper order
+    matchups = []
+    
+    # Generate bracket order (standard tournament seeding)
+    bracket_order = _generate_bracket_order(bracket_size)
+    
+    round_name = get_round_name(bracket_size, bracket_size)
+    match_number = 1
+    
+    for i in range(0, len(bracket_order), 2):
+        seed1 = bracket_order[i]
+        seed2 = bracket_order[i + 1]
+        
+        team1 = seed_to_team.get(seed1)
+        team2 = seed_to_team.get(seed2)
+        
+        # Handle byes - higher seed gets bye
+        if team1 is None and team2 is None:
+            continue  # Skip empty matchup
+        elif team2 is None:
+            # team1 gets a bye
+            matchups.append({
+                'teams': (team1, 'BYE'),
+                'round': round_name,
+                'match_number': match_number,
+                'seeds': (seed1, seed2),
+                'is_bye': True
+            })
+        elif team1 is None:
+            # team2 gets a bye (shouldn't happen with proper seeding)
+            matchups.append({
+                'teams': ('BYE', team2),
+                'round': round_name,
+                'match_number': match_number,
+                'seeds': (seed1, seed2),
+                'is_bye': True
+            })
+        else:
+            matchups.append({
+                'teams': (team1, team2),
+                'round': round_name,
+                'match_number': match_number,
+                'seeds': (seed1, seed2),
+                'is_bye': False
+            })
+        
+        match_number += 1
+    
+    return matchups
+
+
+def _generate_bracket_order(bracket_size: int) -> List[int]:
+    """
+    Generate the standard tournament bracket order.
+    This ensures that if all higher seeds win, they meet in the proper rounds.
+    
+    For 8 teams: [1, 8, 4, 5, 2, 7, 3, 6]
+    This gives matchups: 1v8, 4v5, 2v7, 3v6
+    Winners: 1v4 side, 2v3 side
+    Final: 1v2 (if chalk)
+    """
+    if bracket_size == 2:
+        return [1, 2]
+    
+    # Recursive generation
+    half_size = bracket_size // 2
+    upper_half = _generate_bracket_order(half_size)
+    
+    # Create lower half as complement
+    lower_half = [bracket_size + 1 - seed for seed in upper_half]
+    
+    # Interleave: pair each upper seed with its complement
+    result = []
+    for u, l in zip(upper_half, lower_half):
+        result.extend([u, l])
+    
+    return result
+
+
+def generate_elimination_rounds(pools: Dict[str, Dict]) -> Dict[str, List[Dict]]:
+    """
+    Generate all elimination round matches based on pools configuration.
+    
+    Returns dict with:
+    - 'seeded_teams': list of (team, seed, pool) tuples
+    - 'rounds': dict of round_name -> list of matches
+    - 'bracket_size': total bracket size
+    - 'total_rounds': number of rounds
+    """
+    seeded_teams = seed_teams_from_pools(pools)
+    
+    if len(seeded_teams) < 2:
+        return {
+            'seeded_teams': seeded_teams,
+            'rounds': {},
+            'bracket_size': 0,
+            'total_rounds': 0
+        }
+    
+    bracket_size = calculate_bracket_size(len(seeded_teams))
+    total_rounds = int(math.log2(bracket_size))
+    
+    # Generate first round matchups
+    first_round_matches = create_bracket_matchups(seeded_teams)
+    
+    # Organize matches by round
+    rounds = {}
+    current_round_matches = first_round_matches
+    current_teams_count = bracket_size
+    
+    for round_num in range(total_rounds):
+        round_name = get_round_name(current_teams_count, bracket_size)
+        
+        if round_num == 0:
+            rounds[round_name] = current_round_matches
+        else:
+            # Generate placeholder matches for subsequent rounds
+            num_matches = current_teams_count // 2
+            round_matches = []
+            for i in range(num_matches):
+                round_matches.append({
+                    'teams': (f'Winner M{i*2+1}', f'Winner M{i*2+2}'),
+                    'round': round_name,
+                    'match_number': i + 1,
+                    'seeds': None,
+                    'is_bye': False,
+                    'is_placeholder': True
+                })
+            rounds[round_name] = round_matches
+        
+        current_teams_count //= 2
+    
+    return {
+        'seeded_teams': seeded_teams,
+        'rounds': rounds,
+        'bracket_size': bracket_size,
+        'total_rounds': total_rounds
+    }
+
+
+def generate_elimination_matches_for_scheduling(pools: Dict[str, Dict]) -> List[Tuple[Tuple[str, str], str]]:
+    """
+    Generate elimination matches in format suitable for AllocationManager.
+    Only returns first-round matches that need scheduling (non-byes).
+    
+    Returns list of ((team1, team2), round_name) tuples.
+    """
+    bracket_data = generate_elimination_rounds(pools)
+    matches = []
+    
+    for round_name, round_matches in bracket_data['rounds'].items():
+        for match in round_matches:
+            # Skip byes and placeholder matches
+            if match.get('is_bye', False):
+                continue
+            if match.get('is_placeholder', False):
+                continue
+            
+            team1, team2 = match['teams']
+            matches.append(((team1, team2), round_name))
+    
+    return matches
+
+
+def get_elimination_bracket_display(pools: Dict[str, Dict]) -> Dict:
+    """
+    Get bracket data formatted for UI display.
+    """
+    bracket_data = generate_elimination_rounds(pools)
+    
+    # Calculate statistics
+    total_teams = len(bracket_data['seeded_teams'])
+    first_round_byes = sum(
+        1 for m in bracket_data['rounds'].get(
+            get_round_name(bracket_data['bracket_size'], bracket_data['bracket_size']), []
+        ) if m.get('is_bye', False)
+    )
+    
+    # Count actual matches (non-byes) per round
+    matches_per_round = {}
+    for round_name, matches in bracket_data['rounds'].items():
+        actual_matches = [m for m in matches if not m.get('is_bye', False)]
+        matches_per_round[round_name] = len(actual_matches)
+    
+    return {
+        'seeded_teams': bracket_data['seeded_teams'],
+        'rounds': bracket_data['rounds'],
+        'bracket_size': bracket_data['bracket_size'],
+        'total_rounds': bracket_data['total_rounds'],
+        'total_teams': total_teams,
+        'byes': first_round_byes,
+        'matches_per_round': matches_per_round
+    }
