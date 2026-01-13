@@ -287,9 +287,10 @@ def courts():
     return render_template('courts.html', courts=courts_list)
 
 
-@app.route('/constraints', methods=['GET', 'POST'])
-def constraints():
-    """Constraints management page."""
+@app.route('/settings', methods=['GET', 'POST'])
+@app.route('/constraints', methods=['GET', 'POST'])  # Keep old URL for compatibility
+def settings():
+    """Settings management page."""
     if request.method == 'POST':
         action = request.form.get('action')
         constraints_data = load_constraints()
@@ -300,6 +301,7 @@ def constraints():
             constraints_data['min_break_between_matches_minutes'] = int(request.form.get('min_break', 15))
             constraints_data['time_slot_increment_minutes'] = int(request.form.get('time_increment', 15))
             constraints_data['day_end_time_limit'] = request.form.get('day_end_time', '22:00')
+            constraints_data['bracket_type'] = request.form.get('bracket_type', 'single')
             save_constraints(constraints_data)
         
         elif action == 'add_team_constraint':
@@ -337,7 +339,7 @@ def constraints():
                 ]
                 save_constraints(constraints_data)
         
-        return redirect(url_for('constraints'))
+        return redirect(url_for('settings'))
     
     constraints_data = load_constraints()
     pools = load_teams()
@@ -349,6 +351,19 @@ def constraints():
     all_courts = [c['name'] for c in courts_list]
     
     return render_template('constraints.html', constraints=constraints_data, all_teams=sorted(all_teams), all_courts=sorted(all_courts))
+
+# Alias for backward compatibility
+constraints = settings
+
+
+@app.route('/bracket')
+def bracket():
+    """Redirect to appropriate bracket based on settings."""
+    constraints_data = load_constraints()
+    bracket_type = constraints_data.get('bracket_type', 'single')
+    if bracket_type == 'double':
+        return redirect(url_for('dbracket'))
+    return redirect(url_for('sbracket'))
 
 
 @app.route('/schedule', methods=['GET', 'POST'])

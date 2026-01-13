@@ -426,11 +426,11 @@ class TestCourtsRoutes:
         assert b'already exists' in response.data
 
 
-class TestConstraintsRoute:
-    """Tests for constraints route with team list from new format."""
+class TestSettingsRoute:
+    """Tests for settings route with team list from new format."""
     
-    def test_constraints_lists_all_teams(self, client, temp_data_dir):
-        """Test that constraints page lists teams from new format pools."""
+    def test_settings_lists_all_teams(self, client, temp_data_dir):
+        """Test that settings page lists teams from new format pools."""
         import app as app_module
         
         teams_file = temp_data_dir / "teams.yaml"
@@ -442,7 +442,7 @@ class TestConstraintsRoute:
 """
         teams_file.write_text(yaml_content)
         
-        response = client.get('/constraints')
+        response = client.get('/settings')
         
         assert response.status_code == 200
         assert b'Alpha Team' in response.data or b'alpha' in response.data.lower()
