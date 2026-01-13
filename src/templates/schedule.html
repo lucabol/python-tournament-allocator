@@ -6,8 +6,11 @@
 <h1>Tournament Schedule</h1>
 
 <section class="section">
-    <form method="POST">
-        <button type="submit" class="btn btn-success btn-lg">🔄 Generate Schedule</button>
+    <form method="POST" onsubmit="this.querySelector('.btn-with-spinner').classList.add('loading')">
+        <button type="submit" class="btn btn-success btn-lg btn-with-spinner">
+            <span>🔄 Generate Schedule</span>
+            <span class="spinner"></span>
+        </button>
     </form>
 </section>
 

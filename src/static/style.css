@@ -1176,3 +1176,35 @@ tr:hover .court-save-btn {
     text-align: right;
     margin-top: 0.25rem;
 }
+
+/* Loading Spinner */
+.btn-with-spinner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.spinner {
+    display: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.btn-with-spinner.loading .spinner {
+    display: inline-block;
+}
+
+.btn-with-spinner.loading {
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

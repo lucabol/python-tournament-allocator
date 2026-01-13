@@ -28,8 +28,11 @@
 {% endif %}
 
 <div class="schedule-actions">
-    <form method="POST" class="schedule-form">
-        <button type="submit" class="btn btn-primary btn-large">Generate Double Elimination Schedule</button>
+    <form method="POST" class="schedule-form" onsubmit="this.querySelector('.btn-with-spinner').classList.add('loading')">
+        <button type="submit" class="btn btn-primary btn-large btn-with-spinner">
+            <span>Generate Double Elimination Schedule</span>
+            <span class="spinner"></span>
+        </button>
     </form>
     <a href="{{ url_for('dbracket') }}" class="btn btn-secondary">View Full Bracket</a>
 </div>
