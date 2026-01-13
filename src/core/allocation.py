@@ -55,24 +55,12 @@ class AllocationManager:
         
         if match_start_time < court_start_dt: # Cannot start before court opens
             return False
-
-        # Check court-specific constraints
-        for constraint in self.constraints.get('court_specific_constraints', []):
-            if constraint.get('court_name') == court.name:
-                if 'available_after' in constraint:
-                    available_after_dt = self._datetime_from_time(
-                        self._parse_time(constraint['available_after']), 
-                        match_start_time.date()
-                    )
-                    if match_start_time < available_after_dt:
-                        return False
-                if 'available_before' in constraint:
-                    available_before_dt = self._datetime_from_time(
-                        self._parse_time(constraint['available_before']), 
-                        match_start_time.date()
-                    )
-                    if match_end_time > available_before_dt:
-                        return False
+        
+        # Check court end time if specified
+        if court.end_time:
+            court_end_dt = self._datetime_from_time(self._parse_time(court.end_time), match_start_time.date())
+            if match_end_time > court_end_dt:  # Cannot end after court closes
+                return False
 
         for _, scheduled_start, scheduled_end, _ in self.schedule[court.name]:
             if max(scheduled_start, match_start_time) < min(scheduled_end, match_end_time):
@@ -179,20 +167,6 @@ class AllocationManager:
                     play_before = constraint['play_before']
         
         return play_after, play_before
-
-    def _get_court_constraints_for_cpsat(self, court_name):
-        """Get available_after and available_before constraints for a court."""
-        available_after = None
-        available_before = None
-        
-        for constraint in self.constraints.get('court_specific_constraints', []):
-            if constraint.get('court_name') == court_name:
-                if 'available_after' in constraint:
-                    available_after = constraint['available_after']
-                if 'available_before' in constraint:
-                    available_before = constraint['available_before']
-        
-        return available_after, available_before
 
     def allocate_teams_to_courts(self):
         """
@@ -303,26 +277,19 @@ class AllocationManager:
                     start = match_start_vars[(m_idx, c_idx, d)]
                     model.Add(start >= court_start_slot).OnlyEnforceIf(present)
         
-        # Constraint 4: Court-specific availability constraints
+        # Constraint 3b: Court closing time constraints (from end_time)
         for m_idx in range(num_matches):
             for c_idx, court in enumerate(self.courts):
-                available_after, available_before = self._get_court_constraints_for_cpsat(court.name)
-                for d in range(num_days):
-                    present = match_present_vars[(m_idx, c_idx, d)]
-                    start = match_start_vars[(m_idx, c_idx, d)]
-                    end = match_end_vars[(m_idx, c_idx, d)]
-                    
-                    if available_after:
-                        after_time = self._parse_time(available_after)
-                        after_slot = self._time_to_slot(after_time, day_start_time, time_slot_minutes)
-                        model.Add(start >= after_slot).OnlyEnforceIf(present)
-                    
-                    if available_before:
-                        before_time = self._parse_time(available_before)
-                        before_slot = self._time_to_slot(before_time, day_start_time, time_slot_minutes)
-                        model.Add(end <= before_slot).OnlyEnforceIf(present)
+                if court.end_time:
+                    court_end = self._parse_time(court.end_time)
+                    court_end_minutes = court_end.hour * 60 + court_end.minute
+                    court_end_slot = (court_end_minutes - day_start_minutes) // time_slot_minutes
+                    for d in range(num_days):
+                        present = match_present_vars[(m_idx, c_idx, d)]
+                        end = match_end_vars[(m_idx, c_idx, d)]
+                        model.Add(end <= court_end_slot).OnlyEnforceIf(present)
         
-        # Constraint 5: Team-specific play_after and play_before constraints
+        # Constraint 4: Team-specific play_after and play_before constraints
         for m_idx, (match_tuple, _) in enumerate(matches_to_schedule):
             team1, team2 = match_tuple
             for team in [str(team1), str(team2)]:
@@ -344,7 +311,7 @@ class AllocationManager:
                             before_slot = self._time_to_slot(before_time, day_start_time, time_slot_minutes)
                             model.Add(end <= before_slot).OnlyEnforceIf(present)
         
-        # Constraint 6: No team can play overlapping matches + minimum break
+        # Constraint 5: No team can play overlapping matches + minimum break
         # Group matches by team
         team_matches = {team: [] for team in all_team_names}
         for m_idx, (match_tuple, _) in enumerate(matches_to_schedule):

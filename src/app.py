@@ -101,7 +101,7 @@ def get_default_constraints():
         'time_slot_increment_minutes': 15,
         'day_end_time_limit': '22:00',
         'team_specific_constraints': [],
-        'court_specific_constraints': [],
+
         'general_constraints': [],
         'tournament_settings': {
             'type': 'pool_play',
@@ -337,41 +337,6 @@ def constraints():
                 ]
                 save_constraints(constraints_data)
         
-        elif action == 'add_court_constraint':
-            court_name = request.form.get('court_name', '').strip()
-            available_after = request.form.get('available_after', '').strip()
-            available_before = request.form.get('available_before', '').strip()
-            note = request.form.get('court_note', '').strip()
-            
-            if court_name:
-                constraint = {'court_name': court_name}
-                if available_after:
-                    constraint['available_after'] = available_after
-                if available_before:
-                    constraint['available_before'] = available_before
-                if note:
-                    constraint['note'] = note
-                
-                if 'court_specific_constraints' not in constraints_data:
-                    constraints_data['court_specific_constraints'] = []
-                
-                # Remove existing constraint for this court
-                constraints_data['court_specific_constraints'] = [
-                    c for c in constraints_data['court_specific_constraints']
-                    if c.get('court_name') != court_name
-                ]
-                constraints_data['court_specific_constraints'].append(constraint)
-                save_constraints(constraints_data)
-        
-        elif action == 'delete_court_constraint':
-            court_name = request.form.get('court_name')
-            if 'court_specific_constraints' in constraints_data:
-                constraints_data['court_specific_constraints'] = [
-                    c for c in constraints_data['court_specific_constraints']
-                    if c.get('court_name') != court_name
-                ]
-                save_constraints(constraints_data)
-        
         return redirect(url_for('constraints'))
     
     constraints_data = load_constraints()
@@ -412,7 +377,7 @@ def schedule():
                         teams.append(Team(name=team_name, attributes={'pool': pool_name}))
                 
                 # Create Court objects
-                courts = [Court(name=c['name'], start_time=c['start_time']) for c in courts_data]
+                courts = [Court(name=c['name'], start_time=c['start_time'], end_time=c.get('end_time')) for c in courts_data]
                 
                 # Generate matches
                 matches = generate_pool_play_matches(teams)
@@ -530,7 +495,7 @@ def schedule_single_elimination():
                         teams.append(Team(name=team_name, attributes={'pool': pool_name, 'seed': seed}))
                     
                     # Create Court objects
-                    courts = [Court(name=c['name'], start_time=c['start_time']) for c in courts_data]
+                    courts = [Court(name=c['name'], start_time=c['start_time'], end_time=c.get('end_time')) for c in courts_data]
                     
                     # Generate elimination matches
                     elimination_matches = generate_elimination_matches_for_scheduling(pools)
@@ -643,7 +608,7 @@ def schedule_double_elimination():
                         teams.append(Team(name=team_name, attributes={'pool': pool_name, 'seed': seed}))
                     
                     # Create Court objects
-                    courts = [Court(name=c['name'], start_time=c['start_time']) for c in courts_data]
+                    courts = [Court(name=c['name'], start_time=c['start_time'], end_time=c.get('end_time')) for c in courts_data]
                     
                     # Generate double elimination matches (first round only)
                     elimination_matches = generate_double_elimination_matches_for_scheduling(pools)

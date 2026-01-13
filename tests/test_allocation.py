@@ -102,6 +102,47 @@ class TestCourtAvailability:
         new_end = datetime.datetime.combine(base_date, datetime.time(11, 0))
         
         assert manager._check_court_availability(court, new_start, new_end) is True
+    
+    def test_court_unavailable_after_end_time(self, sample_teams, basic_constraints):
+        """Test that court is unavailable after its end time."""
+        # Create a court that closes at 10:00
+        courts = [Court(name="Court 1", start_time="08:00", end_time="10:00")]
+        manager = AllocationManager(sample_teams, courts, basic_constraints)
+        court = courts[0]
+        
+        base_date = datetime.date.today()
+        # Match that ends after court closes
+        start = datetime.datetime.combine(base_date, datetime.time(9, 30))
+        end = datetime.datetime.combine(base_date, datetime.time(10, 30))
+        
+        assert manager._check_court_availability(court, start, end) is False
+    
+    def test_court_available_before_end_time(self, sample_teams, basic_constraints):
+        """Test that court is available when match ends before court closes."""
+        # Create a court that closes at 10:00
+        courts = [Court(name="Court 1", start_time="08:00", end_time="10:00")]
+        manager = AllocationManager(sample_teams, courts, basic_constraints)
+        court = courts[0]
+        
+        base_date = datetime.date.today()
+        # Match that ends exactly at court close
+        start = datetime.datetime.combine(base_date, datetime.time(9, 0))
+        end = datetime.datetime.combine(base_date, datetime.time(10, 0))
+        
+        assert manager._check_court_availability(court, start, end) is True
+    
+    def test_court_no_end_time_allows_all_times(self, sample_teams, basic_constraints):
+        """Test that court with no end_time allows matches at any time."""
+        courts = [Court(name="Court 1", start_time="08:00")]  # No end_time
+        manager = AllocationManager(sample_teams, courts, basic_constraints)
+        court = courts[0]
+        
+        base_date = datetime.date.today()
+        # Late evening match
+        start = datetime.datetime.combine(base_date, datetime.time(20, 0))
+        end = datetime.datetime.combine(base_date, datetime.time(21, 0))
+        
+        assert manager._check_court_availability(court, start, end) is True
 
 
 class TestTeamConstraints:
@@ -194,135 +235,6 @@ class TestTeamConstraints:
         new_start = datetime.datetime.combine(base_date, datetime.time(10, 10))
         
         assert manager._check_team_constraints(("Team A", "Team C"), new_start) is False
-
-
-class TestCourtConstraints:
-    """Tests for court-specific constraint validation."""
-    
-    @pytest.fixture
-    def constraints_with_court_preferences(self):
-        """Constraints including court-specific availability."""
-        return {
-            'match_duration': 60,
-            'min_break_between_matches': 15,
-            'court_specific_constraints': [
-                {'court_name': 'Court 1', 'available_after': '10:00', 'note': 'Setup needed'},
-                {'court_name': 'Court 2', 'available_before': '14:00', 'note': 'Closes early'},
-            ],
-            'team_specific_constraints': []
-        }
-    
-    @pytest.fixture
-    def constraints_with_both_court_limits(self):
-        """Constraints with both available_after and available_before."""
-        return {
-            'match_duration': 60,
-            'min_break_between_matches': 15,
-            'court_specific_constraints': [
-                {'court_name': 'Court 1', 'available_after': '10:00', 'available_before': '16:00'},
-            ],
-            'team_specific_constraints': []
-        }
-    
-    def test_available_after_constraint_satisfied(self, sample_teams, sample_courts, constraints_with_court_preferences):
-        """Test available_after constraint is satisfied."""
-        manager = AllocationManager(sample_teams, sample_courts, constraints_with_court_preferences)
-        court = sample_courts[0]  # Court 1
-        
-        base_date = datetime.date.today()
-        # Court 1 has available_after: 10:00, scheduling at 10:30 should work
-        match_start = datetime.datetime.combine(base_date, datetime.time(10, 30))
-        match_end = datetime.datetime.combine(base_date, datetime.time(11, 30))
-        
-        assert manager._check_court_availability(court, match_start, match_end) is True
-    
-    def test_available_after_constraint_violated(self, sample_teams, sample_courts, constraints_with_court_preferences):
-        """Test available_after constraint is violated."""
-        manager = AllocationManager(sample_teams, sample_courts, constraints_with_court_preferences)
-        court = sample_courts[0]  # Court 1
-        
-        base_date = datetime.date.today()
-        # Court 1 has available_after: 10:00, scheduling at 09:00 should fail
-        match_start = datetime.datetime.combine(base_date, datetime.time(9, 0))
-        match_end = datetime.datetime.combine(base_date, datetime.time(10, 0))
-        
-        assert manager._check_court_availability(court, match_start, match_end) is False
-    
-    def test_available_before_constraint_satisfied(self, sample_teams, sample_courts, constraints_with_court_preferences):
-        """Test available_before constraint is satisfied."""
-        manager = AllocationManager(sample_teams, sample_courts, constraints_with_court_preferences)
-        court = sample_courts[1]  # Court 2
-        
-        base_date = datetime.date.today()
-        # Court 2 has available_before: 14:00, match at 12:00 ending at 13:00 should work
-        match_start = datetime.datetime.combine(base_date, datetime.time(12, 0))
-        match_end = datetime.datetime.combine(base_date, datetime.time(13, 0))
-        
-        assert manager._check_court_availability(court, match_start, match_end) is True
-    
-    def test_available_before_constraint_violated(self, sample_teams, sample_courts, constraints_with_court_preferences):
-        """Test available_before constraint is violated."""
-        manager = AllocationManager(sample_teams, sample_courts, constraints_with_court_preferences)
-        court = sample_courts[1]  # Court 2
-        
-        base_date = datetime.date.today()
-        # Court 2 has available_before: 14:00, match at 13:30 ending at 14:30 should fail
-        match_start = datetime.datetime.combine(base_date, datetime.time(13, 30))
-        match_end = datetime.datetime.combine(base_date, datetime.time(14, 30))
-        
-        assert manager._check_court_availability(court, match_start, match_end) is False
-    
-    def test_both_constraints_satisfied(self, sample_teams, sample_courts, constraints_with_both_court_limits):
-        """Test both available_after and available_before constraints satisfied."""
-        manager = AllocationManager(sample_teams, sample_courts, constraints_with_both_court_limits)
-        court = sample_courts[0]  # Court 1
-        
-        base_date = datetime.date.today()
-        # Court 1 has available_after: 10:00, available_before: 16:00
-        # Match at 12:00-13:00 should work
-        match_start = datetime.datetime.combine(base_date, datetime.time(12, 0))
-        match_end = datetime.datetime.combine(base_date, datetime.time(13, 0))
-        
-        assert manager._check_court_availability(court, match_start, match_end) is True
-    
-    def test_both_constraints_available_after_violated(self, sample_teams, sample_courts, constraints_with_both_court_limits):
-        """Test available_after violated when both constraints present."""
-        manager = AllocationManager(sample_teams, sample_courts, constraints_with_both_court_limits)
-        court = sample_courts[0]  # Court 1
-        
-        base_date = datetime.date.today()
-        # Court 1 has available_after: 10:00, available_before: 16:00
-        # Match at 09:00-10:00 should fail (before available_after)
-        match_start = datetime.datetime.combine(base_date, datetime.time(9, 0))
-        match_end = datetime.datetime.combine(base_date, datetime.time(10, 0))
-        
-        assert manager._check_court_availability(court, match_start, match_end) is False
-    
-    def test_both_constraints_available_before_violated(self, sample_teams, sample_courts, constraints_with_both_court_limits):
-        """Test available_before violated when both constraints present."""
-        manager = AllocationManager(sample_teams, sample_courts, constraints_with_both_court_limits)
-        court = sample_courts[0]  # Court 1
-        
-        base_date = datetime.date.today()
-        # Court 1 has available_after: 10:00, available_before: 16:00
-        # Match at 15:30-16:30 should fail (after available_before)
-        match_start = datetime.datetime.combine(base_date, datetime.time(15, 30))
-        match_end = datetime.datetime.combine(base_date, datetime.time(16, 30))
-        
-        assert manager._check_court_availability(court, match_start, match_end) is False
-    
-    def test_constraint_only_applies_to_specified_court(self, sample_teams, sample_courts, constraints_with_court_preferences):
-        """Test that constraint only applies to the specified court."""
-        manager = AllocationManager(sample_teams, sample_courts, constraints_with_court_preferences)
-        court = sample_courts[1]  # Court 2 (has available_before, not available_after)
-        
-        base_date = datetime.date.today()
-        # Court 2 should NOT have available_after constraint
-        # Match at 09:00 should work (within court's regular hours)
-        match_start = datetime.datetime.combine(base_date, datetime.time(9, 0))
-        match_end = datetime.datetime.combine(base_date, datetime.time(10, 0))
-        
-        assert manager._check_court_availability(court, match_start, match_end) is True
 
 
 class TestTeamOverlap:
