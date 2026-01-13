@@ -186,6 +186,20 @@ def teams():
                 pools[pool_name]['advance'] = advance_count
                 save_teams(pools)
         
+        elif action == 'edit_pool':
+            old_pool_name = request.form.get('old_pool_name', '').strip()
+            new_pool_name = request.form.get('new_pool_name', '').strip()
+            if old_pool_name and new_pool_name and old_pool_name != new_pool_name:
+                pools = load_teams()
+                if new_pool_name in pools:
+                    flash(f'Pool "{new_pool_name}" already exists.', 'error')
+                elif old_pool_name in pools:
+                    # Create new pool with same data, delete old
+                    pools[new_pool_name] = pools[old_pool_name]
+                    del pools[old_pool_name]
+                    save_teams(pools)
+                    flash(f'Pool renamed from "{old_pool_name}" to "{new_pool_name}".', 'success')
+        
         elif action == 'edit_team':
             pool_name = request.form.get('pool_name')
             old_team_name = request.form.get('old_team_name', '').strip()
@@ -429,11 +443,31 @@ def schedule():
                     for court in schedule_data[day]:
                         schedule_data[day][court].sort(key=lambda x: x['start_time'])
                 
+                # Build time-aligned grid for display
+                # Collect all unique time slots across all courts for each day
+                for day in schedule_data:
+                    all_times = set()
+                    for court in schedule_data[day]:
+                        for match in schedule_data[day][court]:
+                            all_times.add(match['start_time'])
+                    
+                    # Create time-indexed lookup for each court
+                    for court in schedule_data[day]:
+                        time_to_match = {m['start_time']: m for m in schedule_data[day][court]}
+                        schedule_data[day][court] = {
+                            'matches': schedule_data[day][court],
+                            'time_to_match': time_to_match
+                        }
+                    
+                    # Store sorted time slots for this day
+                    schedule_data[day]['_time_slots'] = sorted(all_times)
+                
                 # Calculate stats
                 total_scheduled = sum(
-                    len(court_matches) 
+                    len(court_data['matches']) 
                     for day_data in schedule_data.values() 
-                    for court_matches in day_data.values()
+                    for court_name, court_data in day_data.items()
+                    if court_name != '_time_slots'
                 )
                 stats = {
                     'total_matches': len(matches),

@@ -424,6 +424,46 @@ select:focus {
     opacity: 1;
 }
 
+/* Pool name editing */
+.pool-name-form {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 1;
+}
+
+.pool-name-input {
+    font-size: 1.1rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    background: transparent;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    min-width: 0;
+    flex: 1;
+}
+
+.pool-name-input:hover {
+    border-color: var(--border-color);
+    background: var(--card-bg);
+}
+
+.pool-name-input:focus {
+    border-color: var(--primary-color);
+    background: white;
+    outline: none;
+}
+
+.pool-save-btn {
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.pool-name-form:focus-within .pool-save-btn,
+.pool-header:hover .pool-save-btn {
+    opacity: 1;
+}
+
 /* Court name editing */
 .court-edit-form {
     display: flex;
@@ -534,6 +574,64 @@ tr:hover .court-save-btn {
     color: var(--primary-color);
     border-bottom: 2px solid var(--border-color);
     padding-bottom: 0.375rem;
+}
+
+/* Schedule Table */
+.schedule-table-wrapper {
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+    background: var(--card-bg);
+    box-shadow: var(--shadow);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.schedule-table th,
+.schedule-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+.schedule-table th {
+    background: var(--primary-color);
+    color: white;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.schedule-table .time-col {
+    font-weight: 600;
+    color: var(--primary-color);
+    background: var(--bg-color);
+    white-space: nowrap;
+    width: 60px;
+}
+
+.schedule-table tbody tr:hover {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+.schedule-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.schedule-table .match-teams {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.schedule-table .vs {
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+    margin: 0 0.25rem;
 }
 
 /* Stats Bar */

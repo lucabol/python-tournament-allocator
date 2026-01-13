@@ -34,7 +34,12 @@
         {% for pool_name, pool_data in pools.items() %}
         <div class="pool-card">
             <div class="pool-header">
-                <h3>{{ pool_name }}</h3>
+                <form method="POST" class="pool-name-form">
+                    <input type="hidden" name="action" value="edit_pool">
+                    <input type="hidden" name="old_pool_name" value="{{ pool_name }}">
+                    <input type="text" name="new_pool_name" value="{{ pool_name }}" class="pool-name-input" required>
+                    <button type="submit" class="btn btn-primary btn-xs pool-save-btn" title="Save">✓</button>
+                </form>
                 <form method="POST" class="inline" onsubmit="return confirm('Delete this pool and all its teams?');">
                     <input type="hidden" name="action" value="delete_pool">
                     <input type="hidden" name="pool_name" value="{{ pool_name }}">

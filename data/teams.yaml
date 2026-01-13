@@ -1,11 +1,11 @@
-pool2:
+Pool 1:
   advance: 2
   teams:
   - Team D
   - Team EM
   - Team F
   - Team K
-pool3:
+Pool 2:
   advance: 2
   teams:
   - Team G
@@ -13,7 +13,7 @@ pool3:
   - Team L
   - Team M
   - Team N
-pool4:
+Pool 3:
   advance: 2
   teams:
   - Team O
@@ -21,7 +21,7 @@ pool4:
   - Team Q
   - Team R
   - Team S
-pool5:
+Pool 4:
   advance: 2
   teams:
   - Team T
@@ -29,7 +29,7 @@ pool5:
   - Team V
   - Team W
   - Team X
-pool6:
+Pool 5:
   advance: 2
   teams:
   - Team Y

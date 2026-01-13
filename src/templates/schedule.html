@@ -37,24 +37,39 @@
 {% endif %}
 
 {% if schedule %}
-    {% for day, courts in schedule.items() %}
+    {% for day, day_data in schedule.items() %}
     <section class="section day-section">
         <h2>{{ day }}</h2>
         
-        <div class="schedule-grid">
-            {% for court_name, matches in courts.items() %}
-            <div class="court-schedule">
-                <h3>{{ court_name }}</h3>
-                <div class="matches-list">
-                    {% for match in matches %}
-                    <div class="match-row">
-                        <span class="match-time">{{ match.start_time }}</span>
-                        <span class="match-teams">{{ match.teams[0] }} <span class="vs">vs</span> {{ match.teams[1] }}</span>
-                    </div>
+        {% set time_slots = day_data['_time_slots'] %}
+        {% set courts = day_data.keys() | reject('equalto', '_time_slots') | list %}
+        
+        <div class="schedule-table-wrapper">
+            <table class="schedule-table">
+                <thead>
+                    <tr>
+                        <th class="time-col">Time</th>
+                        {% for court_name in courts %}
+                        <th>{{ court_name }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for time_slot in time_slots %}
+                    <tr>
+                        <td class="time-col">{{ time_slot }}</td>
+                        {% for court_name in courts %}
+                        <td>
+                            {% if time_slot in day_data[court_name]['time_to_match'] %}
+                                {% set match = day_data[court_name]['time_to_match'][time_slot] %}
+                                <span class="match-teams">{{ match.teams[0] }} <span class="vs">vs</span> {{ match.teams[1] }}</span>
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+                    </tr>
                     {% endfor %}
-                </div>
-            </div>
-            {% endfor %}
+                </tbody>
+            </table>
         </div>
     </section>
     {% endfor %}
