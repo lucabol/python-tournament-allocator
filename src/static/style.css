@@ -1177,6 +1177,146 @@ tr:hover .court-save-btn {
     margin-top: 0.25rem;
 }
 
+/* Champion Banner */
+.champion-banner {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: #1e293b;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-lg);
+}
+
+.champion-banner strong {
+    font-size: 1.5rem;
+}
+
+/* Bracket Match Team Styling */
+.bracket-match-team {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.375rem 0.5rem;
+    background: var(--card-bg);
+    border-radius: 3px;
+    gap: 0.5rem;
+}
+
+.bracket-match-team.winner {
+    background: #dcfce7;
+    border-left: 3px solid var(--success-color);
+}
+
+.bracket-match-team.winner .team-name {
+    font-weight: 700;
+    color: var(--success-color);
+}
+
+.bracket-match-team .team-info {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.bracket-match-team .team-name {
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bracket-match-team .score-inputs {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.bracket-match-team .score-input {
+    width: 2rem !important;
+    min-width: 2rem !important;
+    max-width: 2rem !important;
+    height: 1.5rem !important;
+    padding: 0.125rem !important;
+    text-align: center;
+    font-size: 0.75rem !important;
+    font-weight: 600;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 3px !important;
+    background: white !important;
+    -moz-appearance: textfield;
+}
+
+.bracket-match-team .score-input::-webkit-outer-spin-button,
+.bracket-match-team .score-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.bracket-match-team .score-input:focus {
+    border-color: var(--primary-color) !important;
+    outline: none;
+}
+
+.bracket-match-team .score-input[readonly] {
+    background: var(--bg-color) !important;
+    cursor: not-allowed;
+}
+
+/* Playable Match Styling */
+.playable-match {
+    border: 2px solid var(--success-color);
+    background: #f0fdf4 !important;
+}
+
+.playable-match .match-header {
+    color: var(--success-color);
+}
+
+/* Completed Match Styling */
+.completed-match {
+    border: 2px solid var(--primary-color);
+}
+
+.completed-match .match-header {
+    color: var(--primary-color);
+}
+
+/* Status Indicators */
+.playable-indicator,
+.completed-indicator {
+    margin-left: 0.5rem;
+}
+
+.completed-indicator {
+    color: var(--success-color);
+}
+
+/* Legend Items */
+.legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-right: 1rem;
+    font-size: 0.75rem;
+}
+
+.playable-legend {
+    color: var(--success-color);
+}
+
+.completed-legend {
+    color: var(--primary-color);
+}
+
+.waiting-legend {
+    color: var(--text-muted);
+}
+
 /* Loading Spinner */
 .btn-with-spinner {
     display: inline-flex;
@@ -1207,4 +1347,157 @@ tr:hover .court-save-btn {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* Match Score Entry */
+.match-cell {
+    position: relative;
+    padding: 0.375rem;
+    background: var(--bg-color);
+    border-radius: 4px;
+    min-width: 160px;
+}
+
+.match-cell.match-completed {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+}
+
+.match-teams-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+}
+
+.match-teams-row:first-child {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.match-cell .team-name {
+    flex: 1;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.match-cell .team-name.winner {
+    color: var(--success-color);
+    font-weight: 700;
+}
+
+.score-inputs {
+    display: flex;
+    gap: 0.25rem;
+    flex-shrink: 0;
+}
+
+.score-input {
+    width: 2.5rem !important;
+    min-width: 2.5rem !important;
+    max-width: 2.5rem !important;
+    height: 1.5rem !important;
+    padding: 0.125rem 0.25rem !important;
+    text-align: center;
+    font-size: 0.75rem !important;
+    font-weight: 600;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 3px !important;
+    background: white !important;
+    -moz-appearance: textfield;
+}
+
+/* Hide spinner arrows in number inputs */
+.score-input::-webkit-outer-spin-button,
+.score-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.score-input:focus {
+    border-color: var(--primary-color) !important;
+    outline: none;
+}
+
+.score-input::placeholder {
+    color: var(--text-muted);
+    font-weight: normal;
+}
+
+.match-status {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--success-color);
+}
+
+/* Pool Standings */
+.standings-section {
+    margin-top: 2rem;
+}
+
+.standings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.pool-standings {
+    background: var(--bg-color);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.pool-standings h3 {
+    color: var(--primary-color);
+    margin-bottom: 0.75rem;
+    font-size: 1rem;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 0.375rem;
+}
+
+.standings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+}
+
+.standings-table th,
+.standings-table td {
+    padding: 0.5rem 0.375rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.standings-table th {
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+}
+
+.standings-table th:nth-child(2),
+.standings-table td:nth-child(2) {
+    text-align: left;
+}
+
+.standings-table tr.advancing {
+    background: rgba(22, 163, 74, 0.1);
+}
+
+.standings-table tr.advancing td:first-child {
+    font-weight: 700;
+    color: var(--success-color);
+}
+
+.standings-table .positive {
+    color: var(--success-color);
+}
+
+.standings-table .negative {
+    color: var(--danger-color);
 }

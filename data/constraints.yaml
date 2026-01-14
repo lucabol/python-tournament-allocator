@@ -1,12 +1,13 @@
-bracket_type: double
+bracket_type: single
 day_end_time_limit: '22:00'
-days_number: 3
+days_number: 2
 elimination_bracket_settings:
   matchups: []
   seeding_method: pool_ranking
 general_constraints: []
 match_duration_minutes: 60
 min_break_between_matches_minutes: 0
+scoring_format: single_set
 team_specific_constraints:
 - note: Dentist work
   play_after: '12:00'

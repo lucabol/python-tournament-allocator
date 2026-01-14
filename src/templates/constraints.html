@@ -48,6 +48,14 @@
                     <option value="double" {% if constraints.bracket_type == 'double' %}selected{% endif %}>Double Elimination</option>
                 </select>
             </div>
+            
+            <div class="form-group">
+                <label for="scoring_format">Scoring Format</label>
+                <select id="scoring_format" name="scoring_format">
+                    <option value="single_set" {% if constraints.scoring_format == 'single_set' %}selected{% endif %}>Single Set</option>
+                    <option value="best_of_3" {% if constraints.scoring_format == 'best_of_3' %}selected{% endif %}>Best of 3 Sets</option>
+                </select>
+            </div>
         </div>
         
         <button type="submit" class="btn btn-primary">Save Settings</button>

@@ -1,0 +1,743 @@
+schedule:
+  Day 1:
+    Court 1:
+      matches:
+      - day: Day 1
+        end_time: 09:00
+        pool: Pool 3
+        start_time: 08:00
+        teams:
+        - Team O
+        - Team Q
+      - day: Day 1
+        end_time: '10:00'
+        pool: Pool 1
+        start_time: 09:00
+        teams:
+        - Team F
+        - Team K
+      time_to_match:
+        08:00:
+          day: Day 1
+          end_time: 09:00
+          pool: Pool 3
+          start_time: 08:00
+          teams:
+          - Team O
+          - Team Q
+        09:00:
+          day: Day 1
+          end_time: '10:00'
+          pool: Pool 1
+          start_time: 09:00
+          teams:
+          - Team F
+          - Team K
+    Court 2:
+      matches:
+      - day: Day 1
+        end_time: 09:00
+        pool: Pool 5
+        start_time: 08:00
+        teams:
+        - Team Z
+        - Team A
+      - day: Day 1
+        end_time: '10:00'
+        pool: Pool 2
+        start_time: 09:00
+        teams:
+        - Team G
+        - Team N
+      - day: Day 1
+        end_time: '11:00'
+        pool: Pool 5
+        start_time: '10:00'
+        teams:
+        - Team A
+        - Team AB
+      - day: Day 1
+        end_time: '12:00'
+        pool: Pool 5
+        start_time: '11:00'
+        teams:
+        - Team Y
+        - Team AC
+      - day: Day 1
+        end_time: '13:00'
+        pool: Pool 3
+        start_time: '12:00'
+        teams:
+        - Team P
+        - Team Q
+      - day: Day 1
+        end_time: '14:00'
+        pool: Pool 5
+        start_time: '13:00'
+        teams:
+        - Team Z
+        - Team AB
+      - day: Day 1
+        end_time: '15:00'
+        pool: Pool 4
+        start_time: '14:00'
+        teams:
+        - Team T
+        - Team V
+      - day: Day 1
+        end_time: '16:00'
+        pool: Pool 2
+        start_time: '15:00'
+        teams:
+        - Team G
+        - Team M
+      - day: Day 1
+        end_time: '17:00'
+        pool: Pool 4
+        start_time: '16:00'
+        teams:
+        - Team U
+        - Team W
+      - day: Day 1
+        end_time: '18:00'
+        pool: Pool 2
+        start_time: '17:00'
+        teams:
+        - Team L
+        - Team M
+      - day: Day 1
+        end_time: '19:00'
+        pool: Pool 5
+        start_time: '18:00'
+        teams:
+        - Team Y
+        - Team AB
+      - day: Day 1
+        end_time: '20:00'
+        pool: Pool 4
+        start_time: '19:00'
+        teams:
+        - Team T
+        - Team U
+      - day: Day 1
+        end_time: '21:00'
+        pool: Pool 5
+        start_time: '20:00'
+        teams:
+        - Team AB
+        - Team AC
+      - day: Day 1
+        end_time: '22:00'
+        pool: Pool 4
+        start_time: '21:00'
+        teams:
+        - Team T
+        - Team W
+      time_to_match:
+        08:00:
+          day: Day 1
+          end_time: 09:00
+          pool: Pool 5
+          start_time: 08:00
+          teams:
+          - Team Z
+          - Team A
+        09:00:
+          day: Day 1
+          end_time: '10:00'
+          pool: Pool 2
+          start_time: 09:00
+          teams:
+          - Team G
+          - Team N
+        '10:00':
+          day: Day 1
+          end_time: '11:00'
+          pool: Pool 5
+          start_time: '10:00'
+          teams:
+          - Team A
+          - Team AB
+        '11:00':
+          day: Day 1
+          end_time: '12:00'
+          pool: Pool 5
+          start_time: '11:00'
+          teams:
+          - Team Y
+          - Team AC
+        '12:00':
+          day: Day 1
+          end_time: '13:00'
+          pool: Pool 3
+          start_time: '12:00'
+          teams:
+          - Team P
+          - Team Q
+        '13:00':
+          day: Day 1
+          end_time: '14:00'
+          pool: Pool 5
+          start_time: '13:00'
+          teams:
+          - Team Z
+          - Team AB
+        '14:00':
+          day: Day 1
+          end_time: '15:00'
+          pool: Pool 4
+          start_time: '14:00'
+          teams:
+          - Team T
+          - Team V
+        '15:00':
+          day: Day 1
+          end_time: '16:00'
+          pool: Pool 2
+          start_time: '15:00'
+          teams:
+          - Team G
+          - Team M
+        '16:00':
+          day: Day 1
+          end_time: '17:00'
+          pool: Pool 4
+          start_time: '16:00'
+          teams:
+          - Team U
+          - Team W
+        '17:00':
+          day: Day 1
+          end_time: '18:00'
+          pool: Pool 2
+          start_time: '17:00'
+          teams:
+          - Team L
+          - Team M
+        '18:00':
+          day: Day 1
+          end_time: '19:00'
+          pool: Pool 5
+          start_time: '18:00'
+          teams:
+          - Team Y
+          - Team AB
+        '19:00':
+          day: Day 1
+          end_time: '20:00'
+          pool: Pool 4
+          start_time: '19:00'
+          teams:
+          - Team T
+          - Team U
+        '20:00':
+          day: Day 1
+          end_time: '21:00'
+          pool: Pool 5
+          start_time: '20:00'
+          teams:
+          - Team AB
+          - Team AC
+        '21:00':
+          day: Day 1
+          end_time: '22:00'
+          pool: Pool 4
+          start_time: '21:00'
+          teams:
+          - Team T
+          - Team W
+    Court 3:
+      matches:
+      - day: Day 1
+        end_time: '14:00'
+        pool: Pool 3
+        start_time: '13:00'
+        teams:
+        - Team O
+        - Team S
+      - day: Day 1
+        end_time: '15:00'
+        pool: Pool 1
+        start_time: '14:00'
+        teams:
+        - Team D
+        - Team F
+      - day: Day 1
+        end_time: '16:00'
+        pool: Pool 2
+        start_time: '15:00'
+        teams:
+        - Team L
+        - Team N
+      - day: Day 1
+        end_time: '17:00'
+        pool: Pool 5
+        start_time: '16:00'
+        teams:
+        - Team Z
+        - Team AC
+      - day: Day 1
+        end_time: '18:00'
+        pool: Pool 2
+        start_time: '17:00'
+        teams:
+        - Team H
+        - Team N
+      - day: Day 1
+        end_time: '19:00'
+        pool: Pool 3
+        start_time: '18:00'
+        teams:
+        - Team R
+        - Team S
+      - day: Day 1
+        end_time: '20:00'
+        pool: Pool 2
+        start_time: '19:00'
+        teams:
+        - Team M
+        - Team N
+      - day: Day 1
+        end_time: '21:00'
+        pool: Pool 3
+        start_time: '20:00'
+        teams:
+        - Team O
+        - Team P
+      - day: Day 1
+        end_time: '22:00'
+        pool: Pool 2
+        start_time: '21:00'
+        teams:
+        - Team H
+        - Team M
+      time_to_match:
+        '13:00':
+          day: Day 1
+          end_time: '14:00'
+          pool: Pool 3
+          start_time: '13:00'
+          teams:
+          - Team O
+          - Team S
+        '14:00':
+          day: Day 1
+          end_time: '15:00'
+          pool: Pool 1
+          start_time: '14:00'
+          teams:
+          - Team D
+          - Team F
+        '15:00':
+          day: Day 1
+          end_time: '16:00'
+          pool: Pool 2
+          start_time: '15:00'
+          teams:
+          - Team L
+          - Team N
+        '16:00':
+          day: Day 1
+          end_time: '17:00'
+          pool: Pool 5
+          start_time: '16:00'
+          teams:
+          - Team Z
+          - Team AC
+        '17:00':
+          day: Day 1
+          end_time: '18:00'
+          pool: Pool 2
+          start_time: '17:00'
+          teams:
+          - Team H
+          - Team N
+        '18:00':
+          day: Day 1
+          end_time: '19:00'
+          pool: Pool 3
+          start_time: '18:00'
+          teams:
+          - Team R
+          - Team S
+        '19:00':
+          day: Day 1
+          end_time: '20:00'
+          pool: Pool 2
+          start_time: '19:00'
+          teams:
+          - Team M
+          - Team N
+        '20:00':
+          day: Day 1
+          end_time: '21:00'
+          pool: Pool 3
+          start_time: '20:00'
+          teams:
+          - Team O
+          - Team P
+        '21:00':
+          day: Day 1
+          end_time: '22:00'
+          pool: Pool 2
+          start_time: '21:00'
+          teams:
+          - Team H
+          - Team M
+    _time_slots:
+    - 08:00
+    - 09:00
+    - '10:00'
+    - '11:00'
+    - '12:00'
+    - '13:00'
+    - '14:00'
+    - '15:00'
+    - '16:00'
+    - '17:00'
+    - '18:00'
+    - '19:00'
+    - '20:00'
+    - '21:00'
+  Day 2:
+    Court 1:
+      matches:
+      - day: Day 2
+        end_time: 09:00
+        pool: Pool 5
+        start_time: 08:00
+        teams:
+        - Team A
+        - Team AC
+      - day: Day 2
+        end_time: '10:00'
+        pool: Pool 3
+        start_time: 09:00
+        teams:
+        - Team O
+        - Team R
+      time_to_match:
+        08:00:
+          day: Day 2
+          end_time: 09:00
+          pool: Pool 5
+          start_time: 08:00
+          teams:
+          - Team A
+          - Team AC
+        09:00:
+          day: Day 2
+          end_time: '10:00'
+          pool: Pool 3
+          start_time: 09:00
+          teams:
+          - Team O
+          - Team R
+    Court 2:
+      matches:
+      - day: Day 2
+        end_time: 09:00
+        pool: Pool 4
+        start_time: 08:00
+        teams:
+        - Team U
+        - Team X
+      - day: Day 2
+        end_time: '10:00'
+        pool: Pool 4
+        start_time: 09:00
+        teams:
+        - Team V
+        - Team W
+      - day: Day 2
+        end_time: '11:00'
+        pool: Pool 5
+        start_time: '10:00'
+        teams:
+        - Team Y
+        - Team A
+      - day: Day 2
+        end_time: '12:00'
+        pool: Pool 3
+        start_time: '11:00'
+        teams:
+        - Team Q
+        - Team S
+      - day: Day 2
+        end_time: '13:00'
+        pool: Pool 2
+        start_time: '12:00'
+        teams:
+        - Team G
+        - Team H
+      - day: Day 2
+        end_time: '14:00'
+        pool: Pool 3
+        start_time: '13:00'
+        teams:
+        - Team Q
+        - Team R
+      - day: Day 2
+        end_time: '15:00'
+        pool: Pool 4
+        start_time: '14:00'
+        teams:
+        - Team W
+        - Team X
+      - day: Day 2
+        end_time: '16:00'
+        pool: Pool 1
+        start_time: '15:00'
+        teams:
+        - Team EM
+        - Team K
+      - day: Day 2
+        end_time: '17:00'
+        pool: Pool 2
+        start_time: '16:00'
+        teams:
+        - Team H
+        - Team L
+      - day: Day 2
+        end_time: '18:00'
+        pool: Pool 1
+        start_time: '17:00'
+        teams:
+        - Team D
+        - Team K
+      - day: Day 2
+        end_time: '19:00'
+        pool: Pool 3
+        start_time: '18:00'
+        teams:
+        - Team P
+        - Team S
+      - day: Day 2
+        end_time: '20:00'
+        pool: Pool 4
+        start_time: '19:00'
+        teams:
+        - Team V
+        - Team X
+      time_to_match:
+        08:00:
+          day: Day 2
+          end_time: 09:00
+          pool: Pool 4
+          start_time: 08:00
+          teams:
+          - Team U
+          - Team X
+        09:00:
+          day: Day 2
+          end_time: '10:00'
+          pool: Pool 4
+          start_time: 09:00
+          teams:
+          - Team V
+          - Team W
+        '10:00':
+          day: Day 2
+          end_time: '11:00'
+          pool: Pool 5
+          start_time: '10:00'
+          teams:
+          - Team Y
+          - Team A
+        '11:00':
+          day: Day 2
+          end_time: '12:00'
+          pool: Pool 3
+          start_time: '11:00'
+          teams:
+          - Team Q
+          - Team S
+        '12:00':
+          day: Day 2
+          end_time: '13:00'
+          pool: Pool 2
+          start_time: '12:00'
+          teams:
+          - Team G
+          - Team H
+        '13:00':
+          day: Day 2
+          end_time: '14:00'
+          pool: Pool 3
+          start_time: '13:00'
+          teams:
+          - Team Q
+          - Team R
+        '14:00':
+          day: Day 2
+          end_time: '15:00'
+          pool: Pool 4
+          start_time: '14:00'
+          teams:
+          - Team W
+          - Team X
+        '15:00':
+          day: Day 2
+          end_time: '16:00'
+          pool: Pool 1
+          start_time: '15:00'
+          teams:
+          - Team EM
+          - Team K
+        '16:00':
+          day: Day 2
+          end_time: '17:00'
+          pool: Pool 2
+          start_time: '16:00'
+          teams:
+          - Team H
+          - Team L
+        '17:00':
+          day: Day 2
+          end_time: '18:00'
+          pool: Pool 1
+          start_time: '17:00'
+          teams:
+          - Team D
+          - Team K
+        '18:00':
+          day: Day 2
+          end_time: '19:00'
+          pool: Pool 3
+          start_time: '18:00'
+          teams:
+          - Team P
+          - Team S
+        '19:00':
+          day: Day 2
+          end_time: '20:00'
+          pool: Pool 4
+          start_time: '19:00'
+          teams:
+          - Team V
+          - Team X
+    Court 3:
+      matches:
+      - day: Day 2
+        end_time: '14:00'
+        pool: Pool 1
+        start_time: '13:00'
+        teams:
+        - Team D
+        - Team EM
+      - day: Day 2
+        end_time: '15:00'
+        pool: Pool 5
+        start_time: '14:00'
+        teams:
+        - Team Y
+        - Team Z
+      - day: Day 2
+        end_time: '16:00'
+        pool: Pool 3
+        start_time: '15:00'
+        teams:
+        - Team P
+        - Team R
+      - day: Day 2
+        end_time: '17:00'
+        pool: Pool 4
+        start_time: '16:00'
+        teams:
+        - Team U
+        - Team V
+      - day: Day 2
+        end_time: '18:00'
+        pool: Pool 4
+        start_time: '17:00'
+        teams:
+        - Team T
+        - Team X
+      - day: Day 2
+        end_time: '19:00'
+        pool: Pool 1
+        start_time: '18:00'
+        teams:
+        - Team EM
+        - Team F
+      - day: Day 2
+        end_time: '20:00'
+        pool: Pool 2
+        start_time: '19:00'
+        teams:
+        - Team G
+        - Team L
+      time_to_match:
+        '13:00':
+          day: Day 2
+          end_time: '14:00'
+          pool: Pool 1
+          start_time: '13:00'
+          teams:
+          - Team D
+          - Team EM
+        '14:00':
+          day: Day 2
+          end_time: '15:00'
+          pool: Pool 5
+          start_time: '14:00'
+          teams:
+          - Team Y
+          - Team Z
+        '15:00':
+          day: Day 2
+          end_time: '16:00'
+          pool: Pool 3
+          start_time: '15:00'
+          teams:
+          - Team P
+          - Team R
+        '16:00':
+          day: Day 2
+          end_time: '17:00'
+          pool: Pool 4
+          start_time: '16:00'
+          teams:
+          - Team U
+          - Team V
+        '17:00':
+          day: Day 2
+          end_time: '18:00'
+          pool: Pool 4
+          start_time: '17:00'
+          teams:
+          - Team T
+          - Team X
+        '18:00':
+          day: Day 2
+          end_time: '19:00'
+          pool: Pool 1
+          start_time: '18:00'
+          teams:
+          - Team EM
+          - Team F
+        '19:00':
+          day: Day 2
+          end_time: '20:00'
+          pool: Pool 2
+          start_time: '19:00'
+          teams:
+          - Team G
+          - Team L
+    _time_slots:
+    - 08:00
+    - 09:00
+    - '10:00'
+    - '11:00'
+    - '12:00'
+    - '13:00'
+    - '14:00'
+    - '15:00'
+    - '16:00'
+    - '17:00'
+    - '18:00'
+    - '19:00'
+stats:
+  scheduled_matches: 46
+  total_matches: 46
+  unscheduled_matches: 0

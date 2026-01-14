@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+
+{% block title %}Match Tracking - Tournament Allocator{% endblock %}
+
+{% block content %}
+<h1>📊 Match Tracking</h1>
+
+{% if not schedule %}
+<div class="empty-state">
+    <h2>No schedule to track</h2>
+    <p>Generate a schedule first, then click "Start Tracking" to begin tracking match results.</p>
+    <a href="{{ url_for('schedule') }}" class="btn btn-primary">Go to Schedule</a>
+</div>
+{% else %}
+
+<div class="stats-bar">
+    <div class="stat">
+        <span class="stat-value">{{ stats.scheduled_matches }}</span>
+        <span class="stat-label">Scheduled</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value success">{{ stats.completed_matches }}</span>
+        <span class="stat-label">Completed</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value {% if stats.remaining_matches > 0 %}danger{% endif %}">{{ stats.remaining_matches }}</span>
+        <span class="stat-label">Remaining</span>
+    </div>
+</div>
+
+{% for day, day_data in schedule.items() %}
+<section class="section day-section">
+    <h2>{{ day }}</h2>
+    
+    {% set time_slots = day_data['_time_slots'] %}
+    {% set courts = day_data.keys() | reject('equalto', '_time_slots') | list %}
+    
+    <div class="schedule-table-wrapper">
+        <table class="schedule-table">
+            <thead>
+                <tr>
+                    <th class="time-col">Time</th>
+                    {% for court_name in courts %}
+                    <th>{{ court_name }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for time_slot in time_slots %}
+                <tr>
+                    <td class="time-col">{{ time_slot }}</td>
+                    {% for court_name in courts %}
+                    <td>
+                        {% if time_slot in day_data[court_name]['time_to_match'] %}
+                            {% set match = day_data[court_name]['time_to_match'][time_slot] %}
+                            {% set team1 = match.teams[0] %}
+                            {% set team2 = match.teams[1] %}
+                            {% set match_key_check = [team1, team2]|sort|join('_vs_') %}
+                            {% set pool_name = match.pool if match.pool else '' %}
+                            {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
+                            {% set match_result = results.get(full_match_key, {}) %}
+                            {% set is_completed = match_result.get('completed', false) %}
+                            
+                            <div class="match-cell {% if is_completed %}match-completed{% endif %}" 
+                                 data-team1="{{ team1 }}" 
+                                 data-team2="{{ team2 }}"
+                                 data-pool="{{ pool_name }}">
+                                <div class="match-teams-row">
+                                    <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
+                                    <div class="score-inputs" data-format="{{ scoring_format }}">
+                                        {% if scoring_format == 'single_set' %}
+                                            <input type="number" class="score-input set-score" data-set="0" data-team="0" 
+                                                   value="{{ match_result.sets[0][0] if match_result.sets and match_result.sets[0] else '' }}"
+                                                   min="0" max="99" placeholder="-">
+                                        {% else %}
+                                            {% for i in range(3) %}
+                                            <input type="number" class="score-input set-score" data-set="{{ i }}" data-team="0" 
+                                                   value="{{ match_result.sets[i][0] if match_result.sets and match_result.sets|length > i and match_result.sets[i] else '' }}"
+                                                   min="0" max="99" placeholder="-">
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="match-teams-row">
+                                    <span class="team-name {% if match_result.winner == team2 %}winner{% endif %}">{{ team2 }}</span>
+                                    <div class="score-inputs" data-format="{{ scoring_format }}">
+                                        {% if scoring_format == 'single_set' %}
+                                            <input type="number" class="score-input set-score" data-set="0" data-team="1" 
+                                                   value="{{ match_result.sets[0][1] if match_result.sets and match_result.sets[0] else '' }}"
+                                                   min="0" max="99" placeholder="-">
+                                        {% else %}
+                                            {% for i in range(3) %}
+                                            <input type="number" class="score-input set-score" data-set="{{ i }}" data-team="1" 
+                                                   value="{{ match_result.sets[i][1] if match_result.sets and match_result.sets|length > i and match_result.sets[i] else '' }}"
+                                                   min="0" max="99" placeholder="-">
+                                            {% endfor %}
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if is_completed %}
+                                <span class="match-status">✓</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endfor %}
+
+<!-- Pool Standings Section -->
+{% if standings %}
+<section class="section standings-section">
+    <h2>Pool Standings</h2>
+    <div class="standings-grid">
+        {% for pool_name, team_list in standings.items() %}
+        <div class="pool-standings">
+            <h3>{{ pool_name }}</h3>
+            <table class="standings-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Team</th>
+                        <th>W</th>
+                        <th>L</th>
+                        <th>Sets</th>
+                        <th>Diff</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team in team_list %}
+                    {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
+                    <tr class="{% if loop.index <= advance_count %}advancing{% endif %}">
+                        <td>{{ loop.index }}</td>
+                        <td>{{ team.team }}</td>
+                        <td>{{ team.wins }}</td>
+                        <td>{{ team.losses }}</td>
+                        <td>{{ team.sets_won }}-{{ team.sets_lost }}</td>
+                        <td class="{% if team.set_diff > 0 %}positive{% elif team.set_diff < 0 %}negative{% endif %}">
+                            {{ '+' if team.set_diff > 0 else '' }}{{ team.set_diff }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{% endif %}
+
+<script>
+// Real-time score saving
+document.addEventListener('DOMContentLoaded', function() {
+    const matchCells = document.querySelectorAll('.match-cell');
+    
+    matchCells.forEach(cell => {
+        const inputs = cell.querySelectorAll('.score-input');
+        let saveTimeout;
+        
+        inputs.forEach(input => {
+            input.addEventListener('input', function() {
+                // Debounce saves
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => saveMatchResult(cell), 500);
+            });
+        });
+    });
+    
+    function saveMatchResult(cell) {
+        const team1 = cell.dataset.team1;
+        const team2 = cell.dataset.team2;
+        const pool = cell.dataset.pool;
+        
+        // Collect scores from this cell - use nth-of-type to reliably select the two match-teams-row divs
+        const matchRows = cell.querySelectorAll('.match-teams-row');
+        const team1Inputs = matchRows[0].querySelectorAll('.score-input');
+        const team2Inputs = matchRows[1].querySelectorAll('.score-input');
+        
+        const sets = [];
+        const numSets = team1Inputs.length;
+        
+        for (let i = 0; i < numSets; i++) {
+            const score1 = team1Inputs[i].value ? parseInt(team1Inputs[i].value) : null;
+            const score2 = team2Inputs[i].value ? parseInt(team2Inputs[i].value) : null;
+            
+            if (score1 !== null || score2 !== null) {
+                sets.push([score1, score2]);
+            }
+        }
+        
+        // Send to server
+        fetch('/api/results/pool', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                team1: team1,
+                team2: team2,
+                pool: pool,
+                sets: sets
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Update match cell appearance
+                if (data.winner) {
+                    cell.classList.add('match-completed');
+                    
+                    // Update winner highlighting
+                    const teamNames = cell.querySelectorAll('.team-name');
+                    teamNames.forEach(span => {
+                        span.classList.remove('winner');
+                        if (span.textContent.trim() === data.winner) {
+                            span.classList.add('winner');
+                        }
+                    });
+                    
+                    // Add/update checkmark
+                    let status = cell.querySelector('.match-status');
+                    if (!status) {
+                        status = document.createElement('span');
+                        status.className = 'match-status';
+                        status.textContent = '✓';
+                        cell.appendChild(status);
+                    }
+                } else {
+                    cell.classList.remove('match-completed');
+                    const status = cell.querySelector('.match-status');
+                    if (status) status.remove();
+                    
+                    cell.querySelectorAll('.team-name').forEach(span => {
+                        span.classList.remove('winner');
+                    });
+                }
+                
+                // Update standings
+                updateStandings(data.standings);
+                
+                // Update stats bar
+                updateStatsBar();
+            }
+        })
+        .catch(error => console.error('Error saving result:', error));
+    }
+    
+    function updateStandings(standings) {
+        for (const [poolName, teamList] of Object.entries(standings)) {
+            // Find the pool standings div by iterating
+            document.querySelectorAll('.pool-standings').forEach(div => {
+                const h3 = div.querySelector('h3');
+                if (h3 && h3.textContent === poolName) {
+                    const tbody = div.querySelector('tbody');
+                    if (tbody) {
+                        tbody.innerHTML = teamList.map((team, idx) => `
+                            <tr class="${idx < (team.advance_count || 2) ? 'advancing' : ''}">
+                                <td>${idx + 1}</td>
+                                <td>${team.team}</td>
+                                <td>${team.wins}</td>
+                                <td>${team.losses}</td>
+                                <td>${team.sets_won}-${team.sets_lost}</td>
+                                <td class="${team.set_diff > 0 ? 'positive' : team.set_diff < 0 ? 'negative' : ''}">
+                                    ${team.set_diff > 0 ? '+' : ''}${team.set_diff}
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            });
+        }
+    }
+    
+    function updateStatsBar() {
+        const completedCount = document.querySelectorAll('.match-cell.match-completed').length;
+        const totalCount = document.querySelectorAll('.match-cell').length;
+        const remainingCount = totalCount - completedCount;
+        
+        const statsBar = document.querySelector('.stats-bar');
+        if (statsBar) {
+            const statValues = statsBar.querySelectorAll('.stat-value');
+            if (statValues.length >= 3) {
+                statValues[1].textContent = completedCount;
+                statValues[2].textContent = remainingCount;
+                statValues[2].classList.toggle('danger', remainingCount > 0);
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

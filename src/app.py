@@ -20,6 +20,8 @@ DATA_DIR = os.path.join(BASE_DIR, 'data')
 TEAMS_FILE = os.path.join(DATA_DIR, 'teams.yaml')
 COURTS_FILE = os.path.join(DATA_DIR, 'courts.csv')
 CONSTRAINTS_FILE = os.path.join(DATA_DIR, 'constraints.yaml')
+RESULTS_FILE = os.path.join(DATA_DIR, 'results.yaml')
+SCHEDULE_FILE = os.path.join(DATA_DIR, 'schedule.yaml')
 
 
 def load_teams():
@@ -90,6 +92,208 @@ def save_constraints(constraints):
     """Save constraints to YAML file."""
     with open(CONSTRAINTS_FILE, 'w', encoding='utf-8') as f:
         yaml.dump(constraints, f, default_flow_style=False)
+
+
+def load_results():
+    """Load match results from YAML file."""
+    if not os.path.exists(RESULTS_FILE):
+        return {'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'}
+    with open(RESULTS_FILE, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
+            return {'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'}
+        # Ensure all sections exist
+        if 'pool_play' not in data:
+            data['pool_play'] = {}
+        if 'bracket' not in data:
+            data['bracket'] = {}
+        if 'bracket_type' not in data:
+            data['bracket_type'] = 'single'
+        return data
+
+
+def save_results(results):
+    """Save match results to YAML file."""
+    with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
+        yaml.dump(results, f, default_flow_style=False)
+
+
+def load_schedule():
+    """Load saved schedule from YAML file."""
+    if not os.path.exists(SCHEDULE_FILE):
+        return None, None
+    with open(SCHEDULE_FILE, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
+            return None, None
+        return data.get('schedule'), data.get('stats')
+
+
+def _convert_to_serializable(obj):
+    """Convert tuples to lists recursively for YAML serialization."""
+    if isinstance(obj, dict):
+        return {k: _convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_convert_to_serializable(item) for item in obj]
+    else:
+        return obj
+
+
+def save_schedule(schedule_data, stats):
+    """Save schedule to YAML file."""
+    # Convert tuples to lists for safe YAML serialization
+    serializable_data = _convert_to_serializable(schedule_data)
+    serializable_stats = _convert_to_serializable(stats)
+    with open(SCHEDULE_FILE, 'w', encoding='utf-8') as f:
+        yaml.dump({'schedule': serializable_data, 'stats': serializable_stats}, f, default_flow_style=False)
+
+
+def get_match_key(team1, team2, pool=None):
+    """Generate a unique key for a match (sorted alphabetically for consistency)."""
+    teams_sorted = sorted([team1, team2])
+    key = f"{teams_sorted[0]}_vs_{teams_sorted[1]}"
+    if pool:
+        key += f"_{pool}"
+    return key
+
+
+def determine_winner(sets):
+    """Determine winner from set scores. Returns (winner_index, set_wins)."""
+    if not sets:
+        return None, (0, 0)
+    
+    wins = [0, 0]
+    for set_score in sets:
+        if len(set_score) >= 2 and set_score[0] is not None and set_score[1] is not None:
+            if set_score[0] > set_score[1]:
+                wins[0] += 1
+            elif set_score[1] > set_score[0]:
+                wins[1] += 1
+    
+    # Auto-detect winner (best of 3: need 2 wins, single set: need 1 win)
+    if wins[0] >= 2 or (len(sets) == 1 and wins[0] > wins[1]):
+        return 0, tuple(wins)
+    elif wins[1] >= 2 or (len(sets) == 1 and wins[1] > wins[0]):
+        return 1, tuple(wins)
+    
+    return None, tuple(wins)
+
+
+def calculate_pool_standings(pools, results):
+    """
+    Calculate standings for each pool based on match results.
+    
+    Returns: {pool_name: [{'team': name, 'wins': n, 'losses': n, 'sets_won': n, 
+                          'sets_lost': n, 'set_diff': n, 'points_for': n, 
+                          'points_against': n, 'point_diff': n}, ...]}
+    
+    Ranking: wins -> set_differential -> point_differential -> head-to-head
+    """
+    standings = {}
+    pool_results = results.get('pool_play', {})
+    
+    for pool_name, pool_data in pools.items():
+        team_stats = {}
+        teams = pool_data.get('teams', [])
+        
+        # Initialize stats for each team
+        for team in teams:
+            team_stats[team] = {
+                'team': team,
+                'wins': 0,
+                'losses': 0,
+                'sets_won': 0,
+                'sets_lost': 0,
+                'points_for': 0,
+                'points_against': 0,
+                'matches_played': 0
+            }
+        
+        # Process results
+        for match_key, result in pool_results.items():
+            # Check if this match is in this pool
+            if not match_key.endswith(f"_{pool_name}"):
+                continue
+            
+            sets = result.get('sets', [])
+            if not sets:
+                continue
+            
+            # Use the team names stored in the result (these match the order of scores in sets)
+            # The result stores team1/team2 in the order they were displayed in the UI,
+            # which matches how sets[i][0] and sets[i][1] are stored
+            input_team1 = result.get('team1')
+            input_team2 = result.get('team2')
+            
+            if not input_team1 or not input_team2:
+                # Fallback to extracting from key for old results without team1/team2
+                key_parts = match_key.rsplit(f"_{pool_name}", 1)[0]
+                teams_in_match = key_parts.split('_vs_')
+                if len(teams_in_match) != 2:
+                    continue
+                input_team1, input_team2 = teams_in_match
+            
+            if input_team1 not in team_stats or input_team2 not in team_stats:
+                continue
+            
+            # Calculate set and point totals
+            # sets[i][0] is input_team1's score, sets[i][1] is input_team2's score
+            team1_sets = 0
+            team2_sets = 0
+            team1_points = 0
+            team2_points = 0
+            
+            for set_score in sets:
+                if len(set_score) >= 2 and set_score[0] is not None and set_score[1] is not None:
+                    team1_points += set_score[0]
+                    team2_points += set_score[1]
+                    if set_score[0] > set_score[1]:
+                        team1_sets += 1
+                    elif set_score[1] > set_score[0]:
+                        team2_sets += 1
+            
+            # Update stats for input_team1 (the team whose scores are in sets[i][0])
+            team_stats[input_team1]['sets_won'] += team1_sets
+            team_stats[input_team1]['sets_lost'] += team2_sets
+            team_stats[input_team1]['points_for'] += team1_points
+            team_stats[input_team1]['points_against'] += team2_points
+            team_stats[input_team1]['matches_played'] += 1
+            
+            # Update stats for input_team2 (the team whose scores are in sets[i][1])
+            team_stats[input_team2]['sets_won'] += team2_sets
+            team_stats[input_team2]['sets_lost'] += team1_sets
+            team_stats[input_team2]['points_for'] += team2_points
+            team_stats[input_team2]['points_against'] += team1_points
+            team_stats[input_team2]['matches_played'] += 1
+            
+            # Use stored winner from result (more reliable than re-calculating)
+            winner = result.get('winner')
+            if winner == input_team1:
+                team_stats[input_team1]['wins'] += 1
+                team_stats[input_team2]['losses'] += 1
+            elif winner == input_team2:
+                team_stats[input_team2]['wins'] += 1
+                team_stats[input_team1]['losses'] += 1
+        
+        # Calculate differentials
+        for team in team_stats:
+            team_stats[team]['set_diff'] = team_stats[team]['sets_won'] - team_stats[team]['sets_lost']
+            team_stats[team]['point_diff'] = team_stats[team]['points_for'] - team_stats[team]['points_against']
+        
+        # Sort teams by: wins (desc), set_diff (desc), point_diff (desc), alphabetical
+        sorted_teams = sorted(
+            team_stats.values(),
+            key=lambda x: (-x['wins'], -x['set_diff'], -x['point_diff'], x['team'])
+        )
+        
+        # Include advance_count for each pool so JavaScript can highlight advancing teams
+        advance_count = pool_data.get('advance', 2)
+        for team in sorted_teams:
+            team['advance_count'] = advance_count
+        
+        standings[pool_name] = sorted_teams
+    
+    return standings
 
 
 def get_default_constraints():
@@ -302,6 +506,7 @@ def settings():
             constraints_data['time_slot_increment_minutes'] = int(request.form.get('time_increment', 15))
             constraints_data['day_end_time_limit'] = request.form.get('day_end_time', '22:00')
             constraints_data['bracket_type'] = request.form.get('bracket_type', 'single')
+            constraints_data['scoring_format'] = request.form.get('scoring_format', 'best_of_3')
             save_constraints(constraints_data)
         
         elif action == 'add_team_constraint':
@@ -406,6 +611,12 @@ def schedule():
                 # Get schedule output
                 schedule_output = manager.get_schedule_output()
                 
+                # Create lookup from team pairs to pool
+                match_to_pool = {}
+                for m in matches:
+                    key = tuple(sorted(m["teams"]))
+                    match_to_pool[key] = m["pool"]
+                
                 # Organize by day
                 schedule_data = {}
                 for court_info in schedule_output:
@@ -416,6 +627,9 @@ def schedule():
                         court_name = court_info['court_name']
                         if court_name not in schedule_data[day]:
                             schedule_data[day][court_name] = []
+                        # Add pool info to each match
+                        teams_key = tuple(sorted(match['teams']))
+                        match['pool'] = match_to_pool.get(teams_key, '')
                         schedule_data[day][court_name].append(match)
                 
                 # Sort matches by time within each court
@@ -455,10 +669,160 @@ def schedule():
                     'unscheduled_matches': len(matches) - total_scheduled
                 }
                 
+                # Save the schedule for tracking
+                save_schedule(schedule_data, stats)
+                
+                # Clear all previous results (pool play and bracket)
+                save_results({'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'})
+                
+                # Redirect to tracking page after successful generation
+                return redirect(url_for('tracking'))
+                
         except Exception as e:
             error = f"Error generating schedule: {str(e)}"
     
+    # GET request - load saved schedule if exists
+    schedule_data, stats = load_schedule()
+    
     return render_template('schedule.html', schedule=schedule_data, error=error, stats=stats)
+
+
+@app.route('/tracking')
+def tracking():
+    """Display schedule with result tracking."""
+    # Load saved schedule
+    schedule_data, stats = load_schedule()
+    
+    if not schedule_data:
+        return render_template('tracking.html', schedule=None, stats=None, 
+                             results={}, standings={}, scoring_format='best_of_3', pools={})
+    
+    # Load results and calculate standings
+    pools = load_teams()
+    results = load_results()
+    standings = calculate_pool_standings(pools, results)
+    constraints = load_constraints()
+    scoring_format = constraints.get('scoring_format', 'best_of_3')
+    
+    # Calculate tracking stats - use scheduled_matches from the saved stats
+    scheduled_matches = stats.get('scheduled_matches', 0) if stats else 0
+    completed_matches = len([r for r in results.get('pool_play', {}).values() if r.get('completed')])
+    tracking_stats = {
+        'scheduled_matches': scheduled_matches,
+        'completed_matches': completed_matches,
+        'remaining_matches': scheduled_matches - completed_matches
+    }
+    
+    return render_template('tracking.html', schedule=schedule_data, stats=tracking_stats,
+                          results=results.get('pool_play', {}), standings=standings,
+                          scoring_format=scoring_format, pools=pools)
+
+
+@app.route('/api/results/pool', methods=['POST'])
+def save_pool_result():
+    """API endpoint to save a pool play match result."""
+    data = request.get_json()
+    
+    team1 = data.get('team1')
+    team2 = data.get('team2')
+    pool = data.get('pool')
+    sets = data.get('sets', [])
+    
+    if not team1 or not team2:
+        return jsonify({'error': 'Missing team names'}), 400
+    
+    # Generate match key
+    match_key = get_match_key(team1, team2, pool)
+    
+    # Load existing results
+    results = load_results()
+    
+    # Determine winner based on input order (team1 = index 0, team2 = index 1)
+    winner_idx, set_wins = determine_winner(sets)
+    winner = None
+    if winner_idx == 0:
+        winner = team1
+    elif winner_idx == 1:
+        winner = team2
+    
+    # Save result
+    results['pool_play'][match_key] = {
+        'sets': sets,
+        'winner': winner,
+        'completed': winner is not None,
+        'team1': team1,
+        'team2': team2
+    }
+    
+    save_results(results)
+    
+    # Recalculate standings
+    pools = load_teams()
+    standings = calculate_pool_standings(pools, results)
+    
+    return jsonify({
+        'success': True,
+        'match_key': match_key,
+        'winner': winner,
+        'set_wins': set_wins,
+        'standings': standings
+    })
+
+
+@app.route('/api/results/bracket', methods=['POST'])
+def save_bracket_result():
+    """API endpoint to save a bracket match result."""
+    data = request.get_json()
+    
+    team1 = data.get('team1')
+    team2 = data.get('team2')
+    round_name = data.get('round')
+    match_number = data.get('match_number')
+    bracket_type = data.get('bracket_type', 'winners')  # 'winners', 'losers', 'grand_final', 'bracket_reset'
+    sets = data.get('sets', [])
+    
+    if not team1 or not team2:
+        return jsonify({'error': 'Missing team names'}), 400
+    
+    # Generate match key
+    match_key = f"{bracket_type}_{round_name}_{match_number}"
+    
+    # Load existing results
+    results = load_results()
+    
+    # Determine winner
+    winner_idx, set_wins = determine_winner(sets)
+    winner = None
+    loser = None
+    if winner_idx == 0:
+        winner = team1
+        loser = team2
+    elif winner_idx == 1:
+        winner = team2
+        loser = team1
+    
+    # Save result
+    results['bracket'][match_key] = {
+        'sets': sets,
+        'winner': winner,
+        'loser': loser,
+        'completed': winner is not None,
+        'team1': team1,
+        'team2': team2,
+        'round': round_name,
+        'match_number': match_number,
+        'bracket_type': bracket_type
+    }
+    
+    save_results(results)
+    
+    return jsonify({
+        'success': True,
+        'match_key': match_key,
+        'winner': winner,
+        'loser': loser,
+        'set_wins': set_wins
+    })
 
 
 @app.route('/sbracket')
@@ -474,9 +838,19 @@ def sbracket():
     if total_advancing < 2:
         return render_template('sbracket.html', bracket_data=None, error="Not enough teams advancing to create a bracket.")
     
-    bracket_data = get_elimination_bracket_display(pools)
+    # Load results and calculate standings for actual team names
+    results = load_results()
+    standings = calculate_pool_standings(pools, results)
+    bracket_results = results.get('bracket', {})
+    constraints = load_constraints()
+    scoring_format = constraints.get('scoring_format', 'best_of_3')
     
-    return render_template('sbracket.html', bracket_data=bracket_data, error=None)
+    # Generate bracket with results applied
+    from core.elimination import generate_bracket_with_results
+    bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
+    
+    return render_template('sbracket.html', bracket_data=bracket_data, error=None, 
+                          bracket_results=bracket_results, scoring_format=scoring_format)
 
 
 @app.route('/schedule/single_elimination', methods=['GET', 'POST'])
@@ -587,9 +961,19 @@ def dbracket():
     if total_advancing < 2:
         return render_template('dbracket.html', bracket_data=None, error="Not enough teams advancing to create a bracket.")
     
-    bracket_data = get_double_elimination_bracket_display(pools)
+    # Load results and calculate standings for actual team names
+    results = load_results()
+    standings = calculate_pool_standings(pools, results)
+    bracket_results = results.get('bracket', {})
+    constraints = load_constraints()
+    scoring_format = constraints.get('scoring_format', 'best_of_3')
     
-    return render_template('dbracket.html', bracket_data=bracket_data, error=None)
+    # Generate bracket with results applied
+    from core.double_elimination import generate_double_bracket_with_results
+    bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+    
+    return render_template('dbracket.html', bracket_data=bracket_data, error=None,
+                          bracket_results=bracket_results, scoring_format=scoring_format)
 
 
 @app.route('/schedule/double_elimination', methods=['GET', 'POST'])

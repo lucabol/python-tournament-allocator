@@ -1,0 +1,31 @@
+bracket:
+  winners_Quarterfinal_2:
+    bracket_type: winners
+    completed: true
+    loser: Team T
+    match_number: 2
+    round: Quarterfinal
+    sets:
+    - - 3
+      - 15
+    team1: Team T
+    team2: Team A
+    winner: Team A
+bracket_type: single
+pool_play:
+  Team AB_vs_Team Z_Pool 5:
+    completed: true
+    sets:
+    - - 15
+      - 3
+    team1: Team Z
+    team2: Team AB
+    winner: Team Z
+  Team A_vs_Team Z_Pool 5:
+    completed: true
+    sets:
+    - - 2
+      - 14
+    team1: Team Z
+    team2: Team A
+    winner: Team A
