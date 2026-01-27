@@ -1,31 +1,324 @@
 bracket:
-  winners_Quarterfinal_2:
-    bracket_type: winners
+  bracket_reset_Bracket Reset_1:
     completed: true
-    loser: Team T
-    match_number: 2
-    round: Quarterfinal
+    loser: Cody - Sage
     sets:
-    - - 3
+    - - 21
+      - 11
+    winner: David - Zoe
+  grand_final_Grand Final_1:
+    completed: true
+    loser: David - Zoe
+    sets:
+    - - 16
+      - 21
+    winner: Cody - Sage
+  losers_Losers Final_1:
+    completed: true
+    loser: Adam - Rob
+    sets:
+    - - 21
+      - 13
+    winner: Cody - Sage
+  losers_Losers Round 1_1:
+    completed: true
+    loser: Alex - Sara
+    sets:
+    - - 21
+      - 17
+    winner: Adam - Rob
+  losers_Losers Round 1_2:
+    completed: true
+    loser: Beth - Jordan
+    sets:
+    - - 21
+      - 14
+    winner: Ben - Kim
+  losers_Losers Round 2_1:
+    completed: true
+    loser: Derek - Lily
+    sets:
+    - - 17
+      - 21
+    winner: Adam - Rob
+  losers_Losers Round 2_2:
+    completed: true
+    loser: Ben - Kim
+    sets:
+    - - 21
+      - 10
+    winner: Claire - Avery
+  losers_Losers Semifinal_1:
+    completed: true
+    loser: Claire - Avery
+    sets:
+    - - 21
       - 15
-    team1: Team T
-    team2: Team A
-    winner: Team A
+    winner: Adam - Rob
+  winners_Winners Final_1:
+    completed: true
+    loser: Cody - Sage
+    sets:
+    - - 21
+      - 14
+    winner: David - Zoe
+  winners_Winners Quarterfinal_1:
+    completed: true
+    loser: Adam - Rob
+    sets:
+    - - 10
+      - 21
+    winner: David - Zoe
+  winners_Winners Quarterfinal_2:
+    completed: true
+    loser: Alex - Sara
+    sets:
+    - - 21
+      - 18
+    winner: Derek - Lily
+  winners_Winners Quarterfinal_3:
+    completed: true
+    loser: Ben - Kim
+    sets:
+    - - 19
+      - 21
+    winner: Claire - Avery
+  winners_Winners Quarterfinal_4:
+    completed: true
+    loser: Beth - Jordan
+    sets:
+    - - 21
+      - 11
+    winner: Cody - Sage
+  winners_Winners Semifinal_1:
+    completed: true
+    loser: Derek - Lily
+    sets:
+    - - 21
+      - 12
+    winner: David - Zoe
+  winners_Winners Semifinal_2:
+    completed: true
+    loser: Claire - Avery
+    sets:
+    - - 19
+      - 21
+    winner: Cody - Sage
 bracket_type: single
 pool_play:
-  Team AB_vs_Team Z_Pool 5:
+  Adam - Rob_vs_Alex - Sara_Pool A:
     completed: true
+    loser: Adam - Rob
+    sets:
+    - - 18
+      - 21
+    team1: Adam - Rob
+    team2: Alex - Sara
+    winner: Alex - Sara
+  Adam - Rob_vs_Amy - Emma_Pool A:
+    completed: true
+    loser: Amy - Emma
+    sets:
+    - - 21
+      - 14
+    team1: Adam - Rob
+    team2: Amy - Emma
+    winner: Adam - Rob
+  Adam - Rob_vs_Anna - Lisa_Pool A:
+    completed: true
+    loser: Anna - Lisa
+    sets:
+    - - 21
+      - 12
+    team1: Adam - Rob
+    team2: Anna - Lisa
+    winner: Adam - Rob
+  Alex - Sara_vs_Amy - Emma_Pool A:
+    completed: true
+    loser: Amy - Emma
+    sets:
+    - - 21
+      - 18
+    team1: Alex - Sara
+    team2: Amy - Emma
+    winner: Alex - Sara
+  Alex - Sara_vs_Anna - Lisa_Pool A:
+    completed: true
+    loser: Alex - Sara
+    sets:
+    - - 16
+      - 21
+    team1: Alex - Sara
+    team2: Anna - Lisa
+    winner: Anna - Lisa
+  Amy - Emma_vs_Anna - Lisa_Pool A:
+    completed: true
+    loser: Amy - Emma
+    sets:
+    - - 21
+      - 18
+    team1: Anna - Lisa
+    team2: Amy - Emma
+    winner: Anna - Lisa
+  Ben - Kim_vs_Beth - Jordan_Pool B:
+    completed: true
+    loser: Ben - Kim
+    sets:
+    - - 12
+      - 21
+    team1: Ben - Kim
+    team2: Beth - Jordan
+    winner: Beth - Jordan
+  Ben - Kim_vs_Blake - Morgan_Pool B:
+    completed: true
+    loser: Blake - Morgan
+    sets:
+    - - 21
+      - 17
+    team1: Ben - Kim
+    team2: Blake - Morgan
+    winner: Ben - Kim
+  Ben - Kim_vs_Brian - Pat_Pool B:
+    completed: true
+    loser: Brian - Pat
+    sets:
+    - - 21
+      - 10
+    team1: Ben - Kim
+    team2: Brian - Pat
+    winner: Ben - Kim
+  Beth - Jordan_vs_Blake - Morgan_Pool B:
+    completed: true
+    loser: Beth - Jordan
+    sets:
+    - - 12
+      - 21
+    team1: Beth - Jordan
+    team2: Blake - Morgan
+    winner: Blake - Morgan
+  Beth - Jordan_vs_Brian - Pat_Pool B:
+    completed: true
+    loser: Brian - Pat
+    sets:
+    - - 19
+      - 21
+    team1: Brian - Pat
+    team2: Beth - Jordan
+    winner: Beth - Jordan
+  Blake - Morgan_vs_Brian - Pat_Pool B:
+    completed: true
+    loser: Blake - Morgan
+    sets:
+    - - 21
+      - 17
+    team1: Brian - Pat
+    team2: Blake - Morgan
+    winner: Brian - Pat
+  Carl - Drew_vs_Chris - Taylor_Pool C:
+    completed: true
+    loser: Chris - Taylor
     sets:
     - - 15
-      - 3
-    team1: Team Z
-    team2: Team AB
-    winner: Team Z
-  Team A_vs_Team Z_Pool 5:
+      - 21
+    team1: Chris - Taylor
+    team2: Carl - Drew
+    winner: Carl - Drew
+  Carl - Drew_vs_Claire - Avery_Pool C:
     completed: true
+    loser: Carl - Drew
     sets:
-    - - 2
+    - - 17
+      - 21
+    team1: Carl - Drew
+    team2: Claire - Avery
+    winner: Claire - Avery
+  Carl - Drew_vs_Cody - Sage_Pool C:
+    completed: true
+    loser: Carl - Drew
+    sets:
+    - - 14
+      - 21
+    team1: Carl - Drew
+    team2: Cody - Sage
+    winner: Cody - Sage
+  Chris - Taylor_vs_Claire - Avery_Pool C:
+    completed: true
+    loser: Chris - Taylor
+    sets:
+    - - 15
+      - 21
+    team1: Chris - Taylor
+    team2: Claire - Avery
+    winner: Claire - Avery
+  Chris - Taylor_vs_Cody - Sage_Pool C:
+    completed: true
+    loser: Chris - Taylor
+    sets:
+    - - 15
+      - 21
+    team1: Chris - Taylor
+    team2: Cody - Sage
+    winner: Cody - Sage
+  Claire - Avery_vs_Cody - Sage_Pool C:
+    completed: true
+    loser: Claire - Avery
+    sets:
+    - - 11
+      - 21
+    team1: Claire - Avery
+    team2: Cody - Sage
+    winner: Cody - Sage
+  Dan - Mia_vs_David - Zoe_Pool D:
+    completed: true
+    loser: David - Zoe
+    sets:
+    - - 13
+      - 21
+    team1: David - Zoe
+    team2: Dan - Mia
+    winner: Dan - Mia
+  Dan - Mia_vs_Derek - Lily_Pool D:
+    completed: true
+    loser: Dan - Mia
+    sets:
+    - - 15
+      - 21
+    team1: Dan - Mia
+    team2: Derek - Lily
+    winner: Derek - Lily
+  Dan - Mia_vs_Diana - Jake_Pool D:
+    completed: true
+    loser: Dan - Mia
+    sets:
+    - - 10
+      - 21
+    team1: Dan - Mia
+    team2: Diana - Jake
+    winner: Diana - Jake
+  David - Zoe_vs_Derek - Lily_Pool D:
+    completed: true
+    loser: Derek - Lily
+    sets:
+    - - 21
       - 14
-    team1: Team Z
-    team2: Team A
-    winner: Team A
+    team1: David - Zoe
+    team2: Derek - Lily
+    winner: David - Zoe
+  David - Zoe_vs_Diana - Jake_Pool D:
+    completed: true
+    loser: Diana - Jake
+    sets:
+    - - 21
+      - 17
+    team1: David - Zoe
+    team2: Diana - Jake
+    winner: David - Zoe
+  Derek - Lily_vs_Diana - Jake_Pool D:
+    completed: true
+    loser: Diana - Jake
+    sets:
+    - - 10
+      - 21
+    team1: Diana - Jake
+    team2: Derek - Lily
+    winner: Derek - Lily

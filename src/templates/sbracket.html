@@ -14,9 +14,13 @@
 </div>
 {% elif bracket_data %}
 
+<!-- Gold Bracket Section -->
+<div class="bracket-tier gold-bracket">
+<h2 class="bracket-tier-title">🥇 Gold Bracket</h2>
+
 {% if bracket_data.champion %}
 <div class="champion-banner">
-    🏆 Champion: <strong>{{ bracket_data.champion }}</strong>
+    🏆 Gold Champion: <strong>{{ bracket_data.champion }}</strong>
 </div>
 {% endif %}
 
@@ -141,6 +145,138 @@
         {% endfor %}
     </div>
 </div>
+
+</div><!-- end gold-bracket -->
+
+<!-- Silver Bracket Section -->
+{% if silver_bracket_enabled and silver_bracket_data %}
+<div class="bracket-tier silver-bracket">
+<h2 class="bracket-tier-title">🥈 Silver Bracket</h2>
+
+{% if silver_bracket_data.champion %}
+<div class="champion-banner silver-champion">
+    🥈 Silver Champion: <strong>{{ silver_bracket_data.champion }}</strong>
+</div>
+{% endif %}
+
+<div class="bracket-stats">
+    <div class="stat-card">
+        <div class="stat-value">{{ silver_bracket_data.total_teams }}</div>
+        <div class="stat-label">Teams</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ silver_bracket_data.bracket_size }}</div>
+        <div class="stat-label">Bracket Size</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ silver_bracket_data.total_rounds }}</div>
+        <div class="stat-label">Rounds</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ silver_bracket_data.byes }}</div>
+        <div class="stat-label">First Round Byes</div>
+    </div>
+</div>
+
+<div class="bracket-section">
+    <h2>Seeded Teams</h2>
+    <p class="section-note">Non-advancing teams seeded by pool finish position.</p>
+    <div class="seeded-teams-grid">
+        {% for team_name, seed, pool_name in silver_bracket_data.seeded_teams %}
+        <div class="seed-card">
+            <span class="seed-number">#{{ seed }}</span>
+            <span class="seed-team">{{ team_name }}</span>
+            <span class="seed-pool">{{ pool_name }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="bracket-section">
+    <h2>Bracket Rounds</h2>
+    <div class="bracket-rounds">
+        {% for round_name, matches in silver_bracket_data.rounds.items() %}
+        <div class="round-column">
+            <h3>{{ round_name }}</h3>
+            <div class="round-matches">
+                {% for match in matches %}
+                <div class="bracket-match {% if match.is_bye %}bye-match{% endif %} {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') and not match.is_bye %}completed-match{% endif %}"
+                     data-round="{{ round_name }}"
+                     data-match="{{ match.match_number }}"
+                     data-bracket-type="silver"
+                     data-team1="{{ match.teams[0] }}"
+                     data-team2="{{ match.teams[1] }}">
+                    <div class="match-header">
+                        Match {{ match.match_number }}
+                        {% if match.get('is_playable') %}
+                        <span class="playable-indicator">🟢</span>
+                        {% elif match.get('winner') and not match.is_bye %}
+                        <span class="completed-indicator">✓</span>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="bracket-match-team team-top {% if match.winner == match.teams[0] %}winner{% endif %}">
+                        <span class="team-info">
+                            {% if match.seeds %}
+                            <span class="match-seed">({{ match.seeds[0] }})</span>
+                            {% endif %}
+                            <span class="team-name">{{ match.teams[0] }}</span>
+                        </span>
+                        {% if not match.is_bye and not match.get('is_placeholder') %}
+                        <div class="score-inputs" data-format="{{ scoring_format }}">
+                            {% if scoring_format == 'single_set' %}
+                            <input type="number" class="score-input" data-set="0" data-team="0"
+                                   value="{{ match.result.sets[0][0] if match.result and match.result.sets and match.result.sets[0] else '' }}"
+                                   min="0" max="99" placeholder="-">
+                            {% else %}
+                            {% for i in range(3) %}
+                            <input type="number" class="score-input" data-set="{{ i }}" data-team="0"
+                                   value="{{ match.result.sets[i][0] if match.result and match.result.sets and match.result.sets|length > i and match.result.sets[i] else '' }}"
+                                   min="0" max="99" placeholder="-">
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="match-vs">vs</div>
+                    
+                    <div class="bracket-match-team team-bottom {% if match.winner == match.teams[1] %}winner{% endif %}">
+                        <span class="team-info">
+                            {% if match.seeds %}
+                            <span class="match-seed">({{ match.seeds[1] }})</span>
+                            {% endif %}
+                            <span class="team-name">{{ match.teams[1] }}</span>
+                        </span>
+                        {% if not match.is_bye and not match.get('is_placeholder') %}
+                        <div class="score-inputs" data-format="{{ scoring_format }}">
+                            {% if scoring_format == 'single_set' %}
+                            <input type="number" class="score-input" data-set="0" data-team="1"
+                                   value="{{ match.result.sets[0][1] if match.result and match.result.sets and match.result.sets[0] else '' }}"
+                                   min="0" max="99" placeholder="-">
+                            {% else %}
+                            {% for i in range(3) %}
+                            <input type="number" class="score-input" data-set="{{ i }}" data-team="1"
+                                   value="{{ match.result.sets[i][1] if match.result and match.result.sets and match.result.sets|length > i and match.result.sets[i] else '' }}"
+                                   min="0" max="99" placeholder="-">
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    {% if match.is_bye %}
+                    <div class="bye-indicator">BYE - Advances automatically</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+</div><!-- end silver-bracket -->
+{% endif %}
 
 <div class="bracket-actions">
     <a href="{{ url_for('schedule_single_elimination') }}" class="btn btn-primary">Schedule Elimination Rounds</a>

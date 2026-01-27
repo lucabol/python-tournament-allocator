@@ -1,39 +1,28 @@
-Pool 1:
+Pool A:
   advance: 2
   teams:
-  - Team D
-  - Team EM
-  - Team F
-  - Team K
-Pool 2:
-  advance: 3
-  teams:
-  - Team G
-  - Team H
-  - Team L
-  - Team M
-  - Team N
-Pool 3:
+  - Adam - Rob
+  - Alex - Sara
+  - Anna - Lisa
+  - Amy - Emma
+Pool B:
   advance: 2
   teams:
-  - Team O
-  - Team P
-  - Team Q
-  - Team R
-  - Team S
-Pool 4:
+  - Ben - Kim
+  - Brian - Pat
+  - Beth - Jordan
+  - Blake - Morgan
+Pool C:
   advance: 2
   teams:
-  - Team T
-  - Team U
-  - Team V
-  - Team W
-  - Team X
-Pool 5:
+  - Chris - Taylor
+  - Carl - Drew
+  - Claire - Avery
+  - Cody - Sage
+Pool D:
   advance: 2
   teams:
-  - Team Y
-  - Team Z
-  - Team A
-  - Team AB
-  - Team AC
+  - David - Zoe
+  - Dan - Mia
+  - Diana - Jake
+  - Derek - Lily

@@ -3,7 +3,10 @@
 {% block title %}Match Tracking - Tournament Allocator{% endblock %}
 
 {% block content %}
-<h1>📊 Match Tracking</h1>
+<div class="page-header">
+    <h1>📊 Match Tracking</h1>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="generateRandomResults()">Test</button>
+</div>
 
 {% if not schedule %}
 <div class="empty-state">
@@ -288,5 +291,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 });
+
+function generateRandomResults() {
+    if (confirm('Generate random results for all incomplete pool matches?')) {
+        fetch('/api/generate-random-results', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        });
+    }
+}
 </script>
 {% endblock %}

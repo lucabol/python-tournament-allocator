@@ -1048,6 +1048,9 @@ tr:hover .court-save-btn {
 
 .page-header {
     margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .page-header h1 {
@@ -1057,6 +1060,11 @@ tr:hover .court-save-btn {
 .page-header p {
     color: var(--text-muted);
     font-size: 0.9375rem;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
 }
 
 .error-message {
@@ -1202,8 +1210,32 @@ tr:hover .court-save-btn {
     box-shadow: var(--shadow-lg);
 }
 
+.champion-banner.silver-champion {
+    background: linear-gradient(135deg, #d1d5db 0%, #9ca3af 100%);
+}
+
 .champion-banner strong {
     font-size: 1.5rem;
+}
+
+/* Bracket Tier Styling */
+.bracket-tier {
+    margin-bottom: 3rem;
+}
+
+.bracket-tier-title {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.gold-bracket .bracket-tier-title {
+    border-bottom-color: #fbbf24;
+}
+
+.silver-bracket .bracket-tier-title {
+    border-bottom-color: #9ca3af;
 }
 
 /* Bracket Match Team Styling */

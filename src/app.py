@@ -80,12 +80,19 @@ def save_courts(courts):
 
 
 def load_constraints():
-    """Load constraints from YAML file."""
+    """Load constraints from YAML file, merging with defaults."""
+    defaults = get_default_constraints()
     if not os.path.exists(CONSTRAINTS_FILE):
-        return get_default_constraints()
+        return defaults
     with open(CONSTRAINTS_FILE, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
-        return data if data else get_default_constraints()
+        if not data:
+            return defaults
+        # Merge with defaults to ensure all keys exist
+        for key, value in defaults.items():
+            if key not in data:
+                data[key] = value
+        return data
 
 
 def save_constraints(constraints):
@@ -299,12 +306,15 @@ def calculate_pool_standings(pools, results):
 def get_default_constraints():
     """Return default constraints."""
     return {
-        'match_duration_minutes': 60,
+        'match_duration_minutes': 30,
         'days_number': 1,
-        'min_break_between_matches_minutes': 15,
+        'min_break_between_matches_minutes': 0,
         'time_slot_increment_minutes': 15,
-        'day_end_time_limit': '22:00',
-        'pool_in_same_court': False,
+        'day_end_time_limit': '02:00',
+        'bracket_type': 'double',
+        'scoring_format': 'single_set',
+        'pool_in_same_court': True,
+        'silver_bracket_enabled': True,
         'team_specific_constraints': [],
 
         'general_constraints': [],
@@ -654,6 +664,299 @@ def api_edit_court():
     return jsonify({'success': True})
 
 
+@app.route('/api/settings/update', methods=['POST'])
+def api_update_settings():
+    """AJAX endpoint for updating settings."""
+    data = request.get_json()
+    constraints_data = load_constraints()
+    
+    # Update all provided fields
+    if 'match_duration' in data:
+        constraints_data['match_duration_minutes'] = int(data['match_duration'])
+    if 'days_number' in data:
+        constraints_data['days_number'] = int(data['days_number'])
+    if 'min_break' in data:
+        constraints_data['min_break_between_matches_minutes'] = int(data['min_break'])
+    if 'time_increment' in data:
+        constraints_data['time_slot_increment_minutes'] = int(data['time_increment'])
+    if 'day_end_time' in data:
+        constraints_data['day_end_time_limit'] = data['day_end_time']
+    if 'bracket_type' in data:
+        constraints_data['bracket_type'] = data['bracket_type']
+    if 'scoring_format' in data:
+        constraints_data['scoring_format'] = data['scoring_format']
+    if 'pool_in_same_court' in data:
+        constraints_data['pool_in_same_court'] = data['pool_in_same_court']
+    if 'silver_bracket_enabled' in data:
+        constraints_data['silver_bracket_enabled'] = data['silver_bracket_enabled']
+    
+    save_constraints(constraints_data)
+    return jsonify({'success': True})
+
+
+@app.route('/api/reset', methods=['POST'])
+def api_reset_all():
+    """Reset all tournament data."""
+    # Clear all data files
+    if os.path.exists(TEAMS_FILE):
+        os.remove(TEAMS_FILE)
+    if os.path.exists(COURTS_FILE):
+        os.remove(COURTS_FILE)
+    if os.path.exists(RESULTS_FILE):
+        os.remove(RESULTS_FILE)
+    if os.path.exists(SCHEDULE_FILE):
+        os.remove(SCHEDULE_FILE)
+    if os.path.exists(CONSTRAINTS_FILE):
+        os.remove(CONSTRAINTS_FILE)
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/test-data', methods=['POST'])
+def api_load_test_data():
+    """Load test data for development/testing."""
+    # Test teams - 4 pools with 4 teams each
+    test_teams = {
+        'Pool A': {
+            'teams': ['Adam - Rob', 'Alex - Sara', 'Anna - Lisa', 'Amy - Emma'],
+            'advance': 2
+        },
+        'Pool B': {
+            'teams': ['Ben - Kim', 'Brian - Pat', 'Beth - Jordan', 'Blake - Morgan'],
+            'advance': 2
+        },
+        'Pool C': {
+            'teams': ['Chris - Taylor', 'Carl - Drew', 'Claire - Avery', 'Cody - Sage'],
+            'advance': 2
+        },
+        'Pool D': {
+            'teams': ['David - Zoe', 'Dan - Mia', 'Diana - Jake', 'Derek - Lily'],
+            'advance': 2
+        }
+    }
+    save_teams(test_teams)
+    
+    # Test courts - 4 courts
+    test_courts = [
+        {'name': 'Court 1', 'start_time': '09:00', 'end_time': '02:00'},
+        {'name': 'Court 2', 'start_time': '09:00', 'end_time': '02:00'},
+        {'name': 'Court 3', 'start_time': '09:00', 'end_time': '02:00'},
+        {'name': 'Court 4', 'start_time': '09:00', 'end_time': '02:00'}
+    ]
+    save_courts(test_courts)
+    
+    # Clear any existing results and schedule
+    if os.path.exists(RESULTS_FILE):
+        os.remove(RESULTS_FILE)
+    if os.path.exists(SCHEDULE_FILE):
+        os.remove(SCHEDULE_FILE)
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/generate-random-results', methods=['POST'])
+def api_generate_random_results():
+    """Generate random results for all scheduled pool matches."""
+    import random
+    
+    schedule_data, stats = load_schedule()
+    
+    if not schedule_data:
+        return jsonify({'success': False, 'error': 'No schedule found'})
+    
+    results = load_results()
+    pool_results = results.get('pool_play', {})
+    
+    # Iterate through schedule structure: day -> court -> matches list
+    for day_name, day_data in schedule_data.items():
+        for court_name, court_data in day_data.items():
+            if court_name == '_time_slots':
+                continue
+            
+            matches_list = court_data.get('matches', [])
+            for match in matches_list:
+                if not match or not isinstance(match, dict):
+                    continue
+                
+                teams = match.get('teams', [])
+                pool_name = match.get('pool')
+                
+                if len(teams) < 2 or not pool_name:
+                    continue
+                
+                team1, team2 = teams[0], teams[1]
+                match_key = get_match_key(team1, team2, pool_name)
+                
+                # Skip if already has result
+                if match_key in pool_results and pool_results[match_key].get('completed'):
+                    continue
+                
+                # Random score (single set, winner gets 21, loser gets 10-19)
+                winner_score = 21
+                loser_score = random.randint(10, 19)
+                
+                # Randomly decide winner
+                if random.random() < 0.5:
+                    sets = [[winner_score, loser_score]]
+                    winner = team1
+                    loser = team2
+                else:
+                    sets = [[loser_score, winner_score]]
+                    winner = team2
+                    loser = team1
+                
+                pool_results[match_key] = {
+                    'sets': sets,
+                    'winner': winner,
+                    'loser': loser,
+                    'completed': True,
+                    'team1': team1,
+                    'team2': team2
+                }
+    
+    results['pool_play'] = pool_results
+    save_results(results)
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/generate-random-bracket-results', methods=['POST'])
+def api_generate_random_bracket_results():
+    """Generate random results for all playable bracket matches."""
+    import random
+    from core.double_elimination import generate_double_bracket_with_results
+    from core.elimination import seed_silver_bracket_teams
+    
+    pools = load_teams()
+    results = load_results()
+    bracket_results = results.get('bracket', {})
+    constraints = load_constraints()
+    
+    # Get standings for seeding
+    standings = calculate_pool_standings(pools, results)
+    
+    # Generate bracket to find playable matches
+    bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+    
+    if not bracket_data:
+        return jsonify({'success': False, 'error': 'No bracket data'})
+    
+    updated = True
+    # Keep generating results until no more playable matches
+    while updated:
+        updated = False
+        bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+        
+        # Process winners bracket
+        for round_name, matches in bracket_data.get('winners_bracket', {}).items():
+            for match in matches:
+                if match.get('is_playable') and not match.get('is_bye'):
+                    team1, team2 = match['teams']
+                    match_number = match['match_number']
+                    match_key = f"winners_{round_name}_{match_number}"
+                    
+                    if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                        winner_score = 21
+                        loser_score = random.randint(10, 19)
+                        
+                        if random.random() < 0.5:
+                            sets = [[winner_score, loser_score]]
+                            winner, loser = team1, team2
+                        else:
+                            sets = [[loser_score, winner_score]]
+                            winner, loser = team2, team1
+                        
+                        bracket_results[match_key] = {
+                            'sets': sets,
+                            'winner': winner,
+                            'loser': loser,
+                            'completed': True
+                        }
+                        updated = True
+        
+        # Process losers bracket
+        for round_name, matches in bracket_data.get('losers_bracket', {}).items():
+            for match in matches:
+                if match.get('is_playable'):
+                    team1, team2 = match['teams']
+                    match_number = match['match_number']
+                    match_key = f"losers_{round_name}_{match_number}"
+                    
+                    if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                        winner_score = 21
+                        loser_score = random.randint(10, 19)
+                        
+                        if random.random() < 0.5:
+                            sets = [[winner_score, loser_score]]
+                            winner, loser = team1, team2
+                        else:
+                            sets = [[loser_score, winner_score]]
+                            winner, loser = team2, team1
+                        
+                        bracket_results[match_key] = {
+                            'sets': sets,
+                            'winner': winner,
+                            'loser': loser,
+                            'completed': True
+                        }
+                        updated = True
+        
+        # Process grand final
+        gf = bracket_data.get('grand_final')
+        if gf and gf.get('is_playable'):
+            team1, team2 = gf['teams']
+            match_key = "grand_final_Grand Final_1"
+            
+            if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                winner_score = 21
+                loser_score = random.randint(10, 19)
+                
+                if random.random() < 0.5:
+                    sets = [[winner_score, loser_score]]
+                    winner, loser = team1, team2
+                else:
+                    sets = [[loser_score, winner_score]]
+                    winner, loser = team2, team1
+                
+                bracket_results[match_key] = {
+                    'sets': sets,
+                    'winner': winner,
+                    'loser': loser,
+                    'completed': True
+                }
+                updated = True
+        
+        # Process bracket reset if needed
+        br = bracket_data.get('bracket_reset')
+        if br and br.get('needs_reset') and br.get('is_playable'):
+            team1, team2 = br['teams']
+            match_key = "bracket_reset_Bracket Reset_1"
+            
+            if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                winner_score = 21
+                loser_score = random.randint(10, 19)
+                
+                if random.random() < 0.5:
+                    sets = [[winner_score, loser_score]]
+                    winner, loser = team1, team2
+                else:
+                    sets = [[loser_score, winner_score]]
+                    winner, loser = team2, team1
+                
+                bracket_results[match_key] = {
+                    'sets': sets,
+                    'winner': winner,
+                    'loser': loser,
+                    'completed': True
+                }
+                updated = True
+    
+    results['bracket'] = bracket_results
+    save_results(results)
+    
+    return jsonify({'success': True})
+
+
 @app.route('/settings', methods=['GET', 'POST'])
 @app.route('/constraints', methods=['GET', 'POST'])  # Keep old URL for compatibility
 def settings():
@@ -671,6 +974,7 @@ def settings():
             constraints_data['bracket_type'] = request.form.get('bracket_type', 'single')
             constraints_data['scoring_format'] = request.form.get('scoring_format', 'best_of_3')
             constraints_data['pool_in_same_court'] = request.form.get('pool_in_same_court') == 'on'
+            constraints_data['silver_bracket_enabled'] = request.form.get('silver_bracket_enabled') == 'on'
             save_constraints(constraints_data)
         
         elif action == 'add_team_constraint':
@@ -1008,13 +1312,20 @@ def sbracket():
     bracket_results = results.get('bracket', {})
     constraints = load_constraints()
     scoring_format = constraints.get('scoring_format', 'best_of_3')
+    silver_bracket_enabled = constraints.get('silver_bracket_enabled', False)
     
-    # Generate bracket with results applied
-    from core.elimination import generate_bracket_with_results
+    # Generate gold bracket with results applied
+    from core.elimination import generate_bracket_with_results, generate_silver_bracket_with_results
     bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
     
+    # Generate silver bracket if enabled
+    silver_bracket_data = None
+    if silver_bracket_enabled:
+        silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
+    
     return render_template('sbracket.html', bracket_data=bracket_data, error=None, 
-                          bracket_results=bracket_results, scoring_format=scoring_format)
+                          bracket_results=bracket_results, scoring_format=scoring_format,
+                          silver_bracket_data=silver_bracket_data, silver_bracket_enabled=silver_bracket_enabled)
 
 
 @app.route('/schedule/single_elimination', methods=['GET', 'POST'])
@@ -1050,8 +1361,21 @@ def schedule_single_elimination():
                     # Create Court objects
                     courts = [Court(name=c['name'], start_time=c['start_time'], end_time=c.get('end_time')) for c in courts_data]
                     
-                    # Generate elimination matches
+                    # Generate gold bracket elimination matches
                     elimination_matches = generate_elimination_matches_for_scheduling(pools)
+                    
+                    # Add silver bracket matches if enabled
+                    silver_bracket_enabled = constraints_data.get('silver_bracket_enabled', False)
+                    if silver_bracket_enabled:
+                        from core.elimination import generate_silver_matches_for_scheduling
+                        silver_matches = generate_silver_matches_for_scheduling(pools)
+                        elimination_matches.extend(silver_matches)
+                        
+                        # Add silver bracket teams to the teams list
+                        from core.elimination import seed_silver_bracket_teams
+                        silver_teams = seed_silver_bracket_teams(pools)
+                        for team_name, seed, pool_name in silver_teams:
+                            teams.append(Team(name=team_name, attributes={'pool': pool_name, 'seed': seed, 'bracket': 'silver'}))
                     
                     # Filter out byes
                     match_tuples = [(teams_tuple, round_name) for teams_tuple, round_name in elimination_matches]
@@ -1131,13 +1455,20 @@ def dbracket():
     bracket_results = results.get('bracket', {})
     constraints = load_constraints()
     scoring_format = constraints.get('scoring_format', 'best_of_3')
+    silver_bracket_enabled = constraints.get('silver_bracket_enabled', False)
     
-    # Generate bracket with results applied
-    from core.double_elimination import generate_double_bracket_with_results
+    # Generate gold bracket with results applied
+    from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
     bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
     
+    # Generate silver bracket if enabled
+    silver_bracket_data = None
+    if silver_bracket_enabled:
+        silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
+    
     return render_template('dbracket.html', bracket_data=bracket_data, error=None,
-                          bracket_results=bracket_results, scoring_format=scoring_format)
+                          bracket_results=bracket_results, scoring_format=scoring_format,
+                          silver_bracket_data=silver_bracket_data, silver_bracket_enabled=silver_bracket_enabled)
 
 
 @app.route('/schedule/double_elimination', methods=['GET', 'POST'])
@@ -1175,6 +1506,19 @@ def schedule_double_elimination():
                     
                     # Generate double elimination matches (first round only)
                     elimination_matches = generate_double_elimination_matches_for_scheduling(pools)
+                    
+                    # Add silver bracket matches if enabled
+                    silver_bracket_enabled = constraints_data.get('silver_bracket_enabled', False)
+                    if silver_bracket_enabled:
+                        from core.double_elimination import generate_silver_double_matches_for_scheduling
+                        silver_matches = generate_silver_double_matches_for_scheduling(pools)
+                        elimination_matches.extend(silver_matches)
+                        
+                        # Add silver bracket teams to the teams list
+                        from core.elimination import seed_silver_bracket_teams
+                        silver_teams = seed_silver_bracket_teams(pools)
+                        for team_name, seed, pool_name in silver_teams:
+                            teams.append(Team(name=team_name, attributes={'pool': pool_name, 'seed': seed, 'bracket': 'silver'}))
                     
                     # Filter out byes
                     match_tuples = [(teams_tuple, round_name) for teams_tuple, round_name in elimination_matches]

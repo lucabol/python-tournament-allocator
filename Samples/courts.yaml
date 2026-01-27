@@ -1,0 +1,15 @@
+- name: Court 1
+  start_time: '20:00'
+  end_time: '02:00'
+
+- name: Court 2
+  start_time: '20:00'
+  end_time: '02:00'
+
+- name: Court 3
+  start_time: '20:00'
+  end_time: '02:00'
+
+- name: Court 4
+  start_time: '20:00'
+  end_time: '02:00'
