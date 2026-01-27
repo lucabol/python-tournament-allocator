@@ -97,9 +97,6 @@
                                         {% endif %}
                                     </div>
                                 </div>
-                                {% if is_completed %}
-                                <span class="match-status">✓</span>
-                                {% endif %}
                             </div>
                         {% endif %}
                     </td>
@@ -128,13 +125,15 @@
                         <th>W</th>
                         <th>L</th>
                         <th>Sets</th>
-                        <th>Diff</th>
+                        <th>Δ Sets</th>
+                        <th>Δ Pts</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for team in team_list %}
                     {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
-                    <tr class="{% if loop.index <= advance_count %}advancing{% endif %}">
+                    {% set has_played = team.matches_played > 0 %}
+                    <tr class="{% if loop.index <= advance_count and has_played %}advancing{% endif %}">
                         <td>{{ loop.index }}</td>
                         <td>{{ team.team }}</td>
                         <td>{{ team.wins }}</td>
@@ -142,6 +141,9 @@
                         <td>{{ team.sets_won }}-{{ team.sets_lost }}</td>
                         <td class="{% if team.set_diff > 0 %}positive{% elif team.set_diff < 0 %}negative{% endif %}">
                             {{ '+' if team.set_diff > 0 else '' }}{{ team.set_diff }}
+                        </td>
+                        <td class="{% if team.point_diff > 0 %}positive{% elif team.point_diff < 0 %}negative{% endif %}">
+                            {{ '+' if team.point_diff > 0 else '' }}{{ team.point_diff }}
                         </td>
                     </tr>
                     {% endfor %}
@@ -223,19 +225,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             span.classList.add('winner');
                         }
                     });
-                    
-                    // Add/update checkmark
-                    let status = cell.querySelector('.match-status');
-                    if (!status) {
-                        status = document.createElement('span');
-                        status.className = 'match-status';
-                        status.textContent = '✓';
-                        cell.appendChild(status);
-                    }
                 } else {
                     cell.classList.remove('match-completed');
-                    const status = cell.querySelector('.match-status');
-                    if (status) status.remove();
                     
                     cell.querySelectorAll('.team-name').forEach(span => {
                         span.classList.remove('winner');
@@ -261,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const tbody = div.querySelector('tbody');
                     if (tbody) {
                         tbody.innerHTML = teamList.map((team, idx) => `
-                            <tr class="${idx < (team.advance_count || 2) ? 'advancing' : ''}">
+                            <tr class="${idx < (team.advance_count || 2) && team.matches_played > 0 ? 'advancing' : ''}">
                                 <td>${idx + 1}</td>
                                 <td>${team.team}</td>
                                 <td>${team.wins}</td>
@@ -269,6 +260,9 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <td>${team.sets_won}-${team.sets_lost}</td>
                                 <td class="${team.set_diff > 0 ? 'positive' : team.set_diff < 0 ? 'negative' : ''}">
                                     ${team.set_diff > 0 ? '+' : ''}${team.set_diff}
+                                </td>
+                                <td class="${team.point_diff > 0 ? 'positive' : team.point_diff < 0 ? 'negative' : ''}">
+                                    ${team.point_diff > 0 ? '+' : ''}${team.point_diff}
                                 </td>
                             </tr>
                         `).join('');

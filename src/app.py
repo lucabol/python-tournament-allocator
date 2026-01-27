@@ -304,6 +304,7 @@ def get_default_constraints():
         'min_break_between_matches_minutes': 15,
         'time_slot_increment_minutes': 15,
         'day_end_time_limit': '22:00',
+        'pool_in_same_court': False,
         'team_specific_constraints': [],
 
         'general_constraints': [],
@@ -339,7 +340,41 @@ def teams():
     if request.method == 'POST':
         action = request.form.get('action')
         
-        if action == 'add_pool':
+        if action == 'load_yaml':
+            file = request.files.get('yaml_file')
+            if file and file.filename:
+                try:
+                    content = file.read().decode('utf-8')
+                    data = yaml.safe_load(content)
+                    if not isinstance(data, dict):
+                        flash('Invalid YAML format. Expected pool definitions.', 'error')
+                    else:
+                        # Normalize format
+                        normalized = {}
+                        for pool_name, pool_data in data.items():
+                            if isinstance(pool_data, list):
+                                normalized[pool_name] = {'teams': pool_data, 'advance': 2}
+                            elif isinstance(pool_data, dict):
+                                teams_list = pool_data.get('teams', [])
+                                advance = pool_data.get('advance', 2)
+                                normalized[pool_name] = {'teams': teams_list, 'advance': advance}
+                            else:
+                                flash(f'Invalid format for pool "{pool_name}".', 'error')
+                                return redirect(url_for('teams'))
+                        save_teams(normalized)
+                        # Clear existing schedule when teams change
+                        if os.path.exists(SCHEDULE_FILE):
+                            os.remove(SCHEDULE_FILE)
+                        flash(f'Loaded {len(normalized)} pool(s) from YAML file.', 'success')
+                except yaml.YAMLError as e:
+                    flash(f'Error parsing YAML: {e}', 'error')
+                except Exception as e:
+                    flash(f'Error loading file: {e}', 'error')
+            else:
+                flash('Please select a YAML file to load.', 'error')
+            return redirect(url_for('teams'))
+        
+        elif action == 'add_pool':
             pool_name = request.form.get('pool_name', '').strip()
             advance_count = int(request.form.get('advance_count', 2))
             if pool_name:
@@ -402,7 +437,6 @@ def teams():
                     pools[new_pool_name] = pools[old_pool_name]
                     del pools[old_pool_name]
                     save_teams(pools)
-                    flash(f'Pool renamed from "{old_pool_name}" to "{new_pool_name}".', 'success')
         
         elif action == 'edit_team':
             pool_name = request.form.get('pool_name')
@@ -435,8 +469,6 @@ def teams():
                                 updated_constraints = True
                     if updated_constraints:
                         save_constraints(constraints)
-                    
-                    flash(f'Team renamed from "{old_team_name}" to "{new_team_name}".', 'success')
         
         return redirect(url_for('teams'))
     
@@ -451,7 +483,40 @@ def courts():
         action = request.form.get('action')
         courts_list = load_courts()
         
-        if action == 'add_court':
+        if action == 'load_yaml':
+            file = request.files.get('yaml_file')
+            if file and file.filename:
+                try:
+                    content = file.read().decode('utf-8')
+                    data = yaml.safe_load(content)
+                    if not isinstance(data, list):
+                        flash('Invalid YAML format. Expected a list of courts.', 'error')
+                    else:
+                        new_courts = []
+                        for court in data:
+                            if isinstance(court, dict) and 'name' in court:
+                                new_courts.append({
+                                    'name': court['name'],
+                                    'start_time': court.get('start_time', '08:00'),
+                                    'end_time': court.get('end_time', '22:00')
+                                })
+                            else:
+                                flash('Invalid court format. Each court must have a "name" field.', 'error')
+                                return redirect(url_for('courts'))
+                        save_courts(new_courts)
+                        # Clear existing schedule when courts change
+                        if os.path.exists(SCHEDULE_FILE):
+                            os.remove(SCHEDULE_FILE)
+                        flash(f'Loaded {len(new_courts)} court(s) from YAML file.', 'success')
+                except yaml.YAMLError as e:
+                    flash(f'Error parsing YAML: {e}', 'error')
+                except Exception as e:
+                    flash(f'Error loading file: {e}', 'error')
+            else:
+                flash('Please select a YAML file to load.', 'error')
+            return redirect(url_for('courts'))
+        
+        elif action == 'add_court':
             court_name = request.form.get('court_name', '').strip()
             start_time = request.form.get('start_time', '08:00').strip()
             end_time = request.form.get('end_time', '22:00').strip()
@@ -483,12 +548,110 @@ def courts():
                             court['name'] = new_court_name
                             break
                     save_courts(courts_list)
-                    flash(f'Court renamed from "{old_court_name}" to "{new_court_name}".', 'success')
         
         return redirect(url_for('courts'))
     
     courts_list = load_courts()
     return render_template('courts.html', courts=courts_list)
+
+
+# AJAX API endpoints for auto-save
+@app.route('/api/teams/edit_pool', methods=['POST'])
+def api_edit_pool():
+    """AJAX endpoint for editing pool name."""
+    data = request.get_json()
+    old_name = data.get('old_name', '').strip()
+    new_name = data.get('new_name', '').strip()
+    
+    if not old_name or not new_name or old_name == new_name:
+        return jsonify({'success': True})
+    
+    pools = load_teams()
+    if new_name in pools:
+        return jsonify({'success': False, 'error': f'Pool "{new_name}" already exists.'})
+    if old_name in pools:
+        pools[new_name] = pools[old_name]
+        del pools[old_name]
+        save_teams(pools)
+    return jsonify({'success': True})
+
+
+@app.route('/api/teams/edit_team', methods=['POST'])
+def api_edit_team():
+    """AJAX endpoint for editing team name."""
+    data = request.get_json()
+    pool_name = data.get('pool_name', '').strip()
+    old_name = data.get('old_name', '').strip()
+    new_name = data.get('new_name', '').strip()
+    
+    if not pool_name or not old_name or not new_name or old_name == new_name:
+        return jsonify({'success': True})
+    
+    pools = load_teams()
+    
+    # Check if new name already exists
+    for p_name, pool_data in pools.items():
+        for t in pool_data['teams']:
+            if t == new_name and t != old_name:
+                return jsonify({'success': False, 'error': f'Team "{new_name}" already exists.'})
+    
+    if pool_name in pools and old_name in pools[pool_name]['teams']:
+        idx = pools[pool_name]['teams'].index(old_name)
+        pools[pool_name]['teams'][idx] = new_name
+        save_teams(pools)
+        
+        # Update constraints
+        constraints = load_constraints()
+        if 'team_specific_constraints' in constraints:
+            for constraint in constraints['team_specific_constraints']:
+                if constraint.get('team_name') == old_name:
+                    constraint['team_name'] = new_name
+            save_constraints(constraints)
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/teams/update_advance', methods=['POST'])
+def api_update_advance():
+    """AJAX endpoint for updating advance count."""
+    data = request.get_json()
+    pool_name = data.get('pool_name', '').strip()
+    advance_count = data.get('advance_count', 2)
+    
+    if not pool_name:
+        return jsonify({'success': False, 'error': 'Pool name required'})
+    
+    pools = load_teams()
+    if pool_name in pools:
+        pools[pool_name]['advance'] = int(advance_count)
+        save_teams(pools)
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/courts/edit', methods=['POST'])
+def api_edit_court():
+    """AJAX endpoint for editing court name."""
+    data = request.get_json()
+    old_name = data.get('old_name', '').strip()
+    new_name = data.get('new_name', '').strip()
+    
+    if not old_name or not new_name or old_name == new_name:
+        return jsonify({'success': True})
+    
+    courts_list = load_courts()
+    
+    # Check if new name exists
+    if any(c['name'] == new_name for c in courts_list if c['name'] != old_name):
+        return jsonify({'success': False, 'error': f'Court "{new_name}" already exists.'})
+    
+    for court in courts_list:
+        if court['name'] == old_name:
+            court['name'] = new_name
+            break
+    save_courts(courts_list)
+    
+    return jsonify({'success': True})
 
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -507,6 +670,7 @@ def settings():
             constraints_data['day_end_time_limit'] = request.form.get('day_end_time', '22:00')
             constraints_data['bracket_type'] = request.form.get('bracket_type', 'single')
             constraints_data['scoring_format'] = request.form.get('scoring_format', 'best_of_3')
+            constraints_data['pool_in_same_court'] = request.form.get('pool_in_same_court') == 'on'
             save_constraints(constraints_data)
         
         elif action == 'add_team_constraint':
@@ -675,8 +839,8 @@ def schedule():
                 # Clear all previous results (pool play and bracket)
                 save_results({'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'})
                 
-                # Redirect to tracking page after successful generation
-                return redirect(url_for('tracking'))
+                # Stay on schedule page after successful generation
+                return render_template('schedule.html', schedule=schedule_data, error=None, stats=stats)
                 
         except Exception as e:
             error = f"Error generating schedule: {str(e)}"

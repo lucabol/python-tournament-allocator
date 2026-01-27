@@ -37,6 +37,35 @@
     </form>
 </section>
 
+<section class="section">
+    <h2>Load from YAML 
+        <span class="help-icon" onclick="document.getElementById('courts-yaml-help').style.display='flex'">?</span>
+    </h2>
+    <form method="POST" enctype="multipart/form-data" class="inline-form" id="courts-yaml-form">
+        <input type="hidden" name="action" value="load_yaml">
+        <input type="file" name="yaml_file" accept=".yaml,.yml" required style="display:none" id="courts-yaml-input" onchange="document.getElementById('courts-yaml-form').submit()">
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('courts-yaml-input').click()">Load</button>
+    </form>
+    <p class="help-text">Loading will replace all existing courts and clear the schedule.</p>
+</section>
+
+<div id="courts-yaml-help" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Courts YAML Format</h3>
+            <button class="modal-close" onclick="document.getElementById('courts-yaml-help').style.display='none'">&times;</button>
+        </div>
+        <pre id="courts-yaml-example">- name: Court 1
+  start_time: '08:00'
+  end_time: '22:00'
+
+- name: Court 2
+  start_time: '09:00'
+  end_time: '21:00'</pre>
+        <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('courts-yaml-example').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy to Clipboard',2000)">Copy to Clipboard</button>
+    </div>
+</div>
+
 {% if courts %}
 <section class="section">
     <h2>Available Courts</h2>
@@ -54,19 +83,21 @@
             {% for court in courts %}
             <tr>
                 <td>
-                    <form method="POST" class="court-edit-form">
-                        <input type="hidden" name="action" value="edit_court">
-                        <input type="hidden" name="old_court_name" value="{{ court.name }}">
-                        <input type="text" name="new_court_name" value="{{ court.name }}" class="court-name-input" required>
-                        <button type="submit" class="btn btn-primary btn-xs court-save-btn" title="Save">✓</button>
-                    </form>
+                    <input type="text" value="{{ court.name }}" class="court-name-input"
+                           onchange="saveCourtName(this, '{{ court.name }}')">
                 </td>
                 <td>{{ court.start_time }}</td>
                 <td>{{ court.end_time }}</td>
                 <td>
                     {% set start_parts = court.start_time.split(':') %}
                     {% set end_parts = court.end_time.split(':') %}
-                    {% set hours = (end_parts[0]|int - start_parts[0]|int) %}
+                    {% set start_mins = start_parts[0]|int * 60 + start_parts[1]|int %}
+                    {% set end_mins = end_parts[0]|int * 60 + end_parts[1]|int %}
+                    {% if end_mins <= start_mins %}
+                        {% set hours = (24 * 60 - start_mins + end_mins) // 60 %}
+                    {% else %}
+                        {% set hours = (end_mins - start_mins) // 60 %}
+                    {% endif %}
                     {{ hours }} hours
                 </td>
                 <td>
@@ -87,4 +118,24 @@
     <p>Add a court above to get started.</p>
 </div>
 {% endif %}
+
+<script>
+async function saveCourtName(input, oldName) {
+    const newName = input.value.trim();
+    if (newName === oldName) return;
+    
+    const response = await fetch('/api/courts/edit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({old_name: oldName, new_name: newName})
+    });
+    const result = await response.json();
+    if (!result.success) {
+        alert(result.error);
+        input.value = oldName;
+    } else {
+        input.setAttribute('onchange', `saveCourtName(this, '${newName}')`);
+    }
+}
+</script>
 {% endblock %}

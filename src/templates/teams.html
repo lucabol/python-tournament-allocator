@@ -26,6 +26,44 @@
     </form>
 </section>
 
+<section class="section">
+    <h2>Load from YAML 
+        <span class="help-icon" onclick="document.getElementById('teams-yaml-help').style.display='flex'">?</span>
+    </h2>
+    <form method="POST" enctype="multipart/form-data" class="inline-form" id="teams-yaml-form">
+        <input type="hidden" name="action" value="load_yaml">
+        <input type="file" name="yaml_file" accept=".yaml,.yml" required style="display:none" id="teams-yaml-input" onchange="document.getElementById('teams-yaml-form').submit()">
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('teams-yaml-input').click()">Load</button>
+    </form>
+    <p class="help-text">Loading will replace all existing teams and clear the schedule.</p>
+</section>
+
+<div id="teams-yaml-help" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Teams YAML Format</h3>
+            <button class="modal-close" onclick="document.getElementById('teams-yaml-help').style.display='none'">&times;</button>
+        </div>
+        <pre id="teams-yaml-example">Pool A:
+  teams:
+    - Team 1
+    - Team 2
+  advance: 2
+
+Pool B:
+  teams:
+    - Team 3
+    - Team 4
+  advance: 2
+
+# Or simple format:
+Pool A:
+  - Team 1
+  - Team 2</pre>
+        <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('teams-yaml-example').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy to Clipboard',2000)">Copy to Clipboard</button>
+    </div>
+</div>
+
 {% if pools %}
 <section class="section">
     <h2>Pools & Teams</h2>
@@ -34,12 +72,9 @@
         {% for pool_name, pool_data in pools.items() %}
         <div class="pool-card">
             <div class="pool-header">
-                <form method="POST" class="pool-name-form">
-                    <input type="hidden" name="action" value="edit_pool">
-                    <input type="hidden" name="old_pool_name" value="{{ pool_name }}">
-                    <input type="text" name="new_pool_name" value="{{ pool_name }}" class="pool-name-input" required>
-                    <button type="submit" class="btn btn-primary btn-xs pool-save-btn" title="Save">✓</button>
-                </form>
+                <input type="text" value="{{ pool_name }}" class="pool-name-input" 
+                       data-pool-name="{{ pool_name }}"
+                       onchange="savePoolName(this, '{{ pool_name }}')">
                 <form method="POST" class="inline" onsubmit="return confirm('Delete this pool and all its teams?');">
                     <input type="hidden" name="action" value="delete_pool">
                     <input type="hidden" name="pool_name" value="{{ pool_name }}">
@@ -48,14 +83,10 @@
             </div>
             
             <div class="advance-setting">
-                <form method="POST" class="inline-form">
-                    <input type="hidden" name="action" value="update_advance">
-                    <input type="hidden" name="pool_name" value="{{ pool_name }}">
-                    <label>Top</label>
-                    <input type="number" name="advance_count" value="{{ pool_data.advance }}" min="1" max="10" style="width: 60px;">
-                    <label>advance</label>
-                    <button type="submit" class="btn btn-sm btn-primary">Update</button>
-                </form>
+                <label>Top</label>
+                <input type="number" value="{{ pool_data.advance }}" min="1" max="10" style="width: 60px;"
+                       onchange="saveAdvance(this, '{{ pool_name }}')">
+                <label>advance</label>
             </div>
             
             <form method="POST" class="add-team-form">
@@ -69,13 +100,8 @@
             <ul class="team-list">
                 {% for team in pool_data.teams %}
                 <li>
-                    <form method="POST" class="team-edit-form">
-                        <input type="hidden" name="action" value="edit_team">
-                        <input type="hidden" name="pool_name" value="{{ pool_name }}">
-                        <input type="hidden" name="old_team_name" value="{{ team }}">
-                        <input type="text" name="new_team_name" value="{{ team }}" class="team-name-input" required>
-                        <button type="submit" class="btn btn-primary btn-xs team-save-btn" title="Save">✓</button>
-                    </form>
+                    <input type="text" value="{{ team }}" class="team-name-input"
+                           onchange="saveTeamName(this, '{{ pool_name }}', '{{ team }}')">
                     <form method="POST" class="inline">
                         <input type="hidden" name="action" value="delete_team">
                         <input type="hidden" name="pool_name" value="{{ pool_name }}">
@@ -104,4 +130,53 @@
     <p>Create a pool above to get started.</p>
 </div>
 {% endif %}
+
+<script>
+async function savePoolName(input, oldName) {
+    const newName = input.value.trim();
+    if (newName === oldName) return;
+    
+    const response = await fetch('/api/teams/edit_pool', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({old_name: oldName, new_name: newName})
+    });
+    const result = await response.json();
+    if (!result.success) {
+        alert(result.error);
+        input.value = oldName;
+    } else {
+        // Update data attributes for future edits
+        input.dataset.poolName = newName;
+        input.setAttribute('onchange', `savePoolName(this, '${newName}')`);
+    }
+}
+
+async function saveTeamName(input, poolName, oldName) {
+    const newName = input.value.trim();
+    if (newName === oldName) return;
+    
+    const response = await fetch('/api/teams/edit_team', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pool_name: poolName, old_name: oldName, new_name: newName})
+    });
+    const result = await response.json();
+    if (!result.success) {
+        alert(result.error);
+        input.value = oldName;
+    } else {
+        input.setAttribute('onchange', `saveTeamName(this, '${poolName}', '${newName}')`);
+    }
+}
+
+async function saveAdvance(input, poolName) {
+    const value = parseInt(input.value);
+    await fetch('/api/teams/update_advance', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pool_name: poolName, advance_count: value})
+    });
+}
+</script>
 {% endblock %}

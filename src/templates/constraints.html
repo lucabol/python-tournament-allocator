@@ -56,6 +56,15 @@
                     <option value="best_of_3" {% if constraints.scoring_format == 'best_of_3' %}selected{% endif %}>Best of 3 Sets</option>
                 </select>
             </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="pool_in_same_court" name="pool_in_same_court" 
+                           {% if constraints.pool_in_same_court %}checked{% endif %}>
+                    Pool in Same Court
+                    <span class="help-icon" title="All matches for a pool will be scheduled on the same court. This also removes the minimum break requirement between matches for the same team.">?</span>
+                </label>
+            </div>
         </div>
         
         <button type="submit" class="btn btn-primary">Save Settings</button>

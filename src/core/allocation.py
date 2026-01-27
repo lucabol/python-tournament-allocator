@@ -59,6 +59,9 @@ class AllocationManager:
         # Check court end time if specified
         if court.end_time:
             court_end_dt = self._datetime_from_time(self._parse_time(court.end_time), match_start_time.date())
+            # Handle midnight crossing: if end time is before start time, add a day
+            if court_end_dt <= court_start_dt:
+                court_end_dt += datetime.timedelta(days=1)
             if match_end_time > court_end_dt:  # Cannot end after court closes
                 return False
 
@@ -67,10 +70,14 @@ class AllocationManager:
                 return False # Overlap
         return True
 
-    def _check_team_constraints(self, team_names, match_start_time, debug=False, reason_out=None):
+    def _check_team_constraints(self, team_names, match_start_time, debug=False, reason_out=None, soft_break=False):
         match_duration = datetime.timedelta(minutes=self.constraints.get('match_duration_minutes', 60))
         match_end_time = match_start_time + match_duration
         min_break_minutes = self.constraints.get('min_break_between_matches_minutes', 0)
+        
+        # When soft_break is True (used with pool_in_same_court), skip break check
+        if soft_break:
+            min_break_minutes = 0
         
         if debug:
             print(f"    Checking constraints for {team_names} at {match_start_time.strftime('%H:%M')}")
@@ -191,10 +198,17 @@ class AllocationManager:
         time_slot_minutes = self.constraints.get('time_slot_increment_minutes', 15)
         days_number = int(self.constraints.get('days_number', 1))
         day_end_time_str = self.constraints.get("day_end_time_limit", "22:00")
+        pool_in_same_court = self.constraints.get('pool_in_same_court', False)
         
         # Calculate match duration in slots (round up to ensure full coverage)
         match_slots = (match_duration_minutes + time_slot_minutes - 1) // time_slot_minutes
-        # Calculate minimum break in slots
+        
+        # When pool_in_same_court is enabled, min_break becomes a soft constraint (preference)
+        # We set break_slots to 0 for hard constraints but keep min_break_minutes for the objective
+        if pool_in_same_court:
+            break_slots = 0  # No hard break requirement
+        else:
+            break_slots = (min_break_minutes + time_slot_minutes - 1) // time_slot_minutes if min_break_minutes > 0 else 0
         break_slots = (min_break_minutes + time_slot_minutes - 1) // time_slot_minutes if min_break_minutes > 0 else 0
         
         # Determine day boundaries
@@ -202,9 +216,11 @@ class AllocationManager:
         day_start_time = earliest_court_time
         day_end_time = self._parse_time(day_end_time_str)
         
-        # Calculate total slots per day
+        # Calculate total slots per day (handle midnight crossing)
         day_start_minutes = day_start_time.hour * 60 + day_start_time.minute
         day_end_minutes = day_end_time.hour * 60 + day_end_time.minute
+        if day_end_minutes <= day_start_minutes:
+            day_end_minutes += 24 * 60  # Add 24 hours if crossing midnight
         total_day_minutes = day_end_minutes - day_start_minutes
         slots_per_day = total_day_minutes // time_slot_minutes
         
@@ -283,6 +299,9 @@ class AllocationManager:
                 if court.end_time:
                     court_end = self._parse_time(court.end_time)
                     court_end_minutes = court_end.hour * 60 + court_end.minute
+                    # Handle midnight crossing
+                    if court_end_minutes <= day_start_minutes:
+                        court_end_minutes += 24 * 60
                     court_end_slot = (court_end_minutes - day_start_minutes) // time_slot_minutes
                     for d in range(num_days):
                         present = match_present_vars[(m_idx, c_idx, d)]
@@ -347,6 +366,37 @@ class AllocationManager:
             for d in range(num_days):
                 if team_intervals_by_day[d]:
                     model.AddNoOverlap(team_intervals_by_day[d])
+        
+        # Constraint 6: Pool in same court - all matches for a pool must be on the same court
+        if pool_in_same_court:
+            # Group matches by pool
+            pool_matches = {}
+            for m_idx, (match_tuple, pool_name) in enumerate(matches_to_schedule):
+                if pool_name not in pool_matches:
+                    pool_matches[pool_name] = []
+                pool_matches[pool_name].append(m_idx)
+            
+            # For each pool, create a variable for which court it's assigned to
+            for pool_name, match_indices in pool_matches.items():
+                if len(match_indices) < 2:
+                    continue
+                
+                # Create a variable representing which court this pool is on
+                pool_court = model.NewIntVar(0, num_courts - 1, f"pool_court_{pool_name}")
+                
+                # For each match in this pool, constrain it to be on the pool's court
+                for m_idx in match_indices:
+                    # Create a variable for which court this match is on
+                    match_court = model.NewIntVar(0, num_courts - 1, f"match_court_m{m_idx}")
+                    
+                    # Link match_court to the present variables
+                    for c_idx in range(num_courts):
+                        for d in range(num_days):
+                            present = match_present_vars[(m_idx, c_idx, d)]
+                            model.Add(match_court == c_idx).OnlyEnforceIf(present)
+                    
+                    # All matches in pool must be on the same court
+                    model.Add(match_court == pool_court)
         
         # Create global start time variables for each match (day * slots_per_day + slot)
         match_global_start = {}
@@ -458,9 +508,14 @@ class AllocationManager:
         match_duration = datetime.timedelta(minutes=match_duration_minutes)
         time_slot_increment = datetime.timedelta(minutes=time_slot_minutes)
         all_dates = [base_date + datetime.timedelta(days=i) for i in range(days_number)]
+        pool_in_same_court = self.constraints.get('pool_in_same_court', False)
+        
+        # Track which court each pool is assigned to
+        pool_court_assignments = {}
         
         for match_tuple, match_info in matches_to_schedule:
             team1_name, team2_name = match_tuple
+            pool_name = match_info  # match_info contains the pool name
             scheduled_this_match = False
             
             for day_idx, day in enumerate(all_dates):
@@ -477,22 +532,73 @@ class AllocationManager:
                         current_time += time_slot_increment
                         continue
                     
-                    sorted_courts = sorted(self.courts, key=lambda c: len(self.schedule[c.name]))
-                    for court in sorted_courts:
+                    # Determine which courts to consider
+                    if pool_in_same_court and pool_name in pool_court_assignments:
+                        # Only consider the court already assigned to this pool
+                        courts_to_try = [c for c in self.courts if c.name == pool_court_assignments[pool_name]]
+                    else:
+                        # Sort by least loaded
+                        courts_to_try = sorted(self.courts, key=lambda c: len(self.schedule[c.name]))
+                    
+                    for court in courts_to_try:
                         court_start_dt = self._datetime_from_time(self._parse_time(court.start_time), day)
                         if potential_start_time < court_start_dt:
                             continue
                         if self._check_court_availability(court, potential_start_time, potential_end_time):
+                            # Try with break constraint first
                             if self._check_team_constraints((team1_name, team2_name), potential_start_time):
                                 self.schedule[court.name].append((day_num, potential_start_time, potential_end_time, match_tuple))
                                 self.schedule[court.name].sort(key=lambda x: (x[0], x[1]))
                                 print(f"  ✓ Scheduled (greedy): {match_tuple} on {court.name} Day {day_num}")
                                 scheduled_this_match = True
+                                # Track pool-to-court assignment
+                                if pool_in_same_court and pool_name not in pool_court_assignments:
+                                    pool_court_assignments[pool_name] = court.name
                                 break
                     if not scheduled_this_match:
                         current_time += time_slot_increment
                 if scheduled_this_match:
                     break
+            
+            # If pool_in_same_court and couldn't schedule with breaks, try again without break constraint
+            if not scheduled_this_match and pool_in_same_court:
+                for day_idx, day in enumerate(all_dates):
+                    day_num = day_idx + 1
+                    day_start_dt = self._datetime_from_time(day_start_time, day)
+                    day_end_dt = self._datetime_from_time(day_end_time, day)
+                    current_time = day_start_dt
+                    
+                    while current_time <= day_end_dt - match_duration and not scheduled_this_match:
+                        potential_start_time = current_time
+                        potential_end_time = potential_start_time + match_duration
+                        
+                        if self._has_team_overlap((team1_name, team2_name), potential_start_time, potential_end_time):
+                            current_time += time_slot_increment
+                            continue
+                        
+                        if pool_name in pool_court_assignments:
+                            courts_to_try = [c for c in self.courts if c.name == pool_court_assignments[pool_name]]
+                        else:
+                            courts_to_try = sorted(self.courts, key=lambda c: len(self.schedule[c.name]))
+                        
+                        for court in courts_to_try:
+                            court_start_dt = self._datetime_from_time(self._parse_time(court.start_time), day)
+                            if potential_start_time < court_start_dt:
+                                continue
+                            if self._check_court_availability(court, potential_start_time, potential_end_time):
+                                # Try without break constraint (soft_break=True)
+                                if self._check_team_constraints((team1_name, team2_name), potential_start_time, soft_break=True):
+                                    self.schedule[court.name].append((day_num, potential_start_time, potential_end_time, match_tuple))
+                                    self.schedule[court.name].sort(key=lambda x: (x[0], x[1]))
+                                    print(f"  ✓ Scheduled (greedy, no break): {match_tuple} on {court.name} Day {day_num}")
+                                    scheduled_this_match = True
+                                    if pool_name not in pool_court_assignments:
+                                        pool_court_assignments[pool_name] = court.name
+                                    break
+                        if not scheduled_this_match:
+                            current_time += time_slot_increment
+                    if scheduled_this_match:
+                        break
             
             if not scheduled_this_match:
                 print(f"  ✗ Warning: Could not schedule match {match_tuple}")

@@ -65,15 +65,20 @@ def seed_teams_from_pools(pools: Dict[str, Dict], standings: Optional[Dict] = No
             pool_data = pools[pool_name]
             advance_count = pool_data.get('advance', 2)
             if position <= advance_count:
-                # Use actual team name from standings if available
+                # Use actual team name from standings only if the team has played games
                 if standings and pool_name in standings:
                     pool_standings = standings[pool_name]
                     if len(pool_standings) >= position:
-                        team_name = pool_standings[position - 1]['team']
+                        team_data = pool_standings[position - 1]
+                        # Only use actual name if team has played at least one match
+                        if team_data.get('matches_played', 0) > 0:
+                            team_name = team_data['team']
+                        else:
+                            team_name = f"#{position} {pool_name}"
                     else:
-                        team_name = f"{pool_name}_pos{position}"
+                        team_name = f"#{position} {pool_name}"
                 else:
-                    team_name = f"{pool_name}_pos{position}"
+                    team_name = f"#{position} {pool_name}"
                 
                 seeded_teams.append((team_name, seed, pool_name))
                 seed += 1
