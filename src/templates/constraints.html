@@ -181,34 +181,29 @@ function updateSetting(field, value) {
 }
 
 function loadTestData() {
-    if (confirm('This will replace existing teams and courts with test data. Continue?')) {
-        fetch('/api/test-data', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Test data loaded successfully!');
-                location.reload();
-            }
-        });
-    }
+    fetch('/api/test-data', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
 }
 
 function resetAll() {
-    if (confirm('Are you sure you want to reset ALL tournament data? This cannot be undone.')) {
-        fetch('/api/reset', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            }
-        });
-    }
+    fetch('/api/reset', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
 }
 </script>
 {% endblock %}

@@ -778,20 +778,16 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function generateRandomBracketResults() {
-    if (confirm('Generate random results for all playable bracket matches?')) {
-        fetch('/api/generate-random-bracket-results', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
-            }
-        });
-    }
+    fetch('/api/generate-random-bracket-results', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
 }
 </script>
 {% endblock %}

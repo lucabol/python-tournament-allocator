@@ -293,20 +293,16 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function generateRandomResults() {
-    if (confirm('Generate random results for all incomplete pool matches?')) {
-        fetch('/api/generate-random-results', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error: ' + (data.error || 'Unknown error'));
-            }
-        });
-    }
+    fetch('/api/generate-random-results', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
 }
 </script>
 {% endblock %}
