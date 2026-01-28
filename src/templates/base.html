@@ -17,8 +17,9 @@
             <li><a href="{{ url_for('courts') }}" {% if request.endpoint == 'courts' %}class="active"{% endif %}>Courts</a></li>
             <li><a href="{{ url_for('settings') }}" {% if request.endpoint == 'settings' %}class="active"{% endif %}>Settings</a></li>
             <li><a href="{{ url_for('schedule') }}" {% if request.endpoint == 'schedule' %}class="active"{% endif %}>Schedule</a></li>
-            <li><a href="{{ url_for('tracking') }}" {% if request.endpoint == 'tracking' %}class="active"{% endif %}>Tracking</a></li>
+            <li><a href="{{ url_for('tracking') }}" {% if request.endpoint == 'tracking' %}class="active"{% endif %}>Pools</a></li>
             <li><a href="{{ url_for('bracket') }}" {% if request.endpoint == 'bracket' or request.endpoint == 'sbracket' or request.endpoint == 'dbracket' or request.endpoint == 'schedule_single_elimination' or request.endpoint == 'schedule_double_elimination' %}class="active"{% endif %}>Bracket</a></li>
+            <li><a href="{{ url_for('print_view') }}" {% if request.endpoint == 'print_view' %}class="active"{% endif %}>Print</a></li>
         </ul>
     </nav>
     

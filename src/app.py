@@ -22,6 +22,28 @@ COURTS_FILE = os.path.join(DATA_DIR, 'courts.csv')
 CONSTRAINTS_FILE = os.path.join(DATA_DIR, 'constraints.yaml')
 RESULTS_FILE = os.path.join(DATA_DIR, 'results.yaml')
 SCHEDULE_FILE = os.path.join(DATA_DIR, 'schedule.yaml')
+PRINT_SETTINGS_FILE = os.path.join(DATA_DIR, 'print_settings.yaml')
+
+
+def load_print_settings():
+    """Load print settings from YAML file."""
+    defaults = {
+        'title': 'Tournament Summary',
+        'subtitle': 'January 2026'
+    }
+    if not os.path.exists(PRINT_SETTINGS_FILE):
+        return defaults
+    with open(PRINT_SETTINGS_FILE, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
+            return defaults
+        return {**defaults, **data}
+
+
+def save_print_settings(settings):
+    """Save print settings to YAML file."""
+    with open(PRINT_SETTINGS_FILE, 'w', encoding='utf-8') as f:
+        yaml.dump(settings, f, default_flow_style=False)
 
 
 def load_teams():
@@ -787,10 +809,6 @@ def api_generate_random_results():
                 team1, team2 = teams[0], teams[1]
                 match_key = get_match_key(team1, team2, pool_name)
                 
-                # Skip if already has result
-                if match_key in pool_results and pool_results[match_key].get('completed'):
-                    continue
-                
                 # Random score (single set, winner gets 21, loser gets 10-19)
                 winner_score = 21
                 loser_score = random.randint(10, 19)
@@ -829,7 +847,8 @@ def api_generate_random_bracket_results():
     
     pools = load_teams()
     results = load_results()
-    bracket_results = results.get('bracket', {})
+    # Clear previous bracket results to regenerate fresh
+    bracket_results = {}
     constraints = load_constraints()
     
     # Get standings for seeding
@@ -1184,6 +1203,62 @@ def tracking():
     return render_template('tracking.html', schedule=schedule_data, stats=tracking_stats,
                           results=results.get('pool_play', {}), standings=standings,
                           scoring_format=scoring_format, pools=pools)
+
+
+@app.route('/print')
+def print_view():
+    """Display printable tournament summary."""
+    pools = load_teams()
+    courts = load_courts()
+    constraints = load_constraints()
+    schedule_data, stats = load_schedule()
+    results = load_results()
+    standings = calculate_pool_standings(pools, results)
+    
+    # Get bracket data
+    bracket_data = None
+    silver_bracket_data = None
+    bracket_results = results.get('bracket', {})
+    
+    if pools:
+        bracket_type = constraints.get('bracket_type', 'single')
+        if bracket_type == 'double':
+            from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
+            bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+            if constraints.get('silver_bracket_enabled'):
+                silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
+        else:
+            from core.elimination import generate_bracket_with_results, generate_silver_bracket_with_results
+            bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
+            if constraints.get('silver_bracket_enabled'):
+                silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
+    
+    print_settings = load_print_settings()
+    
+    return render_template('print.html',
+                          pools=pools,
+                          courts=courts,
+                          constraints=constraints,
+                          schedule=schedule_data,
+                          standings=standings,
+                          bracket_data=bracket_data,
+                          silver_bracket_data=silver_bracket_data,
+                          print_settings=print_settings)
+
+
+@app.route('/api/print-settings', methods=['POST'])
+def update_print_settings():
+    """API endpoint to update print settings."""
+    data = request.get_json()
+    settings = load_print_settings()
+    
+    if 'title' in data:
+        settings['title'] = data['title']
+    if 'subtitle' in data:
+        settings['subtitle'] = data['subtitle']
+    
+    save_print_settings(settings)
+    return jsonify({'success': True})
 
 
 @app.route('/api/results/pool', methods=['POST'])

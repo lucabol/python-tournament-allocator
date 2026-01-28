@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Print Summary - Tournament Allocator{% endblock %}
+
+{% block content %}
+<div class="print-view">
+    <div class="page-header">
+        <div class="print-header-logo">
+            <img src="https://montgobvc.com/wp-content/uploads/2024/02/LOGO-MBVC-001.png" alt="Montgó Beach Volley Club" class="print-logo">
+            <div class="print-titles">
+                <h1 contenteditable="true" class="editable-title" id="print-title" onblur="savePrintSettings()">{{ print_settings.title }}</h1>
+                <h2 contenteditable="true" class="editable-subtitle" id="print-subtitle" onblur="savePrintSettings()">{{ print_settings.subtitle }}</h2>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm no-print" onclick="window.print()">Print</button>
+    </div>
+
+    <!-- Teams & Pools Section -->
+    <section class="print-section">
+        <h2>1. Teams & Pools</h2>
+        {% if pools %}
+        {% for pool_name, pool_data in pools.items() %}
+        <h3>{{ pool_name }}</h3>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Team</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team in pool_data.teams %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ team }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p class="print-note">Teams advancing: {{ pool_data.advance }}</p>
+        {% endfor %}
+        {% else %}
+        <p>No teams configured.</p>
+        {% endif %}
+    </section>
+
+    <!-- Courts Section -->
+    <section class="print-section">
+        <h2>2. Courts</h2>
+        {% if courts %}
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Court</th>
+                    <th>Start Time</th>
+                    <th>End Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for court in courts %}
+                <tr>
+                    <td>{{ court.name }}</td>
+                    <td>{{ court.start_time }}</td>
+                    <td>{{ court.end_time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No courts configured.</p>
+        {% endif %}
+    </section>
+
+    <!-- Settings Section -->
+    <section class="print-section">
+        <h2>3. Tournament Settings</h2>
+        <table class="print-table">
+            <tbody>
+                <tr><td>Match Duration</td><td>{{ constraints.match_duration_minutes }} minutes</td></tr>
+                <tr><td>Min Break Between Matches</td><td>{{ constraints.min_break_between_matches_minutes }} minutes</td></tr>
+                <tr><td>Day End Time</td><td>{{ constraints.day_end_time_limit }}</td></tr>
+                <tr><td>Scoring Format</td><td>{{ 'Single Set' if constraints.scoring_format == 'single_set' else 'Best of 3' }}</td></tr>
+                <tr><td>Bracket Type</td><td>{{ 'Double Elimination' if constraints.bracket_type == 'double' else 'Single Elimination' }}</td></tr>
+                <tr><td>Pool in Same Court</td><td>{{ 'Yes' if constraints.pool_in_same_court else 'No' }}</td></tr>
+                <tr><td>Silver Bracket</td><td>{{ 'Yes' if constraints.silver_bracket_enabled else 'No' }}</td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Schedule Section -->
+    <section class="print-section">
+        <h2>4. Match Schedule</h2>
+        {% if schedule %}
+        {% for day, day_data in schedule.items() %}
+        <h3>{{ day }}</h3>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Court</th>
+                    <th>Pool</th>
+                    <th>Match</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set courts_list = day_data.keys() | reject('equalto', '_time_slots') | list %}
+                {% for court_name in courts_list %}
+                {% for match in day_data[court_name].get('matches', []) %}
+                <tr>
+                    <td>{{ match.start_time }} - {{ match.end_time }}</td>
+                    <td>{{ court_name }}</td>
+                    <td>{{ match.pool }}</td>
+                    <td>{{ match.teams[0] }} vs {{ match.teams[1] }}</td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+        {% else %}
+        <p>No schedule generated yet.</p>
+        {% endif %}
+    </section>
+
+    <!-- Pool Standings Section -->
+    <section class="print-section">
+        <h2>5. Pool Standings</h2>
+        {% if standings %}
+        {% for pool_name, pool_standings in standings.items() %}
+        <h3>{{ pool_name }}</h3>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Team</th>
+                    <th>W</th>
+                    <th>L</th>
+                    <th>Δ Sets</th>
+                    <th>Δ Pts</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team in pool_standings %}
+                {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
+                <tr {% if loop.index <= advance_count and team.matches_played > 0 %}class="advancing"{% endif %}>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ team.team }}</td>
+                    <td>{{ team.wins }}</td>
+                    <td>{{ team.losses }}</td>
+                    <td>{{ team.sets_won - team.sets_lost }}</td>
+                    <td>{{ team.points_for - team.points_against }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+        {% else %}
+        <p>No standings available.</p>
+        {% endif %}
+    </section>
+
+    <!-- Bracket Section -->
+    <section class="print-section">
+        <h2>6. Elimination Bracket</h2>
+        {% if bracket_data %}
+        
+        <h3>6.1 Seeded Teams</h3>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Seed</th>
+                    <th>Team</th>
+                    <th>Pool</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for team_name, seed, pool_name in bracket_data.seeded_teams %}
+                <tr>
+                    <td>#{{ seed }}</td>
+                    <td>{{ team_name }}</td>
+                    <td>{{ pool_name }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h3>6.2 Winners Bracket</h3>
+        {% for round_name, matches in bracket_data.winners_bracket.items() %}
+        <h4>{{ round_name }}</h4>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Match</th>
+                    <th>Team 1</th>
+                    <th>Team 2</th>
+                    <th>Winner</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for match in matches %}
+                <tr>
+                    <td>{{ match.match_number }}</td>
+                    <td>{{ match.teams[0] }}</td>
+                    <td>{{ match.teams[1] }}</td>
+                    <td>{{ match.winner if match.winner else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+
+        {% if bracket_data.losers_bracket %}
+        <h3>6.3 Losers Bracket</h3>
+        {% for round_name, matches in bracket_data.losers_bracket.items() %}
+        <h4>{{ round_name }}</h4>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Match</th>
+                    <th>Team 1</th>
+                    <th>Team 2</th>
+                    <th>Winner</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for match in matches %}
+                <tr>
+                    <td>{{ match.match_number }}</td>
+                    <td>{{ match.teams[0] }}</td>
+                    <td>{{ match.teams[1] }}</td>
+                    <td>{{ match.winner if match.winner else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+        {% endif %}
+
+        {% if bracket_data.grand_final %}
+        <h3>6.4 Grand Final</h3>
+        <table class="print-table">
+            <tbody>
+                <tr>
+                    <td>{{ bracket_data.grand_final.teams[0] }} vs {{ bracket_data.grand_final.teams[1] }}</td>
+                    <td>Winner: {{ bracket_data.grand_final.winner if bracket_data.grand_final.winner else '-' }}</td>
+                </tr>
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if bracket_data.champion %}
+        <p class="champion-note"><strong>🏆 Champion: {{ bracket_data.champion }}</strong></p>
+        {% endif %}
+
+        {% else %}
+        <p>No bracket data available.</p>
+        {% endif %}
+
+        {% if silver_bracket_data %}
+        <h3>6.5 Silver Bracket</h3>
+        
+        <h4>Silver Winners Bracket</h4>
+        {% for round_name, matches in silver_bracket_data.winners_bracket.items() %}
+        <h5>{{ round_name }}</h5>
+        <table class="print-table">
+            <thead>
+                <tr>
+                    <th>Match</th>
+                    <th>Team 1</th>
+                    <th>Team 2</th>
+                    <th>Winner</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for match in matches %}
+                <tr>
+                    <td>{{ match.match_number }}</td>
+                    <td>{{ match.teams[0] }}</td>
+                    <td>{{ match.teams[1] }}</td>
+                    <td>{{ match.winner if match.winner else '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+
+        {% if silver_bracket_data.champion %}
+        <p class="champion-note"><strong>🥈 Silver Champion: {{ silver_bracket_data.champion }}</strong></p>
+        {% endif %}
+        {% endif %}
+    </section>
+</div>
+
+<style>
+@media print {
+    nav, footer, .btn, .page-header button, .no-print {
+        display: none !important;
+    }
+    .print-view {
+        padding: 0;
+        margin: 0;
+    }
+    .page-header {
+        margin-bottom: 0.5rem !important;
+    }
+    .print-section {
+        page-break-inside: auto;
+    }
+    .print-section h2 {
+        page-break-after: avoid;
+    }
+    .print-table {
+        page-break-inside: auto;
+    }
+    .print-table tr {
+        page-break-inside: avoid;
+    }
+    .editable-title, .editable-subtitle {
+        border: none !important;
+        padding: 0 !important;
+    }
+}
+
+.print-view {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.print-header-logo {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.print-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.print-logo {
+    height: 60px;
+    width: auto;
+}
+
+.editable-title, .editable-subtitle {
+    border: 1px dashed transparent;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: text;
+    margin: 0;
+}
+
+.editable-subtitle {
+    font-size: 1rem;
+    font-weight: normal;
+    color: #6b7280;
+}
+
+.editable-title:hover, .editable-subtitle:hover {
+    border-color: #9ca3af;
+}
+
+.editable-title:focus, .editable-subtitle:focus {
+    outline: none;
+    border-color: #3b82f6;
+    background: #f0f9ff;
+}
+
+.print-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.print-section h2 {
+    color: #1f2937;
+    border-bottom: 2px solid #3b82f6;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.print-section h3 {
+    color: #374151;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.print-section h4 {
+    color: #4b5563;
+    margin-top: 0.75rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.95rem;
+}
+
+.print-section h5 {
+    color: #6b7280;
+    margin-top: 0.5rem;
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.print-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+.print-table th,
+.print-table td {
+    border: 1px solid #d1d5db;
+    padding: 0.5rem;
+    text-align: left;
+}
+
+.print-table th {
+    background: #f3f4f6;
+    font-weight: 600;
+}
+
+.print-table tr.advancing {
+    background: #dcfce7;
+}
+
+.print-note {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-top: -0.5rem;
+}
+
+.champion-note {
+    font-size: 1.1rem;
+    margin-top: 1rem;
+}
+</style>
+
+<script>
+function savePrintSettings() {
+    const title = document.getElementById('print-title').innerText.trim();
+    const subtitle = document.getElementById('print-subtitle').innerText.trim();
+    
+    fetch('/api/print-settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: title, subtitle: subtitle})
+    });
+}
+</script>
+{% endblock %}
