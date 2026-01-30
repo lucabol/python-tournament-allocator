@@ -16,12 +16,6 @@
         <button type="button" class="btn btn-primary btn-sm no-print" onclick="window.print()">Print</button>
     </div>
 
-    <div class="document-meta">
-        <p><strong>Document Type:</strong> Official Tournament Registration</p>
-        <p><strong>Submitted to:</strong> Ajuntament de Xàbia / Ayuntamiento de Jávea</p>
-        <p><strong>Date Generated:</strong> {{ now if now else "_______________" }}</p>
-    </div>
-
     <hr class="formal-divider">
 
     <!-- Section 1: Participating Teams -->
@@ -117,16 +111,13 @@
                 </tr>
             </thead>
             <tbody>
-                {% set courts_list = day_data.keys() | reject('equalto', '_time_slots') | list %}
-                {% for court_name in courts_list %}
-                {% for match in day_data[court_name].get('matches', []) %}
+                {% for item in day_data.get('_sorted_matches', []) %}
                 <tr>
-                    <td>{{ match.start_time }} - {{ match.end_time }}</td>
-                    <td>{{ court_name }}</td>
-                    <td>{{ match.pool }}</td>
-                    <td>{{ match.teams[0] }} vs {{ match.teams[1] }}</td>
+                    <td>{{ item.match.start_time }} - {{ item.match.end_time }}</td>
+                    <td>{{ item.court }}</td>
+                    <td>{{ item.match.pool }}</td>
+                    <td>{{ item.match.teams[0] }} vs {{ item.match.teams[1] }}</td>
                 </tr>
-                {% endfor %}
                 {% endfor %}
             </tbody>
         </table>
@@ -311,21 +302,6 @@
         {% endif %}
     </section>
 
-    <!-- Section 7: Signature Block -->
-    <section class="print-section signature-section">
-        <h2>Section 7: Official Authorization</h2>
-        <div class="signature-block">
-            <div class="signature-line">
-                <p>_______________________________________</p>
-                <p class="signature-label">Tournament Director</p>
-            </div>
-            <div class="signature-line">
-                <p>_______________________________________</p>
-                <p class="signature-label">Date</p>
-            </div>
-        </div>
-        <p class="print-note">This document constitutes the official tournament registration and schedule for municipal records.</p>
-    </section>
 </div>
 
 <style>

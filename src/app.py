@@ -1652,6 +1652,37 @@ def print_view():
     results = load_results()
     standings = calculate_pool_standings(pools, results)
     
+    # Enrich schedule with live results (resolve placeholders to real team names)
+    if schedule_data:
+        schedule_data = enrich_schedule_with_results(schedule_data, results, pools, standings)
+        # Build sorted match list per day for print view
+        for day, day_data in schedule_data.items():
+            all_matches = []
+            for court_name, court_data in day_data.items():
+                if court_name == '_time_slots':
+                    continue
+                for match in court_data.get('matches', []):
+                    pool_name = match.get('pool', '')
+                    is_bracket = 1 if 'Bracket' in pool_name else 0
+                    all_matches.append({
+                        'match': match,
+                        'court': court_name,
+                        'is_bracket': is_bracket
+                    })
+            # Sort: pool matches first (is_bracket=0), then by start_time
+            all_matches.sort(key=lambda x: (x['is_bracket'], x['match'].get('start_time', '')))
+            day_data['_sorted_matches'] = all_matches
+        
+        # Sort days so non-bracket days come before bracket days
+        sorted_schedule = {}
+        non_bracket_days = [(k, v) for k, v in schedule_data.items() if 'Bracket' not in k]
+        bracket_days = [(k, v) for k, v in schedule_data.items() if 'Bracket' in k]
+        for k, v in non_bracket_days:
+            sorted_schedule[k] = v
+        for k, v in bracket_days:
+            sorted_schedule[k] = v
+        schedule_data = sorted_schedule
+    
     # Get bracket data
     bracket_data = None
     silver_bracket_data = None

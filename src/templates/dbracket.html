@@ -18,15 +18,21 @@
 </div>
 {% elif bracket_data %}
 
-<!-- Gold Bracket Section -->
-<div class="bracket-tier gold-bracket">
-<h2 class="bracket-tier-title">🥇 Gold Bracket</h2>
-
+<!-- Champion Banners at top -->
 {% if bracket_data.champion %}
 <div class="champion-banner">
     🏆 Gold Champion: <strong>{{ bracket_data.champion }}</strong>
 </div>
 {% endif %}
+{% if silver_bracket_enabled and silver_bracket_data and silver_bracket_data.champion %}
+<div class="champion-banner silver-champion">
+    🥈 Silver Champion: <strong>{{ silver_bracket_data.champion }}</strong>
+</div>
+{% endif %}
+
+<!-- Gold Bracket Section -->
+<div class="bracket-tier gold-bracket">
+<h2 class="bracket-tier-title">🥇 Gold Bracket</h2>
 
 <div class="bracket-section">
     <h2>Seeded Teams</h2>
@@ -355,12 +361,6 @@
 {% if silver_bracket_enabled and silver_bracket_data %}
 <div class="bracket-tier silver-bracket">
 <h2 class="bracket-tier-title">🥈 Silver Bracket</h2>
-
-{% if silver_bracket_data.champion %}
-<div class="champion-banner silver-champion">
-    🥈 Silver Champion: <strong>{{ silver_bracket_data.champion }}</strong>
-</div>
-{% endif %}
 
 <div class="bracket-section">
     <h2>Seeded Teams</h2>
