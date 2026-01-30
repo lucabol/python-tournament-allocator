@@ -350,6 +350,33 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
                                         actual_team = standings[pool_name][rank - 1]['team']
                                         new_teams[i] = actual_team
                                         match['is_placeholder'] = False
+                            # Check for special Grand Final placeholders
+                            elif team == 'Winner of Winners Bracket':
+                                # Find the winner of the last winners bracket match (W3-M1 for 8 teams)
+                                for code in ['W3-M1', 'W2-M1', 'W1-M1']:
+                                    if code in resolved_teams and resolved_teams[code].get('winner'):
+                                        new_teams[i] = resolved_teams[code]['winner']
+                                        match['is_placeholder'] = False
+                                        break
+                            elif team == 'Winner of Losers Bracket':
+                                # Find the winner of the last losers bracket match (L4-M1 for 8 teams)
+                                for code in ['L4-M1', 'L3-M1', 'L2-M1']:
+                                    if code in resolved_teams and resolved_teams[code].get('winner'):
+                                        new_teams[i] = resolved_teams[code]['winner']
+                                        match['is_placeholder'] = False
+                                        break
+                            elif team == 'Winner of SWinners Bracket':
+                                for code in ['SW3-M1', 'SW2-M1', 'SW1-M1']:
+                                    if code in resolved_teams and resolved_teams[code].get('winner'):
+                                        new_teams[i] = resolved_teams[code]['winner']
+                                        match['is_placeholder'] = False
+                                        break
+                            elif team == 'Winner of SLosers Bracket':
+                                for code in ['SL4-M1', 'SL3-M1', 'SL2-M1']:
+                                    if code in resolved_teams and resolved_teams[code].get('winner'):
+                                        new_teams[i] = resolved_teams[code]['winner']
+                                        match['is_placeholder'] = False
+                                        break
                             # Check if this is a placeholder like "Winner W1-M1"
                             elif team.startswith('Winner '):
                                 ref_code = team[7:]  # Remove "Winner " prefix
@@ -1545,17 +1572,18 @@ def schedule():
                     # Store sorted time slots for this day
                     schedule_data[day]['_time_slots'] = sorted(all_times)
                 
-                # Calculate stats
+                # Calculate stats - total_scheduled includes all matches (pool + bracket)
                 total_scheduled = sum(
                     len(court_data['matches']) 
                     for day_data in schedule_data.values() 
                     for court_name, court_data in day_data.items()
                     if court_name != '_time_slots'
                 )
+                
                 stats = {
-                    'total_matches': len(matches),
+                    'total_matches': total_scheduled,
                     'scheduled_matches': total_scheduled,
-                    'unscheduled_matches': len(matches) - total_scheduled
+                    'unscheduled_matches': 0
                 }
                 
                 # Save the schedule for tracking
