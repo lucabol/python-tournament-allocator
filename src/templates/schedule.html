@@ -40,11 +40,18 @@
 {% endif %}
 
 {% if schedule %}
-    {% for day, day_data in schedule.items() %}
+    {% set sorted_days = schedule.keys() | sort | list %}
+    {% set bracket_phase = 'Bracket Phase' %}
+    {% if bracket_phase in sorted_days %}
+        {% set pool_days = sorted_days | reject('equalto', bracket_phase) | list %}
+        {% set sorted_days = pool_days + [bracket_phase] %}
+    {% endif %}
+    {% for day in sorted_days %}
+    {% set day_data = schedule[day] %}
     <section class="section day-section">
         <h2>{{ day }}</h2>
         
-        {% set time_slots = day_data['_time_slots'] %}
+        {% set time_slots = day_data['_time_slots'] if '_time_slots' in day_data else [] %}
         {% set courts = day_data.keys() | reject('equalto', '_time_slots') | list %}
         
         <div class="schedule-table-wrapper">
@@ -63,9 +70,37 @@
                         <td class="time-col">{{ time_slot }}</td>
                         {% for court_name in courts %}
                         <td>
-                            {% if time_slot in day_data[court_name]['time_to_match'] %}
-                                {% set match = day_data[court_name]['time_to_match'][time_slot] %}
-                                <span class="match-teams">{{ match.teams[0] }} <span class="vs">vs</span> {{ match.teams[1] }}</span>
+                            {% set court_data = day_data[court_name] %}
+                            {% set time_to_match = court_data.time_to_match if court_data.time_to_match is defined else {} %}
+                            {% if time_slot in time_to_match %}
+                                {% set match = time_to_match[time_slot] %}
+                                {% set has_result = match.result is defined and match.result and match.result.completed %}
+                                <div class="match-cell {% if match.is_bracket %}bracket-match{% endif %} {% if match.is_placeholder %}placeholder-match{% endif %} {% if has_result %}completed-match{% endif %}">
+                                    {% if match.match_code %}
+                                    <span class="match-code-badge">{{ match.match_code }}</span>
+                                    {% endif %}
+                                    <span class="match-teams {% if match.is_placeholder %}placeholder{% endif %}">
+                                        {% if has_result %}
+                                            <span class="{% if match.result.winner == match.teams[0] %}winner{% else %}loser{% endif %}">{{ match.teams[0] }}</span>
+                                            <span class="vs">vs</span>
+                                            <span class="{% if match.result.winner == match.teams[1] %}winner{% else %}loser{% endif %}">{{ match.teams[1] }}</span>
+                                        {% else %}
+                                            {{ match.teams[0] }} <span class="vs">vs</span> {{ match.teams[1] }}
+                                        {% endif %}
+                                    </span>
+                                    {% if has_result and match.result.sets %}
+                                    <div class="match-score">
+                                        {% for set in match.result.sets %}
+                                            <span class="set-score">{{ set[0] }}-{{ set[1] }}</span>
+                                        {% endfor %}
+                                    </div>
+                                    {% endif %}
+                                    {% if match.is_bracket %}
+                                    <div class="match-round">{{ match.round }}</div>
+                                    {% elif match.pool %}
+                                    <div class="match-pool">{{ match.pool }}</div>
+                                    {% endif %}
+                                </div>
                             {% endif %}
                         </td>
                         {% endfor %}

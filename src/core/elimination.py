@@ -407,6 +407,57 @@ def generate_elimination_matches_for_scheduling(pools: Dict[str, Dict], standing
     return matches
 
 
+def generate_all_single_bracket_matches_for_scheduling(pools: Dict[str, Dict], standings: Optional[Dict] = None, include_silver: bool = False) -> List[Dict]:
+    """
+    Generate ALL single elimination matches for scheduling, including placeholders.
+    
+    Returns list of match dicts with:
+    - teams: [team1, team2] (may be placeholders)
+    - round: round name
+    - match_number: match number within round
+    - phase: "Bracket" or "Silver Bracket"
+    - is_placeholder: True if teams are not yet determined
+    """
+    bracket_data = generate_elimination_rounds(pools, standings)
+    matches = []
+    
+    if not bracket_data['seeded_teams']:
+        return matches
+    
+    # All rounds
+    for round_name, round_matches in bracket_data['rounds'].items():
+        for match in round_matches:
+            if match.get('is_bye', False):
+                continue
+            matches.append({
+                'teams': list(match['teams']),
+                'round': round_name,
+                'match_number': match.get('match_number', 0),
+                'phase': 'Bracket',
+                'is_placeholder': match.get('is_placeholder', False),
+                'is_bye': False
+            })
+    
+    # Silver bracket if enabled
+    if include_silver:
+        silver_bracket_data = generate_silver_elimination_rounds(pools, standings)
+        if silver_bracket_data and silver_bracket_data.get('seeded_teams'):
+            for round_name, round_matches in silver_bracket_data['rounds'].items():
+                for match in round_matches:
+                    if match.get('is_bye', False):
+                        continue
+                    matches.append({
+                        'teams': list(match['teams']),
+                        'round': f"Silver {round_name}",
+                        'match_number': match.get('match_number', 0),
+                        'phase': 'Silver Bracket',
+                        'is_placeholder': match.get('is_placeholder', False),
+                        'is_bye': False
+                    })
+    
+    return matches
+
+
 def get_elimination_bracket_display(pools: Dict[str, Dict], standings: Optional[Dict] = None) -> Dict:
     """
     Get bracket data formatted for UI display.

@@ -647,6 +647,111 @@ tr:hover .court-save-btn {
     margin: 0 0.25rem;
 }
 
+/* Bracket Schedule */
+.bracket-schedule {
+    margin-top: 1rem;
+}
+
+.bracket-table {
+    margin-bottom: 1.5rem;
+}
+
+.bracket-table .placeholder-match,
+.schedule-table .placeholder-match {
+    background: #fef3c7;
+}
+
+.bracket-table .match-teams.placeholder,
+.match-teams.placeholder {
+    font-style: italic;
+    color: var(--text-muted);
+}
+
+.match-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    position: relative;
+}
+
+.match-cell.bracket-match {
+    border-left: 3px solid var(--warning-color);
+    padding-left: 0.5rem;
+}
+
+.match-cell.completed-match {
+    background: #f0fdf4;
+    border-radius: 4px;
+    padding: 0.25rem;
+}
+
+.match-cell .winner {
+    font-weight: 600;
+    color: var(--success-color);
+}
+
+.match-cell .loser {
+    color: var(--text-muted);
+}
+
+.match-score {
+    display: flex;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--primary-color);
+}
+
+.set-score {
+    background: #e0e7ff;
+    padding: 0.125rem 0.25rem;
+    border-radius: 3px;
+}
+
+.match-code-badge {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    font-size: 0.625rem;
+    font-weight: 600;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.125rem 0.25rem;
+    border-radius: 3px;
+}
+
+.match-code {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    background: #e0e7ff;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+}
+
+.match-round, .match-pool {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+}
+
+.phase-badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.phase-badge.gold {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.phase-badge.silver {
+    background: #e5e7eb;
+    color: #374151;
+}
+
 /* Stats Bar */
 .stats-bar {
     display: flex;

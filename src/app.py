@@ -7,8 +7,8 @@ import yaml
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
 from core.models import Team, Court
 from core.allocation import AllocationManager
-from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling
-from core.double_elimination import get_double_elimination_bracket_display, generate_double_elimination_matches_for_scheduling
+from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling
+from core.double_elimination import get_double_elimination_bracket_display, generate_double_elimination_matches_for_scheduling, generate_all_bracket_matches_for_scheduling, generate_bracket_execution_order, generate_silver_bracket_execution_order
 from generate_matches import generate_pool_play_matches, generate_elimination_matches
 
 app = Flask(__name__)
@@ -208,6 +208,191 @@ def determine_winner(sets):
     return None, tuple(wins)
 
 
+def enrich_schedule_with_results(schedule_data, results, pools, standings):
+    """
+    Enrich schedule data with match results for live display.
+    
+    For pool matches: adds result data (scores, winner/loser)
+    For bracket matches: resolves placeholders to actual team names
+    
+    Returns: enriched schedule_data (modified in place)
+    """
+    if not schedule_data:
+        return schedule_data
+    
+    pool_results = results.get('pool_play', {})
+    bracket_results = results.get('bracket', {})
+    
+    # Build lookup for bracket match results
+    # Keys are like "winners_Winners Quarterfinal_1", "losers_Losers Round 1_2"
+    resolved_teams = {}  # match_code -> {'winner': team, 'loser': team, 'sets': [...]}
+    
+    # Map round names to round numbers for match_code generation
+    winners_round_map = {
+        'Winners Round of 16': 1, 'Winners Round of 8': 1, 'Winners Quarterfinal': 1,
+        'Winners Semifinal': 2, 'Winners Final': 3
+    }
+    
+    import re
+    for match_key, result in bracket_results.items():
+        if result.get('completed'):
+            # Parse key: bracket_type_round_match_number (e.g., "winners_Winners Quarterfinal_1")
+            parts = match_key.rsplit('_', 1)
+            if len(parts) == 2:
+                prefix_round = parts[0]
+                match_number = parts[1]
+                
+                # Determine bracket_type and round_name from the key
+                if prefix_round.startswith('winners_'):
+                    bracket_type = 'winners'
+                    round_name = prefix_round[8:]
+                elif prefix_round.startswith('losers_'):
+                    bracket_type = 'losers'
+                    round_name = prefix_round[7:]
+                elif prefix_round.startswith('silver_winners_'):
+                    bracket_type = 'silver_winners'
+                    round_name = prefix_round[15:]
+                elif prefix_round.startswith('silver_losers_'):
+                    bracket_type = 'silver_losers'
+                    round_name = prefix_round[14:]
+                elif prefix_round.startswith('grand_final'):
+                    bracket_type = 'grand_final'
+                    round_name = 'Grand Final'
+                elif prefix_round.startswith('bracket_reset'):
+                    bracket_type = 'bracket_reset'
+                    round_name = 'Bracket Reset'
+                elif prefix_round.startswith('silver_grand_final'):
+                    bracket_type = 'silver_grand_final'
+                    round_name = 'Silver Grand Final'
+                elif prefix_round.startswith('silver_bracket_reset'):
+                    bracket_type = 'silver_bracket_reset'
+                    round_name = 'Silver Bracket Reset'
+                else:
+                    continue
+                
+                # Build match_code
+                if bracket_type == 'grand_final':
+                    code = 'GF'
+                elif bracket_type == 'bracket_reset':
+                    code = 'BR'
+                elif bracket_type == 'silver_grand_final':
+                    code = 'SGF'
+                elif bracket_type == 'silver_bracket_reset':
+                    code = 'SBR'
+                elif bracket_type == 'winners':
+                    round_num = winners_round_map.get(round_name, 1)
+                    code = f'W{round_num}-M{match_number}'
+                elif bracket_type == 'losers':
+                    round_match = re.search(r'Round (\d+)', round_name)
+                    if round_match:
+                        round_num = round_match.group(1)
+                    elif 'Semifinal' in round_name:
+                        round_num = '3'
+                    elif 'Final' in round_name:
+                        round_num = '4'
+                    else:
+                        round_num = '1'
+                    code = f'L{round_num}-M{match_number}'
+                elif bracket_type == 'silver_winners':
+                    round_num = winners_round_map.get(round_name, 1)
+                    code = f'SW{round_num}-M{match_number}'
+                elif bracket_type == 'silver_losers':
+                    round_match = re.search(r'Round (\d+)', round_name)
+                    if round_match:
+                        round_num = round_match.group(1)
+                    elif 'Semifinal' in round_name:
+                        round_num = '3'
+                    elif 'Final' in round_name:
+                        round_num = '4'
+                    else:
+                        round_num = '1'
+                    code = f'SL{round_num}-M{match_number}'
+                else:
+                    continue
+                
+                resolved_teams[code] = {
+                    'winner': result.get('winner'),
+                    'loser': result.get('loser'),
+                    'sets': result.get('sets', [])
+                }
+    
+    # Process each day in the schedule
+    for day, day_data in schedule_data.items():
+        if day == '_time_slots':
+            continue
+            
+        for court_name, court_data in day_data.items():
+            if court_name == '_time_slots':
+                continue
+            
+            matches = court_data.get('matches', [])
+            for match in matches:
+                teams = match.get('teams', [])
+                if len(teams) < 2:
+                    continue
+                
+                is_bracket = match.get('is_bracket', False)
+                
+                if is_bracket:
+                    # Resolve bracket placeholders
+                    new_teams = list(teams)
+                    for i, team in enumerate(teams):
+                        if isinstance(team, str):
+                            # Check if this is a pool ranking placeholder like "#1 Pool A"
+                            if team.startswith('#') and ' Pool ' in team:
+                                # Parse "#1 Pool A" -> rank=1, pool="Pool A"
+                                import re
+                                match_obj = re.match(r'#(\d+) (Pool .+)', team)
+                                if match_obj:
+                                    rank = int(match_obj.group(1))
+                                    pool_name = match_obj.group(2)
+                                    if pool_name in standings and len(standings[pool_name]) >= rank:
+                                        actual_team = standings[pool_name][rank - 1]['team']
+                                        new_teams[i] = actual_team
+                                        match['is_placeholder'] = False
+                            # Check if this is a placeholder like "Winner W1-M1"
+                            elif team.startswith('Winner '):
+                                ref_code = team[7:]  # Remove "Winner " prefix
+                                if ref_code in resolved_teams:
+                                    new_teams[i] = resolved_teams[ref_code]['winner']
+                                    match['is_placeholder'] = False
+                            elif team.startswith('Loser '):
+                                ref_code = team[6:]  # Remove "Loser " prefix
+                                if ref_code in resolved_teams:
+                                    new_teams[i] = resolved_teams[ref_code]['loser']
+                                    match['is_placeholder'] = False
+                    
+                    match['teams'] = new_teams
+                    
+                    # Check if this bracket match has results by match_code
+                    match_code = match.get('match_code', '')
+                    if match_code in resolved_teams:
+                        match['result'] = {
+                            'winner': resolved_teams[match_code]['winner'],
+                            'loser': resolved_teams[match_code]['loser'],
+                            'sets': resolved_teams[match_code].get('sets', []),
+                            'completed': True
+                        }
+                else:
+                    # Pool match - look up result
+                    pool = match.get('pool', '')
+                    match_key = get_match_key(teams[0], teams[1], pool)
+                    
+                    if match_key in pool_results:
+                        result = pool_results[match_key]
+                        match['result'] = {
+                            'winner': result.get('winner'),
+                            'loser': result.get('loser'),
+                            'sets': result.get('sets', []),
+                            'completed': result.get('completed', False)
+                        }
+            
+            # Rebuild time_to_match to reflect enriched matches
+            court_data['time_to_match'] = {m['start_time']: m for m in matches}
+    
+    return schedule_data
+
+
 def calculate_pool_standings(pools, results):
     """
     Calculate standings for each pool based on match results.
@@ -337,6 +522,7 @@ def get_default_constraints():
         'scoring_format': 'single_set',
         'pool_in_same_court': True,
         'silver_bracket_enabled': True,
+        'pool_to_bracket_delay_minutes': 0,
         'team_specific_constraints': [],
 
         'general_constraints': [],
@@ -711,6 +897,8 @@ def api_update_settings():
         constraints_data['pool_in_same_court'] = data['pool_in_same_court']
     if 'silver_bracket_enabled' in data:
         constraints_data['silver_bracket_enabled'] = data['silver_bracket_enabled']
+    if 'pool_to_bracket_delay' in data:
+        constraints_data['pool_to_bracket_delay_minutes'] = int(data['pool_to_bracket_delay'])
     
     save_constraints(constraints_data)
     return jsonify({'success': True})
@@ -973,6 +1161,130 @@ def api_generate_random_bracket_results():
     results['bracket'] = bracket_results
     save_results(results)
     
+    # Now generate Silver bracket results if enabled
+    constraints = load_constraints()
+    if constraints.get('silver_bracket_enabled', False):
+        from core.double_elimination import generate_silver_double_bracket_with_results
+        
+        # Reload results with Gold bracket filled
+        results = load_results()
+        bracket_results = results.get('bracket', {})
+        
+        updated = True
+        while updated:
+            updated = False
+            silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
+            
+            if not silver_bracket_data:
+                break
+            
+            # Process silver winners bracket
+            for round_name, matches in silver_bracket_data.get('winners_bracket', {}).items():
+                for match in matches:
+                    if match.get('is_playable') and not match.get('is_bye'):
+                        team1, team2 = match['teams']
+                        match_number = match['match_number']
+                        match_key = f"silver_winners_{round_name}_{match_number}"
+                        
+                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                            winner_score = 21
+                            loser_score = random.randint(10, 19)
+                            
+                            if random.random() < 0.5:
+                                sets = [[winner_score, loser_score]]
+                                winner, loser = team1, team2
+                            else:
+                                sets = [[loser_score, winner_score]]
+                                winner, loser = team2, team1
+                            
+                            bracket_results[match_key] = {
+                                'sets': sets,
+                                'winner': winner,
+                                'loser': loser,
+                                'completed': True
+                            }
+                            updated = True
+            
+            # Process silver losers bracket
+            for round_name, matches in silver_bracket_data.get('losers_bracket', {}).items():
+                for match in matches:
+                    if match.get('is_playable'):
+                        team1, team2 = match['teams']
+                        match_number = match['match_number']
+                        match_key = f"silver_losers_{round_name}_{match_number}"
+                        
+                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                            winner_score = 21
+                            loser_score = random.randint(10, 19)
+                            
+                            if random.random() < 0.5:
+                                sets = [[winner_score, loser_score]]
+                                winner, loser = team1, team2
+                            else:
+                                sets = [[loser_score, winner_score]]
+                                winner, loser = team2, team1
+                            
+                            bracket_results[match_key] = {
+                                'sets': sets,
+                                'winner': winner,
+                                'loser': loser,
+                                'completed': True
+                            }
+                            updated = True
+            
+            # Process silver grand final
+            gf = silver_bracket_data.get('grand_final')
+            if gf and gf.get('is_playable'):
+                team1, team2 = gf['teams']
+                match_key = "silver_grand_final_Grand Final_1"
+                
+                if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                    winner_score = 21
+                    loser_score = random.randint(10, 19)
+                    
+                    if random.random() < 0.5:
+                        sets = [[winner_score, loser_score]]
+                        winner, loser = team1, team2
+                    else:
+                        sets = [[loser_score, winner_score]]
+                        winner, loser = team2, team1
+                    
+                    bracket_results[match_key] = {
+                        'sets': sets,
+                        'winner': winner,
+                        'loser': loser,
+                        'completed': True
+                    }
+                    updated = True
+            
+            # Process silver bracket reset if needed
+            br = silver_bracket_data.get('bracket_reset')
+            if br and br.get('needs_reset') and br.get('is_playable'):
+                team1, team2 = br['teams']
+                match_key = "silver_bracket_reset_Bracket Reset_1"
+                
+                if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                    winner_score = 21
+                    loser_score = random.randint(10, 19)
+                    
+                    if random.random() < 0.5:
+                        sets = [[winner_score, loser_score]]
+                        winner, loser = team1, team2
+                    else:
+                        sets = [[loser_score, winner_score]]
+                        winner, loser = team2, team1
+                    
+                    bracket_results[match_key] = {
+                        'sets': sets,
+                        'winner': winner,
+                        'loser': loser,
+                        'completed': True
+                    }
+                    updated = True
+        
+        results['bracket'] = bracket_results
+        save_results(results)
+    
     return jsonify({'success': True})
 
 
@@ -1124,6 +1436,96 @@ def schedule():
                     for court in schedule_data[day]:
                         schedule_data[day][court].sort(key=lambda x: x['start_time'])
                 
+                # Generate bracket matches and schedule them
+                # Algorithm: Interleave Winners and Losers brackets with proper dependencies
+                # - Losers bracket matches can only start after the Winners matches that feed them complete
+                # - Each bracket type gets assigned to a court
+                # - Schedule respects round dependencies
+                
+                bracket_type = constraints_data.get('bracket_type', 'double')
+                include_silver = constraints_data.get('silver_bracket_enabled', False)
+                
+                if bracket_type == 'double':
+                    # Use new execution order function for correct match ordering
+                    gold_matches = generate_bracket_execution_order(pools, None, prefix="", phase_name="Bracket")
+                    silver_matches = generate_silver_bracket_execution_order(pools, None) if include_silver else []
+                else:
+                    bracket_matches = generate_all_single_bracket_matches_for_scheduling(pools, None, include_silver)
+                    gold_matches = [m for m in bracket_matches if 'Silver' not in m.get('phase', '')]
+                    silver_matches = [m for m in bracket_matches if 'Silver' in m.get('phase', '')]
+                
+                if gold_matches or silver_matches:
+                    # Find the last scheduled time from pool play
+                    last_end_time = None
+                    for day in schedule_data:
+                        for court in schedule_data[day]:
+                            for match in schedule_data[day][court]:
+                                if last_end_time is None or match['end_time'] > last_end_time:
+                                    last_end_time = match['end_time']
+                    
+                    match_duration = constraints_data.get('match_duration_minutes', 30)
+                    break_minutes = constraints_data.get('min_break_between_matches_minutes', 0)
+                    slot_duration = match_duration + break_minutes
+                    
+                    def time_to_minutes(t):
+                        if not t:
+                            return 0
+                        parts = t.split(':')
+                        return int(parts[0]) * 60 + int(parts[1])
+                    
+                    def minutes_to_time(m):
+                        return f"{m // 60:02d}:{m % 60:02d}"
+                    
+                    # Calculate bracket start time with delay
+                    pool_to_bracket_delay = constraints_data.get('pool_to_bracket_delay_minutes', 0)
+                    bracket_start = time_to_minutes(last_end_time) + break_minutes + pool_to_bracket_delay if last_end_time else time_to_minutes(courts_data[0]['start_time'])
+                    
+                    bracket_day = "Bracket Phase"
+                    if bracket_day not in schedule_data:
+                        schedule_data[bracket_day] = {}
+                    
+                    court_names = [c['name'] for c in courts_data]
+                    num_courts = len(court_names)
+                    
+                    # Initialize all courts
+                    for court_name in court_names:
+                        if court_name not in schedule_data[bracket_day]:
+                            schedule_data[bracket_day][court_name] = []
+                    
+                    # Assign courts: Gold on Court 1, Silver on Court 2 (if enabled)
+                    gold_court = court_names[0]
+                    silver_court = court_names[1 % num_courts] if include_silver else None
+                    
+                    def schedule_match(court, start_min, bmatch):
+                        schedule_data[bracket_day][court].append({
+                            'teams': bmatch['teams'],
+                            'start_time': minutes_to_time(start_min),
+                            'end_time': minutes_to_time(start_min + match_duration),
+                            'day': bracket_day,
+                            'pool': bmatch['phase'],
+                            'round': bmatch['round'],
+                            'match_code': bmatch.get('match_code', ''),
+                            'is_placeholder': bmatch.get('is_placeholder', True),
+                            'is_bracket': True
+                        })
+                    
+                    # Schedule Gold bracket - matches are already in execution order
+                    current_time = bracket_start
+                    for match in gold_matches:
+                        if match.get('is_bye', False):
+                            continue
+                        schedule_match(gold_court, current_time, match)
+                        current_time += slot_duration
+                    
+                    # Schedule Silver bracket - matches are already in execution order
+                    if include_silver and silver_matches:
+                        current_time = bracket_start
+                        for match in silver_matches:
+                            if match.get('is_bye', False):
+                                continue
+                            schedule_match(silver_court, current_time, match)
+                            current_time += slot_duration
+                
                 # Build time-aligned grid for display
                 # Collect all unique time slots across all courts for each day
                 for day in schedule_data:
@@ -1170,6 +1572,13 @@ def schedule():
     
     # GET request - load saved schedule if exists
     schedule_data, stats = load_schedule()
+    
+    # Enrich schedule with live results
+    if schedule_data:
+        pools = load_teams()
+        results = load_results()
+        standings = calculate_pool_standings(pools, results)
+        schedule_data = enrich_schedule_with_results(schedule_data, results, pools, standings)
     
     return render_template('schedule.html', schedule=schedule_data, error=error, stats=stats)
 
@@ -1235,6 +1644,9 @@ def print_view():
     
     print_settings = load_print_settings()
     
+    from datetime import datetime
+    current_date = datetime.now().strftime('%d %B %Y')
+    
     return render_template('print.html',
                           pools=pools,
                           courts=courts,
@@ -1243,7 +1655,8 @@ def print_view():
                           standings=standings,
                           bracket_data=bracket_data,
                           silver_bracket_data=silver_bracket_data,
-                          print_settings=print_settings)
+                          print_settings=print_settings,
+                          now=current_date)
 
 
 @app.route('/api/print-settings', methods=['POST'])

@@ -79,6 +79,14 @@
                     <span class="help-icon" title="Teams that don't advance from pool play will compete in a separate Silver Bracket elimination tournament.">?</span>
                 </label>
             </div>
+            
+            <div class="form-group">
+                <label for="pool_to_bracket_delay">Pool to Bracket Delay (minutes)</label>
+                <input type="number" id="pool_to_bracket_delay" name="pool_to_bracket_delay" 
+                       value="{{ constraints.pool_to_bracket_delay_minutes | default(0) }}" min="0" max="480"
+                       onchange="updateSetting('pool_to_bracket_delay', this.value)">
+                <span class="help-icon" title="Time delay between the end of pool play and the start of bracket play. Use this for lunch breaks, etc.">?</span>
+            </div>
         </div>
     </div>
 </section>

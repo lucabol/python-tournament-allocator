@@ -5,7 +5,9 @@
 {% block content %}
 <div class="page-header">
     <h1>🏆 Double Elimination Bracket</h1>
-    <button type="button" class="btn btn-sm btn-secondary" onclick="generateRandomBracketResults()">Test</button>
+    <div class="page-header-actions">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="generateRandomBracketResults()">Test</button>
+    </div>
 </div>
 <p>Enter scores for playable matches. Winners advance and losers drop to losers bracket.</p>
 
@@ -24,33 +26,6 @@
     🏆 Gold Champion: <strong>{{ bracket_data.champion }}</strong>
 </div>
 {% endif %}
-
-<div class="bracket-stats">
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.total_teams }}</div>
-        <div class="stat-label">Teams Advancing</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.bracket_size }}</div>
-        <div class="stat-label">Bracket Size</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.total_winners_rounds }}</div>
-        <div class="stat-label">Winners Rounds</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.total_losers_rounds }}</div>
-        <div class="stat-label">Losers Rounds</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.byes }}</div>
-        <div class="stat-label">First Round Byes</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.total_matches }}</div>
-        <div class="stat-label">Total Matches</div>
-    </div>
-</div>
 
 <div class="bracket-section">
     <h2>Seeded Teams</h2>
@@ -82,11 +57,12 @@
                 <div class="bracket-match winners-match {% if match.is_bye %}bye-match{% endif %} {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') and not match.is_bye %}completed-match{% endif %}"
                      data-round="{{ round_name }}"
                      data-match="{{ match.match_number }}"
+                     data-match-code="{{ match.match_code }}"
                      data-bracket-type="winners"
                      data-team1="{{ match.teams[0] }}"
                      data-team2="{{ match.teams[1] }}">
                     <div class="match-header">
-                        Match {{ match.match_number }}
+                        <span class="match-code">{{ match.match_code }}</span>
                         {% if match.get('is_playable') %}
                         <span class="playable-indicator">🟢</span>
                         {% elif match.get('winner') and not match.is_bye %}
@@ -170,11 +146,12 @@
                 <div class="bracket-match losers-match {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') %}completed-match{% endif %}"
                      data-round="{{ round_name }}"
                      data-match="{{ match.match_number }}"
+                     data-match-code="{{ match.match_code }}"
                      data-bracket-type="losers"
                      data-team1="{{ match.teams[0] }}"
                      data-team2="{{ match.teams[1] }}">
                     <div class="match-header">
-                        Match {{ match.match_number }}
+                        <span class="match-code">{{ match.match_code }}</span>
                         {% if match.get('is_playable') %}
                         <span class="playable-indicator">🟢</span>
                         {% elif match.get('winner') %}
@@ -384,22 +361,17 @@
 </div>
 {% endif %}
 
-<div class="bracket-stats">
-    <div class="stat-card">
-        <div class="stat-value">{{ silver_bracket_data.total_teams }}</div>
-        <div class="stat-label">Teams</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ silver_bracket_data.bracket_size }}</div>
-        <div class="stat-label">Bracket Size</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ silver_bracket_data.total_winners_rounds }}</div>
-        <div class="stat-label">Winners Rounds</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ silver_bracket_data.total_losers_rounds }}</div>
-        <div class="stat-label">Losers Rounds</div>
+<div class="bracket-section">
+    <h2>Seeded Teams</h2>
+    <p class="section-note">Teams that didn't advance from pool play compete in the Silver Bracket.</p>
+    <div class="seeded-teams-grid">
+        {% for team_name, seed, pool_name in silver_bracket_data.seeded_teams %}
+        <div class="seed-card">
+            <span class="seed-number">#{{ seed }}</span>
+            <span class="seed-team">{{ team_name }}</span>
+            <span class="seed-pool">{{ pool_name }}</span>
+        </div>
+        {% endfor %}
     </div>
 </div>
 
@@ -415,11 +387,12 @@
                 <div class="bracket-match {% if match.is_bye %}bye-match{% endif %} {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') and not match.is_bye %}completed-match{% endif %}"
                      data-round="{{ round_name }}"
                      data-match="{{ match.match_number }}"
+                     data-match-code="{{ match.match_code }}"
                      data-bracket-type="silver_winners"
                      data-team1="{{ match.teams[0] }}"
                      data-team2="{{ match.teams[1] }}">
                     <div class="match-header">
-                        Match {{ match.match_number }}
+                        <span class="match-code">{{ match.match_code }}</span>
                         {% if match.get('is_playable') %}
                         <span class="playable-indicator">🟢</span>
                         {% elif match.get('winner') and not match.is_bye %}
@@ -500,11 +473,12 @@
                 <div class="bracket-match {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') %}completed-match{% endif %}"
                      data-round="{{ round_name }}"
                      data-match="{{ match.match_number }}"
+                     data-match-code="{{ match.match_code }}"
                      data-bracket-type="silver_losers"
                      data-team1="{{ match.teams[0] }}"
                      data-team2="{{ match.teams[1] }}">
                     <div class="match-header">
-                        Match {{ match.match_number }}
+                        <span class="match-code">{{ match.match_code }}</span>
                         {% if match.get('is_playable') %}
                         <span class="playable-indicator">🟢</span>
                         {% elif match.get('winner') %}
@@ -700,10 +674,6 @@
 
 </div><!-- end silver-bracket -->
 {% endif %}
-
-<div class="bracket-actions">
-    <a href="{{ url_for('schedule_double_elimination') }}" class="btn btn-primary">Schedule Double Elimination Rounds</a>
-</div>
 
 {% else %}
 <div class="empty-state">

@@ -58,9 +58,14 @@ def calculate_losers_bracket_rounds(bracket_size: int) -> int:
     return 2 * (winners_rounds - 1)
 
 
-def generate_double_elimination_bracket(pools: Dict[str, Dict], standings: Optional[Dict] = None) -> Dict:
+def generate_double_elimination_bracket(pools: Dict[str, Dict], standings: Optional[Dict] = None, prefix: str = "") -> Dict:
     """
     Generate complete double elimination bracket structure.
+    
+    Args:
+        pools: Pool configuration
+        standings: Pool standings
+        prefix: Prefix for match codes ("" for Gold, "S" for Silver)
     
     Returns dict with:
     - 'seeded_teams': list of (team, seed, pool) tuples
@@ -90,26 +95,28 @@ def generate_double_elimination_bracket(pools: Dict[str, Dict], standings: Optio
     total_winners_rounds = int(math.log2(bracket_size))
     total_losers_rounds = calculate_losers_bracket_rounds(bracket_size)
     
-    # Generate winners bracket (same as single elimination first round)
-    winners_bracket = _generate_winners_bracket(seeded_teams, bracket_size, total_winners_rounds)
+    # Generate winners bracket with prefix
+    winners_bracket = _generate_winners_bracket(seeded_teams, bracket_size, total_winners_rounds, prefix)
     
-    # Generate losers bracket structure
-    losers_bracket = _generate_losers_bracket(bracket_size, total_winners_rounds, total_losers_rounds)
+    # Generate losers bracket structure with prefix
+    losers_bracket = _generate_losers_bracket(bracket_size, total_winners_rounds, total_losers_rounds, prefix)
     
     # Grand Final
     grand_final = {
-        'teams': ('Winners Bracket Champion', 'Losers Bracket Champion'),
+        'teams': (f'Winner of {prefix}Winners Bracket', f'Winner of {prefix}Losers Bracket'),
         'round': 'Grand Final',
         'match_number': 1,
+        'match_code': f'{prefix}GF',
         'is_placeholder': True,
         'note': 'If Losers Bracket Champion wins, bracket reset occurs'
     }
     
     # Bracket Reset (only played if losers bracket winner wins Grand Final)
     bracket_reset = {
-        'teams': ('Grand Final Winner', 'Grand Final Loser'),
+        'teams': (f'Winner {prefix}GF', f'Loser {prefix}GF'),
         'round': 'Bracket Reset',
         'match_number': 1,
+        'match_code': f'{prefix}BR',
         'is_placeholder': True,
         'is_conditional': True,
         'note': 'Only played if Losers Bracket Champion wins Grand Final'
@@ -127,8 +134,15 @@ def generate_double_elimination_bracket(pools: Dict[str, Dict], standings: Optio
     }
 
 
-def _generate_winners_bracket(seeded_teams: List[Tuple], bracket_size: int, total_rounds: int) -> Dict[str, List[Dict]]:
-    """Generate winners bracket rounds."""
+def _generate_winners_bracket(seeded_teams: List[Tuple], bracket_size: int, total_rounds: int, prefix: str = "") -> Dict[str, List[Dict]]:
+    """Generate winners bracket rounds.
+    
+    Args:
+        seeded_teams: List of (team_name, seed, pool) tuples
+        bracket_size: Power of 2 bracket size
+        total_rounds: Number of rounds in winners bracket
+        prefix: Prefix for match codes ("" for Gold, "S" for Silver)
+    """
     winners_bracket = {}
     
     # Create seed-to-team mapping
@@ -138,15 +152,15 @@ def _generate_winners_bracket(seeded_teams: List[Tuple], bracket_size: int, tota
     bracket_order = _generate_bracket_order(bracket_size)
     
     current_teams_count = bracket_size
-    match_num_offset = 0
     
     for round_num in range(total_rounds):
         round_name = get_winners_round_name(current_teams_count, bracket_size)
         round_matches = []
+        round_code = f"{prefix}W{round_num + 1}"  # W1, W2, W3 or SW1, SW2, SW3
         
         if round_num == 0:
             # First round with actual seeded teams
-            match_number = 1
+            match_in_round = 1
             for i in range(0, len(bracket_order), 2):
                 seed1 = bracket_order[i]
                 seed2 = bracket_order[i + 1]
@@ -154,61 +168,73 @@ def _generate_winners_bracket(seeded_teams: List[Tuple], bracket_size: int, tota
                 team1 = seed_to_team.get(seed1)
                 team2 = seed_to_team.get(seed2)
                 
+                match_code = f"{round_code}-M{match_in_round}"
+                
                 if team1 is None and team2 is None:
                     continue
                 elif team2 is None:
                     round_matches.append({
                         'teams': (team1, 'BYE'),
                         'round': round_name,
-                        'match_number': match_number,
+                        'match_number': match_in_round,
+                        'match_code': match_code,
                         'seeds': (seed1, seed2),
                         'is_bye': True,
-                        'losers_feed_to': f"Losers Round 1"
+                        'losers_feed_to': f"{prefix}L1"
                     })
                 elif team1 is None:
                     round_matches.append({
                         'teams': ('BYE', team2),
                         'round': round_name,
-                        'match_number': match_number,
+                        'match_number': match_in_round,
+                        'match_code': match_code,
                         'seeds': (seed1, seed2),
                         'is_bye': True,
-                        'losers_feed_to': f"Losers Round 1"
+                        'losers_feed_to': f"{prefix}L1"
                     })
                 else:
                     round_matches.append({
                         'teams': (team1, team2),
                         'round': round_name,
-                        'match_number': match_number,
+                        'match_number': match_in_round,
+                        'match_code': match_code,
                         'seeds': (seed1, seed2),
                         'is_bye': False,
-                        'losers_feed_to': f"Losers Round 1"
+                        'losers_feed_to': f"{prefix}L1"
                     })
-                match_number += 1
+                match_in_round += 1
         else:
             # Subsequent rounds with placeholders
             num_matches = current_teams_count // 2
-            losers_round = round_num * 2  # Losers from winners round N go to losers round 2N
+            prev_round_code = f"{prefix}W{round_num}"
             for i in range(num_matches):
+                match_code = f"{round_code}-M{i + 1}"
                 round_matches.append({
-                    'teams': (f'W{round_num}M{i*2+1}', f'W{round_num}M{i*2+2}'),
+                    'teams': (f'Winner {prev_round_code}-M{i*2+1}', f'Winner {prev_round_code}-M{i*2+2}'),
                     'round': round_name,
                     'match_number': i + 1,
+                    'match_code': match_code,
                     'seeds': None,
                     'is_bye': False,
                     'is_placeholder': True,
-                    'losers_feed_to': f"Losers Round {losers_round}" if round_num < total_rounds - 1 else "Grand Final"
+                    'losers_feed_to': f"{prefix}L{round_num * 2}" if round_num < total_rounds - 1 else f"{prefix}GF"
                 })
         
         winners_bracket[round_name] = round_matches
-        match_num_offset += len(round_matches)
         current_teams_count //= 2
     
     return winners_bracket
 
 
-def _generate_losers_bracket(bracket_size: int, total_winners_rounds: int, total_losers_rounds: int) -> Dict[str, List[Dict]]:
+def _generate_losers_bracket(bracket_size: int, total_winners_rounds: int, total_losers_rounds: int, prefix: str = "") -> Dict[str, List[Dict]]:
     """
     Generate losers bracket structure following standard double elimination format.
+    
+    Args:
+        bracket_size: Power of 2 bracket size
+        total_winners_rounds: Number of rounds in winners bracket
+        total_losers_rounds: Number of rounds in losers bracket
+        prefix: Prefix for match codes ("" for Gold, "S" for Silver)
     
     The losers bracket alternates between:
     - Minor rounds (even indices: 0, 2, 4...): Only losers bracket teams compete
@@ -225,17 +251,12 @@ def _generate_losers_bracket(bracket_size: int, total_winners_rounds: int, total
     if total_losers_rounds <= 0:
         return losers_bracket
     
-    # Track how many teams are in the losers bracket after each round
-    # After W Round 1: bracket_size/2 losers drop in
-    # After L Round 1 (minor): bracket_size/4 winners remain
-    # After W Round 2: bracket_size/4 losers drop in for L Round 2 (major)
-    # etc.
-    
     current_losers_count = bracket_size // 2  # Losers from first winners round
     winners_round_idx = 1  # Track which winners round feeds losers (starts after W Round 1)
     
     for round_num in range(total_losers_rounds):
         round_name = get_losers_round_name(round_num, total_losers_rounds)
+        round_code = f"{prefix}L{round_num + 1}"  # L1, L2, L3 or SL1, SL2, SL3
         round_matches = []
         
         # Major rounds (odd: 1, 3, 5...) have dropdowns from winners bracket
@@ -245,10 +266,12 @@ def _generate_losers_bracket(bracket_size: int, total_winners_rounds: int, total
             # First losers round (minor) - losers from winners round 1 play each other
             num_matches = current_losers_count // 2
             for i in range(num_matches):
+                match_code = f"{round_code}-M{i + 1}"
                 round_matches.append({
-                    'teams': (f'L-W1M{i*2+1}', f'L-W1M{i*2+2}'),
+                    'teams': (f'Loser {prefix}W1-M{i*2+1}', f'Loser {prefix}W1-M{i*2+2}'),
                     'round': round_name,
                     'match_number': i + 1,
+                    'match_code': match_code,
                     'is_placeholder': True,
                     'note': 'Losers from Winners Round 1'
                 })
@@ -256,38 +279,180 @@ def _generate_losers_bracket(bracket_size: int, total_winners_rounds: int, total
             
         elif is_major_round:
             # Major/dropdown round - losers from winners bracket join
-            # Winners round that feeds this: winners_round_idx + 1
             winners_round_idx += 1
             w_round = winners_round_idx
+            prev_losers_round = round_num  # Previous losers round number (1-indexed for display)
             
-            # Number of matches = number of teams from previous L round = number of W losers dropping
             num_matches = current_losers_count
             for i in range(num_matches):
+                match_code = f"{round_code}-M{i + 1}"
                 round_matches.append({
-                    'teams': (f'L-W{w_round}M{i+1}', f'L{round_num}M{i+1}'),
+                    'teams': (f'Loser {prefix}W{w_round}-M{i+1}', f'Winner {prefix}L{prev_losers_round}-M{i+1}'),
                     'round': round_name,
                     'match_number': i + 1,
+                    'match_code': match_code,
                     'is_placeholder': True,
-                    'note': f'Winners R{w_round} loser vs Losers R{round_num} winner'
+                    'note': f'Winners R{w_round} loser vs Losers R{prev_losers_round} winner'
                 })
-            # Same number of teams continue (no reduction in major rounds)
             
         else:
-            # Minor round - only losers bracket teams compete
+            # Minor round - only losers bracket teams compete (winners from previous round)
+            prev_losers_round = round_num  # Previous L round (1-indexed: L2 comes after L1, references L1)
             num_matches = current_losers_count // 2
             for i in range(num_matches):
+                match_code = f"{round_code}-M{i + 1}"
                 round_matches.append({
-                    'teams': (f'L{round_num}M{i*2+1}', f'L{round_num}M{i*2+2}'),
+                    'teams': (f'Winner {prefix}L{prev_losers_round}-M{i*2+1}', f'Winner {prefix}L{prev_losers_round}-M{i*2+2}'),
                     'round': round_name,
                     'match_number': i + 1,
+                    'match_code': match_code,
                     'is_placeholder': True,
-                    'note': f'Losers Round {round_num} winners'
+                    'note': f'Losers Round {prev_losers_round} winners'
                 })
             current_losers_count = num_matches
         
         losers_bracket[round_name] = round_matches
     
     return losers_bracket
+
+
+def generate_all_bracket_matches_for_scheduling(pools: Dict[str, Dict], standings: Optional[Dict] = None, include_silver: bool = False) -> List[Dict]:
+    """
+    Generate ALL double elimination matches for scheduling, including placeholders.
+    
+    Returns list of match dicts with:
+    - teams: [team1, team2] (may be placeholders like "Winner W1-M1")
+    - round: round name (e.g., "Winners Round of 8", "Losers Round 1")
+    - match_number: match number within round
+    - match_code: unique code like "W1-M1", "L2-M3", "GF"
+    - phase: "Bracket" or "Silver Bracket"
+    - is_placeholder: True if teams are not yet determined
+    - is_bye: True if this is a bye match
+    """
+    bracket_data = generate_double_elimination_bracket(pools, standings)
+    matches = []
+    
+    if not bracket_data['seeded_teams']:
+        return matches
+    
+    # Winners bracket matches
+    for round_name, round_matches in bracket_data['winners_bracket'].items():
+        for match in round_matches:
+            if match.get('is_bye', False):
+                continue
+            matches.append({
+                'teams': list(match['teams']),
+                'round': round_name,
+                'match_number': match.get('match_number', 0),
+                'match_code': match.get('match_code', ''),
+                'phase': 'Bracket',
+                'is_placeholder': match.get('is_placeholder', False),
+                'is_bye': False
+            })
+    
+    # Losers bracket matches
+    for round_name, round_matches in bracket_data['losers_bracket'].items():
+        for match in round_matches:
+            matches.append({
+                'teams': list(match['teams']),
+                'round': round_name,
+                'match_number': match.get('match_number', 0),
+                'match_code': match.get('match_code', ''),
+                'phase': 'Bracket',
+                'is_placeholder': True,  # All losers bracket matches are placeholders initially
+                'is_bye': False
+            })
+    
+    # Grand Final
+    if bracket_data['grand_final']:
+        matches.append({
+            'teams': list(bracket_data['grand_final']['teams']),
+            'round': 'Grand Final',
+            'match_number': 1,
+            'match_code': bracket_data['grand_final'].get('match_code', 'GF'),
+            'phase': 'Bracket',
+            'is_placeholder': True,
+            'is_bye': False
+        })
+    
+    # Bracket Reset (conditional)
+    if bracket_data['bracket_reset']:
+        matches.append({
+            'teams': list(bracket_data['bracket_reset']['teams']),
+            'round': 'Bracket Reset',
+            'match_number': 1,
+            'match_code': bracket_data['bracket_reset'].get('match_code', 'BR'),
+            'phase': 'Bracket',
+            'is_placeholder': True,
+            'is_bye': False,
+            'is_conditional': True
+        })
+    
+    # Silver bracket if enabled
+    if include_silver:
+        silver_matches = generate_silver_bracket_matches_for_scheduling(pools, standings)
+        matches.extend(silver_matches)
+    
+    return matches
+
+
+def generate_silver_bracket_matches_for_scheduling(pools: Dict[str, Dict], standings: Optional[Dict] = None) -> List[Dict]:
+    """Generate all silver bracket matches for scheduling with placeholders using prefix="S"."""
+    seeded_teams = seed_silver_bracket_teams(pools, standings)
+    
+    if len(seeded_teams) < 2:
+        return []
+    
+    bracket_size = calculate_bracket_size(len(seeded_teams))
+    total_winners_rounds = int(math.log2(bracket_size))
+    total_losers_rounds = calculate_losers_bracket_rounds(bracket_size)
+    
+    # Use prefix="S" so match codes and placeholders are correct for Silver
+    winners_bracket = _generate_winners_bracket(seeded_teams, bracket_size, total_winners_rounds, prefix="S")
+    losers_bracket = _generate_losers_bracket(bracket_size, total_winners_rounds, total_losers_rounds, prefix="S")
+    
+    matches = []
+    
+    # Silver Winners bracket - codes already have S prefix
+    for round_name, round_matches in winners_bracket.items():
+        for match in round_matches:
+            if match.get('is_bye', False):
+                continue
+            matches.append({
+                'teams': list(match['teams']),
+                'round': f"Silver {round_name}",
+                'match_number': match.get('match_number', 0),
+                'match_code': match.get('match_code', ''),
+                'phase': 'Silver Bracket',
+                'is_placeholder': match.get('is_placeholder', False),
+                'is_bye': False
+            })
+    
+    # Silver Losers bracket - codes already have S prefix
+    for round_name, round_matches in losers_bracket.items():
+        for match in round_matches:
+            matches.append({
+                'teams': list(match['teams']),
+                'round': f"Silver {round_name}",
+                'match_number': match.get('match_number', 0),
+                'match_code': match.get('match_code', ''),
+                'phase': 'Silver Bracket',
+                'is_placeholder': True,
+                'is_bye': False
+            })
+    
+    # Silver Grand Final
+    matches.append({
+        'teams': ['Winner of SWinners Bracket', 'Winner of SLosers Bracket'],
+        'round': 'Silver Grand Final',
+        'match_number': 1,
+        'match_code': 'SGF',
+        'phase': 'Silver Bracket',
+        'is_placeholder': True,
+        'is_bye': False
+    })
+    
+    return matches
 
 
 def generate_double_elimination_matches_for_scheduling(pools: Dict[str, Dict], standings: Optional[Dict] = None) -> List[Tuple[Tuple[str, str], str]]:
@@ -1001,6 +1166,7 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                     'teams': (actual_team1, actual_team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': f"SW{round_idx + 1}-M{match_number}",
                     'seeds': (seed1, seed2),
                     'is_bye': is_bye,
                     'is_playable': is_playable,
@@ -1052,6 +1218,7 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': f"SW{round_idx + 1}-M{match_number}",
                     'seeds': None,
                     'is_bye': False,
                     'is_placeholder': is_placeholder,
@@ -1105,13 +1272,14 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                     winner = None
                     is_playable = False
                     is_placeholder = True
-                    team1 = team1 or f'Loser W1-M{i*2+1}'
-                    team2 = team2 or f'Loser W1-M{i*2+2}'
+                    team1 = team1 or f'Loser SW1-M{i*2+1}'
+                    team2 = team2 or f'Loser SW1-M{i*2+2}'
                 
                 match_data = {
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': f"SL{round_idx + 1}-M{match_number}",
                     'is_placeholder': is_placeholder,
                     'is_playable': is_playable,
                     'winner': winner,
@@ -1161,13 +1329,14 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                     is_playable = False
                     is_placeholder = True
                     w_round_num = winners_round_idx + 1
-                    team1 = team1 or f'Loser W{w_round_num}-M{i+1}'
-                    team2 = team2 or f'Winner L{round_idx}-M{i+1}'
+                    team1 = team1 or f'Loser SW{w_round_num}-M{i+1}'
+                    team2 = team2 or f'Winner SL{round_idx}-M{i+1}'
                 
                 match_data = {
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': f"SL{round_idx + 1}-M{match_number}",
                     'is_placeholder': is_placeholder,
                     'is_playable': is_playable,
                     'winner': winner,
@@ -1209,13 +1378,14 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                     is_playable = False
                     is_placeholder = True
                     prev_round_num = round_idx
-                    team1 = team1 or f'Winner L{prev_round_num}-M{i*2+1}'
-                    team2 = team2 or f'Winner L{prev_round_num}-M{i*2+2}'
+                    team1 = team1 or f'Winner SL{prev_round_num}-M{i*2+1}'
+                    team2 = team2 or f'Winner SL{prev_round_num}-M{i*2+2}'
                 
                 match_data = {
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': f"SL{round_idx + 1}-M{match_number}",
                     'is_placeholder': is_placeholder,
                     'is_playable': is_playable,
                     'winner': winner,
@@ -1263,6 +1433,7 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
         'teams': gf_teams,
         'round': 'Grand Final',
         'match_number': 1,
+        'match_code': 'SGF',
         'is_placeholder': gf_is_placeholder,
         'is_playable': gf_is_playable,
         'winner': gf_winner,
@@ -1293,6 +1464,7 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
         'teams': br_teams,
         'round': 'Bracket Reset',
         'match_number': 1,
+        'match_code': 'SBR',
         'is_placeholder': br_is_placeholder,
         'is_conditional': True,
         'is_playable': br_is_playable,
@@ -1329,3 +1501,293 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
         'byes': first_round_byes,
         'champion': champion
     }
+
+
+def generate_bracket_execution_order(pools: Dict[str, Dict], standings: Optional[Dict] = None, 
+                                      prefix: str = "", phase_name: str = "Bracket") -> List[Dict]:
+    """
+    Generate bracket matches in the correct execution order.
+    
+    For a double elimination bracket, the execution order is:
+    - All Winners R1 matches first (can be played in parallel)
+    - Losers R1 (minor round - W1 losers pair up) - AFTER W1 completes
+    - Winners R2 - can start after W1 finishes producing teams
+    - Losers R2 (major round - W2 losers drop in) - AFTER W2 AND L1 complete
+    - Winners R3
+    - Losers R3 (minor round)
+    - Losers R4 (major round - W3 loser drops in)
+    - Grand Final
+    - Bracket Reset (conditional)
+    
+    Args:
+        pools: Pool configuration
+        standings: Pool standings
+        prefix: Match code prefix ("" for Gold, "S" for Silver)
+        phase_name: Phase name for display ("Bracket" or "Silver Bracket")
+    
+    Returns:
+        List of matches in execution order, each with:
+        - match_code, teams, round, phase, time_slot (relative ordering)
+    """
+    bracket_data = generate_double_elimination_bracket(pools, standings, prefix)
+    
+    if not bracket_data['seeded_teams']:
+        return []
+    
+    matches_in_order = []
+    time_slot = 0
+    
+    total_winners_rounds = bracket_data['total_winners_rounds']
+    total_losers_rounds = bracket_data['total_losers_rounds']
+    
+    # Build lookup for winners and losers brackets by round index
+    winners_by_round = {}
+    for round_name, round_matches in bracket_data['winners_bracket'].items():
+        # Extract round number from round name
+        for match in round_matches:
+            code = match.get('match_code', '')
+            if code.startswith(prefix + 'W'):
+                # Extract round number from W1-M1 format
+                round_idx = int(code[len(prefix)+1:code.index('-')]) - 1
+                if round_idx not in winners_by_round:
+                    winners_by_round[round_idx] = []
+                winners_by_round[round_idx].append((match, round_name))
+    
+    losers_by_round = {}
+    for round_name, round_matches in bracket_data['losers_bracket'].items():
+        for match in round_matches:
+            code = match.get('match_code', '')
+            if code.startswith(prefix + 'L'):
+                round_idx = int(code[len(prefix)+1:code.index('-')]) - 1
+                if round_idx not in losers_by_round:
+                    losers_by_round[round_idx] = []
+                losers_by_round[round_idx].append((match, round_name))
+    
+    # Generate execution order:
+    # The interleaving pattern for an 8-team bracket (3 winners rounds, 4 losers rounds):
+    # W1 (all matches) -> L1 -> W2 -> L2 -> W3 -> L3 -> L4 -> GF -> BR
+    #
+    # General pattern:
+    # W1 -> L1 -> W2 -> L2 -> W3 -> L3 -> L4 -> ... -> GF -> BR
+    # 
+    # Winners R(i) produces losers for Losers R(2*i-1) or R(2*i) depending on odd/even
+    # L1 is minor (0), L2 is major (1), L3 is minor (2), L4 is major (3)
+    
+    w_round = 0
+    l_round = 0
+    
+    # First: all W1 matches (time slot 0)
+    if 0 in winners_by_round:
+        for match, round_name in winners_by_round[0]:
+            if not match.get('is_bye', False):
+                matches_in_order.append({
+                    'match_code': match.get('match_code', ''),
+                    'teams': list(match['teams']),
+                    'round': round_name,
+                    'phase': phase_name,
+                    'time_slot': time_slot,
+                    'is_placeholder': match.get('is_placeholder', False),
+                    'is_bye': match.get('is_bye', False)
+                })
+        time_slot += 1
+        w_round = 1
+    
+    # Now alternate: L(odd), W(next), L(even), ...
+    # L1 (minor) can start after W1 completes
+    # W2 can start after W1 (some parallelism possible, but for simplicity sequential)
+    # L2 (major) can start after both W2 and L1 complete
+    # etc.
+    
+    while l_round < total_losers_rounds or w_round < total_winners_rounds:
+        # Add L(l_round) if it exists
+        if l_round < total_losers_rounds and l_round in losers_by_round:
+            for match, round_name in losers_by_round[l_round]:
+                matches_in_order.append({
+                    'match_code': match.get('match_code', ''),
+                    'teams': list(match['teams']),
+                    'round': round_name,
+                    'phase': phase_name,
+                    'time_slot': time_slot,
+                    'is_placeholder': match.get('is_placeholder', True),
+                    'is_bye': False
+                })
+            time_slot += 1
+            l_round += 1
+        
+        # Add W(w_round) if it exists (skip W1 which is already done)
+        if w_round > 0 and w_round < total_winners_rounds and w_round in winners_by_round:
+            for match, round_name in winners_by_round[w_round]:
+                if not match.get('is_bye', False):
+                    matches_in_order.append({
+                        'match_code': match.get('match_code', ''),
+                        'teams': list(match['teams']),
+                        'round': round_name,
+                        'phase': phase_name,
+                        'time_slot': time_slot,
+                        'is_placeholder': match.get('is_placeholder', True),
+                        'is_bye': False
+                    })
+            time_slot += 1
+            w_round += 1
+        elif w_round == 0:
+            w_round = 1  # Skip to 1 since W1 is already processed
+    
+    # Grand Final
+    if bracket_data['grand_final']:
+        gf = bracket_data['grand_final']
+        matches_in_order.append({
+            'match_code': gf.get('match_code', f'{prefix}GF'),
+            'teams': list(gf['teams']),
+            'round': 'Grand Final',
+            'phase': phase_name,
+            'time_slot': time_slot,
+            'is_placeholder': True,
+            'is_bye': False
+        })
+        time_slot += 1
+    
+    # Bracket Reset (conditional)
+    if bracket_data['bracket_reset']:
+        br = bracket_data['bracket_reset']
+        matches_in_order.append({
+            'match_code': br.get('match_code', f'{prefix}BR'),
+            'teams': list(br['teams']),
+            'round': 'Bracket Reset',
+            'phase': phase_name,
+            'time_slot': time_slot,
+            'is_placeholder': True,
+            'is_bye': False,
+            'is_conditional': True
+        })
+    
+    return matches_in_order
+
+
+def generate_silver_bracket_execution_order(pools: Dict[str, Dict], standings: Optional[Dict] = None) -> List[Dict]:
+    """
+    Generate Silver bracket matches in the correct execution order.
+    Similar to generate_bracket_execution_order but uses Silver teams (3rd/4th place finishers).
+    
+    Args:
+        pools: Pool configuration
+        standings: Pool standings
+    
+    Returns:
+        List of matches in execution order for Silver bracket
+    """
+    seeded_teams = seed_silver_bracket_teams(pools, standings)
+    
+    if len(seeded_teams) < 2:
+        return []
+    
+    bracket_size = calculate_bracket_size(len(seeded_teams))
+    total_winners_rounds = int(math.log2(bracket_size))
+    total_losers_rounds = calculate_losers_bracket_rounds(bracket_size)
+    
+    # Generate brackets with "S" prefix for Silver
+    winners_bracket = _generate_winners_bracket(seeded_teams, bracket_size, total_winners_rounds, prefix="S")
+    losers_bracket = _generate_losers_bracket(bracket_size, total_winners_rounds, total_losers_rounds, prefix="S")
+    
+    matches_in_order = []
+    time_slot = 0
+    phase_name = "Silver Bracket"
+    prefix = "S"
+    
+    # Build lookup for winners and losers brackets by round index
+    winners_by_round = {}
+    for round_name, round_matches in winners_bracket.items():
+        for match in round_matches:
+            code = match.get('match_code', '')
+            if code.startswith('SW'):
+                round_idx = int(code[2:code.index('-')]) - 1
+                if round_idx not in winners_by_round:
+                    winners_by_round[round_idx] = []
+                winners_by_round[round_idx].append((match, round_name))
+    
+    losers_by_round = {}
+    for round_name, round_matches in losers_bracket.items():
+        for match in round_matches:
+            code = match.get('match_code', '')
+            if code.startswith('SL'):
+                round_idx = int(code[2:code.index('-')]) - 1
+                if round_idx not in losers_by_round:
+                    losers_by_round[round_idx] = []
+                losers_by_round[round_idx].append((match, round_name))
+    
+    w_round = 0
+    l_round = 0
+    
+    # First: all SW1 matches (time slot 0)
+    if 0 in winners_by_round:
+        for match, round_name in winners_by_round[0]:
+            if not match.get('is_bye', False):
+                matches_in_order.append({
+                    'match_code': match.get('match_code', ''),
+                    'teams': list(match['teams']),
+                    'round': f"Silver {round_name}",
+                    'phase': phase_name,
+                    'time_slot': time_slot,
+                    'is_placeholder': match.get('is_placeholder', False),
+                    'is_bye': match.get('is_bye', False)
+                })
+        time_slot += 1
+        w_round = 1
+    
+    # Interleave winners and losers rounds
+    while l_round < total_losers_rounds or w_round < total_winners_rounds:
+        if l_round < total_losers_rounds and l_round in losers_by_round:
+            for match, round_name in losers_by_round[l_round]:
+                matches_in_order.append({
+                    'match_code': match.get('match_code', ''),
+                    'teams': list(match['teams']),
+                    'round': f"Silver {round_name}",
+                    'phase': phase_name,
+                    'time_slot': time_slot,
+                    'is_placeholder': True,
+                    'is_bye': False
+                })
+            time_slot += 1
+            l_round += 1
+        
+        if w_round > 0 and w_round < total_winners_rounds and w_round in winners_by_round:
+            for match, round_name in winners_by_round[w_round]:
+                if not match.get('is_bye', False):
+                    matches_in_order.append({
+                        'match_code': match.get('match_code', ''),
+                        'teams': list(match['teams']),
+                        'round': f"Silver {round_name}",
+                        'phase': phase_name,
+                        'time_slot': time_slot,
+                        'is_placeholder': match.get('is_placeholder', True),
+                        'is_bye': False
+                    })
+            time_slot += 1
+            w_round += 1
+        elif w_round == 0:
+            w_round = 1
+    
+    # Silver Grand Final
+    matches_in_order.append({
+        'match_code': 'SGF',
+        'teams': ['Winner of SWinners Bracket', 'Winner of SLosers Bracket'],
+        'round': 'Silver Grand Final',
+        'phase': phase_name,
+        'time_slot': time_slot,
+        'is_placeholder': True,
+        'is_bye': False
+    })
+    time_slot += 1
+    
+    # Silver Bracket Reset
+    matches_in_order.append({
+        'match_code': 'SBR',
+        'teams': ['Winner SGF', 'Loser SGF'],
+        'round': 'Silver Bracket Reset',
+        'phase': phase_name,
+        'time_slot': time_slot,
+        'is_placeholder': True,
+        'is_bye': False,
+        'is_conditional': True
+    })
+    
+    return matches_in_order
