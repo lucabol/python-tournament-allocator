@@ -3,7 +3,7 @@ schedule:
     Court 1:
       matches:
       - day: Bracket Phase
-        end_time: '14:30'
+        end_time: '14:25'
         is_bracket: true
         is_placeholder: false
         match_code: W1-M1
@@ -14,7 +14,7 @@ schedule:
         - '#1 Pool A'
         - '#2 Pool D'
       - day: Bracket Phase
-        end_time: '15:00'
+        end_time: '14:55'
         is_bracket: true
         is_placeholder: false
         match_code: W1-M2
@@ -25,7 +25,7 @@ schedule:
         - '#1 Pool D'
         - '#2 Pool A'
       - day: Bracket Phase
-        end_time: '15:30'
+        end_time: '15:25'
         is_bracket: true
         is_placeholder: false
         match_code: W1-M3
@@ -36,7 +36,7 @@ schedule:
         - '#1 Pool B'
         - '#2 Pool C'
       - day: Bracket Phase
-        end_time: '16:00'
+        end_time: '15:55'
         is_bracket: true
         is_placeholder: false
         match_code: W1-M4
@@ -47,7 +47,7 @@ schedule:
         - '#1 Pool C'
         - '#2 Pool B'
       - day: Bracket Phase
-        end_time: '16:30'
+        end_time: '16:25'
         is_bracket: true
         is_placeholder: true
         match_code: L1-M1
@@ -58,7 +58,7 @@ schedule:
         - Loser W1-M1
         - Loser W1-M2
       - day: Bracket Phase
-        end_time: '17:00'
+        end_time: '16:55'
         is_bracket: true
         is_placeholder: true
         match_code: L1-M2
@@ -69,7 +69,7 @@ schedule:
         - Loser W1-M3
         - Loser W1-M4
       - day: Bracket Phase
-        end_time: '17:30'
+        end_time: '17:25'
         is_bracket: true
         is_placeholder: true
         match_code: W2-M1
@@ -80,7 +80,7 @@ schedule:
         - Winner W1-M1
         - Winner W1-M2
       - day: Bracket Phase
-        end_time: '18:00'
+        end_time: '17:55'
         is_bracket: true
         is_placeholder: true
         match_code: W2-M2
@@ -91,7 +91,7 @@ schedule:
         - Winner W1-M3
         - Winner W1-M4
       - day: Bracket Phase
-        end_time: '18:30'
+        end_time: '18:25'
         is_bracket: true
         is_placeholder: true
         match_code: L2-M1
@@ -102,7 +102,7 @@ schedule:
         - Loser W2-M1
         - Winner L1-M1
       - day: Bracket Phase
-        end_time: '19:00'
+        end_time: '18:55'
         is_bracket: true
         is_placeholder: true
         match_code: L2-M2
@@ -113,7 +113,7 @@ schedule:
         - Loser W2-M2
         - Winner L1-M2
       - day: Bracket Phase
-        end_time: '19:30'
+        end_time: '19:25'
         is_bracket: true
         is_placeholder: true
         match_code: W3-M1
@@ -124,7 +124,7 @@ schedule:
         - Winner W2-M1
         - Winner W2-M2
       - day: Bracket Phase
-        end_time: '20:00'
+        end_time: '19:55'
         is_bracket: true
         is_placeholder: true
         match_code: L3-M1
@@ -135,7 +135,7 @@ schedule:
         - Winner L2-M1
         - Winner L2-M2
       - day: Bracket Phase
-        end_time: '20:30'
+        end_time: '20:25'
         is_bracket: true
         is_placeholder: true
         match_code: L4-M1
@@ -146,7 +146,7 @@ schedule:
         - Loser W3-M1
         - Winner L3-M1
       - day: Bracket Phase
-        end_time: '21:00'
+        end_time: '20:55'
         is_bracket: true
         is_placeholder: true
         match_code: GF
@@ -157,7 +157,7 @@ schedule:
         - Winner of Winners Bracket
         - Winner of Losers Bracket
       - day: Bracket Phase
-        end_time: '21:30'
+        end_time: '21:25'
         is_bracket: true
         is_placeholder: true
         match_code: BR
@@ -170,7 +170,7 @@ schedule:
       time_to_match:
         '14:00':
           day: Bracket Phase
-          end_time: '14:30'
+          end_time: '14:25'
           is_bracket: true
           is_placeholder: false
           match_code: W1-M1
@@ -182,7 +182,7 @@ schedule:
           - '#2 Pool D'
         '14:30':
           day: Bracket Phase
-          end_time: '15:00'
+          end_time: '14:55'
           is_bracket: true
           is_placeholder: false
           match_code: W1-M2
@@ -194,7 +194,7 @@ schedule:
           - '#2 Pool A'
         '15:00':
           day: Bracket Phase
-          end_time: '15:30'
+          end_time: '15:25'
           is_bracket: true
           is_placeholder: false
           match_code: W1-M3
@@ -206,7 +206,7 @@ schedule:
           - '#2 Pool C'
         '15:30':
           day: Bracket Phase
-          end_time: '16:00'
+          end_time: '15:55'
           is_bracket: true
           is_placeholder: false
           match_code: W1-M4
@@ -218,7 +218,7 @@ schedule:
           - '#2 Pool B'
         '16:00':
           day: Bracket Phase
-          end_time: '16:30'
+          end_time: '16:25'
           is_bracket: true
           is_placeholder: true
           match_code: L1-M1
@@ -230,7 +230,7 @@ schedule:
           - Loser W1-M2
         '16:30':
           day: Bracket Phase
-          end_time: '17:00'
+          end_time: '16:55'
           is_bracket: true
           is_placeholder: true
           match_code: L1-M2
@@ -242,7 +242,7 @@ schedule:
           - Loser W1-M4
         '17:00':
           day: Bracket Phase
-          end_time: '17:30'
+          end_time: '17:25'
           is_bracket: true
           is_placeholder: true
           match_code: W2-M1
@@ -254,7 +254,7 @@ schedule:
           - Winner W1-M2
         '17:30':
           day: Bracket Phase
-          end_time: '18:00'
+          end_time: '17:55'
           is_bracket: true
           is_placeholder: true
           match_code: W2-M2
@@ -266,7 +266,7 @@ schedule:
           - Winner W1-M4
         '18:00':
           day: Bracket Phase
-          end_time: '18:30'
+          end_time: '18:25'
           is_bracket: true
           is_placeholder: true
           match_code: L2-M1
@@ -278,7 +278,7 @@ schedule:
           - Winner L1-M1
         '18:30':
           day: Bracket Phase
-          end_time: '19:00'
+          end_time: '18:55'
           is_bracket: true
           is_placeholder: true
           match_code: L2-M2
@@ -290,7 +290,7 @@ schedule:
           - Winner L1-M2
         '19:00':
           day: Bracket Phase
-          end_time: '19:30'
+          end_time: '19:25'
           is_bracket: true
           is_placeholder: true
           match_code: W3-M1
@@ -302,7 +302,7 @@ schedule:
           - Winner W2-M2
         '19:30':
           day: Bracket Phase
-          end_time: '20:00'
+          end_time: '19:55'
           is_bracket: true
           is_placeholder: true
           match_code: L3-M1
@@ -314,7 +314,7 @@ schedule:
           - Winner L2-M2
         '20:00':
           day: Bracket Phase
-          end_time: '20:30'
+          end_time: '20:25'
           is_bracket: true
           is_placeholder: true
           match_code: L4-M1
@@ -326,7 +326,7 @@ schedule:
           - Winner L3-M1
         '20:30':
           day: Bracket Phase
-          end_time: '21:00'
+          end_time: '20:55'
           is_bracket: true
           is_placeholder: true
           match_code: GF
@@ -338,7 +338,7 @@ schedule:
           - Winner of Losers Bracket
         '21:00':
           day: Bracket Phase
-          end_time: '21:30'
+          end_time: '21:25'
           is_bracket: true
           is_placeholder: true
           match_code: BR
@@ -351,7 +351,7 @@ schedule:
     Court 2:
       matches:
       - day: Bracket Phase
-        end_time: '14:30'
+        end_time: '14:25'
         is_bracket: true
         is_placeholder: false
         match_code: SW1-M1
@@ -362,7 +362,7 @@ schedule:
         - '#3 Pool A'
         - '#4 Pool D'
       - day: Bracket Phase
-        end_time: '15:00'
+        end_time: '14:55'
         is_bracket: true
         is_placeholder: false
         match_code: SW1-M2
@@ -373,7 +373,7 @@ schedule:
         - '#3 Pool D'
         - '#4 Pool A'
       - day: Bracket Phase
-        end_time: '15:30'
+        end_time: '15:25'
         is_bracket: true
         is_placeholder: false
         match_code: SW1-M3
@@ -384,7 +384,7 @@ schedule:
         - '#3 Pool B'
         - '#4 Pool C'
       - day: Bracket Phase
-        end_time: '16:00'
+        end_time: '15:55'
         is_bracket: true
         is_placeholder: false
         match_code: SW1-M4
@@ -395,7 +395,7 @@ schedule:
         - '#3 Pool C'
         - '#4 Pool B'
       - day: Bracket Phase
-        end_time: '16:30'
+        end_time: '16:25'
         is_bracket: true
         is_placeholder: true
         match_code: SL1-M1
@@ -406,7 +406,7 @@ schedule:
         - Loser SW1-M1
         - Loser SW1-M2
       - day: Bracket Phase
-        end_time: '17:00'
+        end_time: '16:55'
         is_bracket: true
         is_placeholder: true
         match_code: SL1-M2
@@ -417,7 +417,7 @@ schedule:
         - Loser SW1-M3
         - Loser SW1-M4
       - day: Bracket Phase
-        end_time: '17:30'
+        end_time: '17:25'
         is_bracket: true
         is_placeholder: true
         match_code: SW2-M1
@@ -428,7 +428,7 @@ schedule:
         - Winner SW1-M1
         - Winner SW1-M2
       - day: Bracket Phase
-        end_time: '18:00'
+        end_time: '17:55'
         is_bracket: true
         is_placeholder: true
         match_code: SW2-M2
@@ -439,7 +439,7 @@ schedule:
         - Winner SW1-M3
         - Winner SW1-M4
       - day: Bracket Phase
-        end_time: '18:30'
+        end_time: '18:25'
         is_bracket: true
         is_placeholder: true
         match_code: SL2-M1
@@ -450,7 +450,7 @@ schedule:
         - Loser SW2-M1
         - Winner SL1-M1
       - day: Bracket Phase
-        end_time: '19:00'
+        end_time: '18:55'
         is_bracket: true
         is_placeholder: true
         match_code: SL2-M2
@@ -461,7 +461,7 @@ schedule:
         - Loser SW2-M2
         - Winner SL1-M2
       - day: Bracket Phase
-        end_time: '19:30'
+        end_time: '19:25'
         is_bracket: true
         is_placeholder: true
         match_code: SW3-M1
@@ -472,7 +472,7 @@ schedule:
         - Winner SW2-M1
         - Winner SW2-M2
       - day: Bracket Phase
-        end_time: '20:00'
+        end_time: '19:55'
         is_bracket: true
         is_placeholder: true
         match_code: SL3-M1
@@ -483,7 +483,7 @@ schedule:
         - Winner SL2-M1
         - Winner SL2-M2
       - day: Bracket Phase
-        end_time: '20:30'
+        end_time: '20:25'
         is_bracket: true
         is_placeholder: true
         match_code: SL4-M1
@@ -494,7 +494,7 @@ schedule:
         - Loser SW3-M1
         - Winner SL3-M1
       - day: Bracket Phase
-        end_time: '21:00'
+        end_time: '20:55'
         is_bracket: true
         is_placeholder: true
         match_code: SGF
@@ -505,7 +505,7 @@ schedule:
         - Winner of SWinners Bracket
         - Winner of SLosers Bracket
       - day: Bracket Phase
-        end_time: '21:30'
+        end_time: '21:25'
         is_bracket: true
         is_placeholder: true
         match_code: SBR
@@ -518,7 +518,7 @@ schedule:
       time_to_match:
         '14:00':
           day: Bracket Phase
-          end_time: '14:30'
+          end_time: '14:25'
           is_bracket: true
           is_placeholder: false
           match_code: SW1-M1
@@ -530,7 +530,7 @@ schedule:
           - '#4 Pool D'
         '14:30':
           day: Bracket Phase
-          end_time: '15:00'
+          end_time: '14:55'
           is_bracket: true
           is_placeholder: false
           match_code: SW1-M2
@@ -542,7 +542,7 @@ schedule:
           - '#4 Pool A'
         '15:00':
           day: Bracket Phase
-          end_time: '15:30'
+          end_time: '15:25'
           is_bracket: true
           is_placeholder: false
           match_code: SW1-M3
@@ -554,7 +554,7 @@ schedule:
           - '#4 Pool C'
         '15:30':
           day: Bracket Phase
-          end_time: '16:00'
+          end_time: '15:55'
           is_bracket: true
           is_placeholder: false
           match_code: SW1-M4
@@ -566,7 +566,7 @@ schedule:
           - '#4 Pool B'
         '16:00':
           day: Bracket Phase
-          end_time: '16:30'
+          end_time: '16:25'
           is_bracket: true
           is_placeholder: true
           match_code: SL1-M1
@@ -578,7 +578,7 @@ schedule:
           - Loser SW1-M2
         '16:30':
           day: Bracket Phase
-          end_time: '17:00'
+          end_time: '16:55'
           is_bracket: true
           is_placeholder: true
           match_code: SL1-M2
@@ -590,7 +590,7 @@ schedule:
           - Loser SW1-M4
         '17:00':
           day: Bracket Phase
-          end_time: '17:30'
+          end_time: '17:25'
           is_bracket: true
           is_placeholder: true
           match_code: SW2-M1
@@ -602,7 +602,7 @@ schedule:
           - Winner SW1-M2
         '17:30':
           day: Bracket Phase
-          end_time: '18:00'
+          end_time: '17:55'
           is_bracket: true
           is_placeholder: true
           match_code: SW2-M2
@@ -614,7 +614,7 @@ schedule:
           - Winner SW1-M4
         '18:00':
           day: Bracket Phase
-          end_time: '18:30'
+          end_time: '18:25'
           is_bracket: true
           is_placeholder: true
           match_code: SL2-M1
@@ -626,7 +626,7 @@ schedule:
           - Winner SL1-M1
         '18:30':
           day: Bracket Phase
-          end_time: '19:00'
+          end_time: '18:55'
           is_bracket: true
           is_placeholder: true
           match_code: SL2-M2
@@ -638,7 +638,7 @@ schedule:
           - Winner SL1-M2
         '19:00':
           day: Bracket Phase
-          end_time: '19:30'
+          end_time: '19:25'
           is_bracket: true
           is_placeholder: true
           match_code: SW3-M1
@@ -650,7 +650,7 @@ schedule:
           - Winner SW2-M2
         '19:30':
           day: Bracket Phase
-          end_time: '20:00'
+          end_time: '19:55'
           is_bracket: true
           is_placeholder: true
           match_code: SL3-M1
@@ -662,7 +662,7 @@ schedule:
           - Winner SL2-M2
         '20:00':
           day: Bracket Phase
-          end_time: '20:30'
+          end_time: '20:25'
           is_bracket: true
           is_placeholder: true
           match_code: SL4-M1
@@ -674,7 +674,7 @@ schedule:
           - Winner SL3-M1
         '20:30':
           day: Bracket Phase
-          end_time: '21:00'
+          end_time: '20:55'
           is_bracket: true
           is_placeholder: true
           match_code: SGF
@@ -686,7 +686,7 @@ schedule:
           - Winner of SLosers Bracket
         '21:00':
           day: Bracket Phase
-          end_time: '21:30'
+          end_time: '21:25'
           is_bracket: true
           is_placeholder: true
           match_code: SBR
@@ -722,42 +722,42 @@ schedule:
     Court 1:
       matches:
       - day: Day 1
-        end_time: 09:30
+        end_time: 09:25
         pool: Pool A
         start_time: 09:00
         teams:
-        - Adam - Rob
-        - Anna - Lisa
+        - Alex - Sara
+        - Amy - Emma
       - day: Day 1
-        end_time: '10:00'
+        end_time: 09:55
         pool: Pool A
         start_time: 09:30
         teams:
         - Adam - Rob
-        - Alex - Sara
+        - Anna - Lisa
       - day: Day 1
-        end_time: '10:30'
+        end_time: '10:25'
         pool: Pool A
         start_time: '10:00'
+        teams:
+        - Adam - Rob
+        - Alex - Sara
+      - day: Day 1
+        end_time: '10:55'
+        pool: Pool A
+        start_time: '10:30'
         teams:
         - Alex - Sara
         - Anna - Lisa
       - day: Day 1
-        end_time: '11:00'
+        end_time: '11:25'
         pool: Pool A
-        start_time: '10:30'
+        start_time: '11:00'
         teams:
         - Adam - Rob
         - Amy - Emma
       - day: Day 1
-        end_time: '11:30'
-        pool: Pool A
-        start_time: '11:00'
-        teams:
-        - Alex - Sara
-        - Amy - Emma
-      - day: Day 1
-        end_time: '12:00'
+        end_time: '11:55'
         pool: Pool A
         start_time: '11:30'
         teams:
@@ -766,47 +766,47 @@ schedule:
       time_to_match:
         09:00:
           day: Day 1
-          end_time: 09:30
+          end_time: 09:25
           pool: Pool A
           start_time: 09:00
           teams:
-          - Adam - Rob
-          - Anna - Lisa
+          - Alex - Sara
+          - Amy - Emma
         09:30:
           day: Day 1
-          end_time: '10:00'
+          end_time: 09:55
           pool: Pool A
           start_time: 09:30
           teams:
           - Adam - Rob
-          - Alex - Sara
+          - Anna - Lisa
         '10:00':
           day: Day 1
-          end_time: '10:30'
+          end_time: '10:25'
           pool: Pool A
           start_time: '10:00'
           teams:
+          - Adam - Rob
           - Alex - Sara
-          - Anna - Lisa
         '10:30':
           day: Day 1
-          end_time: '11:00'
+          end_time: '10:55'
           pool: Pool A
           start_time: '10:30'
           teams:
-          - Adam - Rob
-          - Amy - Emma
+          - Alex - Sara
+          - Anna - Lisa
         '11:00':
           day: Day 1
-          end_time: '11:30'
+          end_time: '11:25'
           pool: Pool A
           start_time: '11:00'
           teams:
-          - Alex - Sara
+          - Adam - Rob
           - Amy - Emma
         '11:30':
           day: Day 1
-          end_time: '12:00'
+          end_time: '11:55'
           pool: Pool A
           start_time: '11:30'
           teams:
@@ -815,67 +815,67 @@ schedule:
     Court 2:
       matches:
       - day: Day 1
-        end_time: 09:30
+        end_time: 09:25
         pool: Pool B
         start_time: 09:00
         teams:
-        - Brian - Pat
+        - Ben - Kim
         - Beth - Jordan
       - day: Day 1
-        end_time: '10:00'
+        end_time: 09:55
         pool: Pool B
         start_time: 09:30
         teams:
-        - Ben - Kim
-        - Brian - Pat
+        - Beth - Jordan
+        - Blake - Morgan
       - day: Day 1
-        end_time: '10:30'
+        end_time: '10:25'
         pool: Pool B
         start_time: '10:00'
         teams:
         - Brian - Pat
         - Blake - Morgan
       - day: Day 1
-        end_time: '11:00'
+        end_time: '10:55'
         pool: Pool B
         start_time: '10:30'
         teams:
         - Ben - Kim
         - Blake - Morgan
       - day: Day 1
-        end_time: '11:30'
+        end_time: '11:25'
         pool: Pool B
         start_time: '11:00'
         teams:
-        - Ben - Kim
+        - Brian - Pat
         - Beth - Jordan
       - day: Day 1
-        end_time: '12:00'
+        end_time: '11:55'
         pool: Pool B
         start_time: '11:30'
         teams:
-        - Beth - Jordan
-        - Blake - Morgan
+        - Ben - Kim
+        - Brian - Pat
       time_to_match:
         09:00:
           day: Day 1
-          end_time: 09:30
+          end_time: 09:25
           pool: Pool B
           start_time: 09:00
           teams:
-          - Brian - Pat
+          - Ben - Kim
           - Beth - Jordan
         09:30:
           day: Day 1
-          end_time: '10:00'
+          end_time: 09:55
           pool: Pool B
           start_time: 09:30
           teams:
-          - Ben - Kim
-          - Brian - Pat
+          - Beth - Jordan
+          - Blake - Morgan
         '10:00':
           day: Day 1
-          end_time: '10:30'
+          end_time: '10:25'
           pool: Pool B
           start_time: '10:00'
           teams:
@@ -883,7 +883,7 @@ schedule:
           - Blake - Morgan
         '10:30':
           day: Day 1
-          end_time: '11:00'
+          end_time: '10:55'
           pool: Pool B
           start_time: '10:30'
           teams:
@@ -891,84 +891,84 @@ schedule:
           - Blake - Morgan
         '11:00':
           day: Day 1
-          end_time: '11:30'
+          end_time: '11:25'
           pool: Pool B
           start_time: '11:00'
           teams:
-          - Ben - Kim
+          - Brian - Pat
           - Beth - Jordan
         '11:30':
           day: Day 1
-          end_time: '12:00'
+          end_time: '11:55'
           pool: Pool B
           start_time: '11:30'
           teams:
-          - Beth - Jordan
-          - Blake - Morgan
+          - Ben - Kim
+          - Brian - Pat
     Court 3:
       matches:
       - day: Day 1
-        end_time: 09:30
+        end_time: 09:25
         pool: Pool C
         start_time: 09:00
         teams:
         - Chris - Taylor
-        - Carl - Drew
+        - Claire - Avery
       - day: Day 1
-        end_time: '10:00'
+        end_time: 09:55
         pool: Pool C
         start_time: 09:30
         teams:
-        - Chris - Taylor
         - Claire - Avery
+        - Cody - Sage
       - day: Day 1
-        end_time: '10:30'
+        end_time: '10:25'
         pool: Pool C
         start_time: '10:00'
         teams:
         - Carl - Drew
         - Cody - Sage
       - day: Day 1
-        end_time: '11:00'
+        end_time: '10:55'
         pool: Pool C
         start_time: '10:30'
         teams:
+        - Carl - Drew
         - Claire - Avery
-        - Cody - Sage
       - day: Day 1
-        end_time: '11:30'
+        end_time: '11:25'
         pool: Pool C
         start_time: '11:00'
         teams:
         - Chris - Taylor
-        - Cody - Sage
+        - Carl - Drew
       - day: Day 1
-        end_time: '12:00'
+        end_time: '11:55'
         pool: Pool C
         start_time: '11:30'
         teams:
-        - Carl - Drew
-        - Claire - Avery
+        - Chris - Taylor
+        - Cody - Sage
       time_to_match:
         09:00:
           day: Day 1
-          end_time: 09:30
+          end_time: 09:25
           pool: Pool C
           start_time: 09:00
           teams:
           - Chris - Taylor
-          - Carl - Drew
+          - Claire - Avery
         09:30:
           day: Day 1
-          end_time: '10:00'
+          end_time: 09:55
           pool: Pool C
           start_time: 09:30
           teams:
-          - Chris - Taylor
           - Claire - Avery
+          - Cody - Sage
         '10:00':
           day: Day 1
-          end_time: '10:30'
+          end_time: '10:25'
           pool: Pool C
           start_time: '10:00'
           teams:
@@ -976,67 +976,67 @@ schedule:
           - Cody - Sage
         '10:30':
           day: Day 1
-          end_time: '11:00'
+          end_time: '10:55'
           pool: Pool C
           start_time: '10:30'
           teams:
+          - Carl - Drew
           - Claire - Avery
-          - Cody - Sage
         '11:00':
           day: Day 1
-          end_time: '11:30'
+          end_time: '11:25'
           pool: Pool C
           start_time: '11:00'
           teams:
           - Chris - Taylor
-          - Cody - Sage
+          - Carl - Drew
         '11:30':
           day: Day 1
-          end_time: '12:00'
+          end_time: '11:55'
           pool: Pool C
           start_time: '11:30'
           teams:
-          - Carl - Drew
-          - Claire - Avery
+          - Chris - Taylor
+          - Cody - Sage
     Court 4:
       matches:
       - day: Day 1
-        end_time: 09:30
+        end_time: 09:25
         pool: Pool D
         start_time: 09:00
         teams:
         - David - Zoe
         - Dan - Mia
       - day: Day 1
-        end_time: '10:00'
+        end_time: 09:55
         pool: Pool D
         start_time: 09:30
         teams:
-        - Diana - Jake
+        - Dan - Mia
         - Derek - Lily
       - day: Day 1
-        end_time: '10:30'
+        end_time: '10:25'
         pool: Pool D
         start_time: '10:00'
         teams:
         - Dan - Mia
         - Diana - Jake
       - day: Day 1
-        end_time: '11:00'
+        end_time: '10:55'
         pool: Pool D
         start_time: '10:30'
-        teams:
-        - Dan - Mia
-        - Derek - Lily
-      - day: Day 1
-        end_time: '11:30'
-        pool: Pool D
-        start_time: '11:00'
         teams:
         - David - Zoe
         - Diana - Jake
       - day: Day 1
-        end_time: '12:00'
+        end_time: '11:25'
+        pool: Pool D
+        start_time: '11:00'
+        teams:
+        - Diana - Jake
+        - Derek - Lily
+      - day: Day 1
+        end_time: '11:55'
         pool: Pool D
         start_time: '11:30'
         teams:
@@ -1045,7 +1045,7 @@ schedule:
       time_to_match:
         09:00:
           day: Day 1
-          end_time: 09:30
+          end_time: 09:25
           pool: Pool D
           start_time: 09:00
           teams:
@@ -1053,15 +1053,15 @@ schedule:
           - Dan - Mia
         09:30:
           day: Day 1
-          end_time: '10:00'
+          end_time: 09:55
           pool: Pool D
           start_time: 09:30
           teams:
-          - Diana - Jake
+          - Dan - Mia
           - Derek - Lily
         '10:00':
           day: Day 1
-          end_time: '10:30'
+          end_time: '10:25'
           pool: Pool D
           start_time: '10:00'
           teams:
@@ -1069,23 +1069,23 @@ schedule:
           - Diana - Jake
         '10:30':
           day: Day 1
-          end_time: '11:00'
+          end_time: '10:55'
           pool: Pool D
           start_time: '10:30'
           teams:
-          - Dan - Mia
-          - Derek - Lily
+          - David - Zoe
+          - Diana - Jake
         '11:00':
           day: Day 1
-          end_time: '11:30'
+          end_time: '11:25'
           pool: Pool D
           start_time: '11:00'
           teams:
-          - David - Zoe
           - Diana - Jake
+          - Derek - Lily
         '11:30':
           day: Day 1
-          end_time: '12:00'
+          end_time: '11:55'
           pool: Pool D
           start_time: '11:30'
           teams:

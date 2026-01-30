@@ -2,8 +2,8 @@ bracket_type: double
 day_end_time_limit: 02:00
 days_number: 1
 general_constraints: []
-match_duration_minutes: 30
-min_break_between_matches_minutes: 0
+match_duration_minutes: 25
+min_break_between_matches_minutes: 5
 pool_in_same_court: true
 pool_to_bracket_delay_minutes: 120
 scoring_format: single_set

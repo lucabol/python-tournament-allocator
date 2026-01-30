@@ -52,6 +52,8 @@ class AllocationManager:
 
     def _check_court_availability(self, court, match_start_time, match_end_time):
         court_start_dt = self._datetime_from_time(self._parse_time(court.start_time), match_start_time.date())
+        min_break_minutes = self.constraints.get('min_break_between_matches_minutes', 0)
+        break_time = datetime.timedelta(minutes=min_break_minutes)
         
         if match_start_time < court_start_dt: # Cannot start before court opens
             return False
@@ -66,8 +68,10 @@ class AllocationManager:
                 return False
 
         for _, scheduled_start, scheduled_end, _ in self.schedule[court.name]:
-            if max(scheduled_start, match_start_time) < min(scheduled_end, match_end_time):
-                return False # Overlap
+            # Include break time in the overlap check
+            scheduled_end_with_break = scheduled_end + break_time
+            if max(scheduled_start, match_start_time) < min(scheduled_end_with_break, match_end_time):
+                return False # Overlap including break
         return True
 
     def _check_team_constraints(self, team_names, match_start_time, debug=False, reason_out=None, soft_break=False):
@@ -195,21 +199,18 @@ class AllocationManager:
         # Extract configuration
         match_duration_minutes = self.constraints.get('match_duration_minutes', 60)
         min_break_minutes = self.constraints.get('min_break_between_matches_minutes', 0)
-        time_slot_minutes = self.constraints.get('time_slot_increment_minutes', 15)
+        # Use 5-minute slots for precise scheduling
+        time_slot_minutes = 5
         days_number = int(self.constraints.get('days_number', 1))
         day_end_time_str = self.constraints.get("day_end_time_limit", "22:00")
         pool_in_same_court = self.constraints.get('pool_in_same_court', False)
         
         # Calculate match duration in slots (round up to ensure full coverage)
         match_slots = (match_duration_minutes + time_slot_minutes - 1) // time_slot_minutes
-        
-        # When pool_in_same_court is enabled, min_break becomes a soft constraint (preference)
-        # We set break_slots to 0 for hard constraints but keep min_break_minutes for the objective
-        if pool_in_same_court:
-            break_slots = 0  # No hard break requirement
-        else:
-            break_slots = (min_break_minutes + time_slot_minutes - 1) // time_slot_minutes if min_break_minutes > 0 else 0
         break_slots = (min_break_minutes + time_slot_minutes - 1) // time_slot_minutes if min_break_minutes > 0 else 0
+        
+        # Total slots per match including break (for court scheduling)
+        match_with_break_slots = match_slots + break_slots
         
         # Determine day boundaries
         earliest_court_time = min(self._parse_time(court.start_time) for court in self.courts)
@@ -256,11 +257,12 @@ class AllocationManager:
                     suffix = f"_m{m_idx}_c{c_idx}_d{d}"
                     
                     start_var = model.NewIntVar(0, slots_per_day - match_slots, f"start{suffix}")
-                    end_var = model.NewIntVar(match_slots, slots_per_day, f"end{suffix}")
+                    end_var = model.NewIntVar(match_with_break_slots, slots_per_day, f"end{suffix}")
                     present_var = model.NewBoolVar(f"present{suffix}")
                     
+                    # Use match_with_break_slots for interval to ensure proper spacing
                     interval_var = model.NewOptionalIntervalVar(
-                        start_var, match_slots, end_var, present_var, f"interval{suffix}"
+                        start_var, match_with_break_slots, end_var, present_var, f"interval{suffix}"
                     )
                     
                     match_vars[(m_idx, c_idx, d)] = interval_var

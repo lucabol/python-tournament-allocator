@@ -85,7 +85,7 @@
         <table class="print-table formal-table regulations-table">
             <tbody>
                 <tr><td><strong>Match Duration</strong></td><td>{{ constraints.match_duration_minutes }} minutes (maximum)</td></tr>
-                <tr><td><strong>Minimum Rest Period</strong></td><td>{{ constraints.min_break_between_matches_minutes }} minutes between matches</td></tr>
+                <tr><td><strong>Rest Period</strong></td><td>{{ constraints.min_break_between_matches_minutes }} minutes between matches</td></tr>
                 <tr><td><strong>Scoring Format</strong></td><td>{{ constraints.scoring_format|default('best_of_3')|replace('_', ' ')|title }}</td></tr>
                 <tr><td><strong>Elimination Format</strong></td><td>{{ constraints.bracket_type|default('single')|replace('_', ' ')|title }} Elimination</td></tr>
                 <tr><td><strong>Secondary Bracket</strong></td><td>{% if constraints.silver_bracket_enabled %}Enabled (Silver Bracket){% else %}Not Applicable{% endif %}</td></tr>

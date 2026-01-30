@@ -24,17 +24,10 @@
             </div>
             
             <div class="form-group">
-                <label for="min_break">Min Break Between Matches (minutes)</label>
+                <label for="min_break">Break Between Matches (minutes)</label>
                 <input type="number" id="min_break" name="min_break" 
                        value="{{ constraints.min_break_between_matches_minutes }}" min="0" max="120" required
                        onchange="updateSetting('min_break', this.value)">
-            </div>
-            
-            <div class="form-group">
-                <label for="time_increment">Time Slot Increment (minutes)</label>
-                <input type="number" id="time_increment" name="time_increment" 
-                       value="{{ constraints.time_slot_increment_minutes }}" min="5" max="60" required
-                       onchange="updateSetting('time_increment', this.value)">
             </div>
             
             <div class="form-group">

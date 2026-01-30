@@ -912,8 +912,6 @@ def api_update_settings():
         constraints_data['days_number'] = int(data['days_number'])
     if 'min_break' in data:
         constraints_data['min_break_between_matches_minutes'] = int(data['min_break'])
-    if 'time_increment' in data:
-        constraints_data['time_slot_increment_minutes'] = int(data['time_increment'])
     if 'day_end_time' in data:
         constraints_data['day_end_time_limit'] = data['day_end_time']
     if 'bracket_type' in data:
@@ -1327,7 +1325,6 @@ def settings():
             constraints_data['match_duration_minutes'] = int(request.form.get('match_duration', 60))
             constraints_data['days_number'] = int(request.form.get('days_number', 1))
             constraints_data['min_break_between_matches_minutes'] = int(request.form.get('min_break', 15))
-            constraints_data['time_slot_increment_minutes'] = int(request.form.get('time_increment', 15))
             constraints_data['day_end_time_limit'] = request.form.get('day_end_time', '22:00')
             constraints_data['bracket_type'] = request.form.get('bracket_type', 'single')
             constraints_data['scoring_format'] = request.form.get('scoring_format', 'best_of_3')
