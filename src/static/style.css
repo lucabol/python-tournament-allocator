@@ -729,6 +729,10 @@ tr:hover .court-save-btn {
     border-radius: 3px;
 }
 
+.match-code:empty {
+    display: none;
+}
+
 .match-round, .match-pool {
     font-size: 0.6875rem;
     color: var(--text-muted);
