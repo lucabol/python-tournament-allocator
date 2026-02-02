@@ -42,12 +42,24 @@ python-tournament-allocator
 
 ## Running the Application
 
-To run the tournament allocation script, execute the following command in your terminal:
-```
-python src/main.py
+### Local Development
+
+To run the Flask web application locally:
+```bash
+python src/app.py
 ```
 
-Follow the prompts to input the necessary data and view the allocation results.
+The application will be available at `http://localhost:5000`.
+
+### Docker
+
+To run the application in a Docker container:
+```bash
+docker build -t tournament-allocator .
+docker run -p 8080:8080 tournament-allocator
+```
+
+The application will be available at `http://localhost:8080`.
 
 ## Overview of Tournament Allocation Process
 
@@ -58,3 +70,26 @@ The allocation process involves:
 - Outputting the results of the allocation.
 
 This project aims to streamline the organization of tournaments, making it easier for organizers to manage teams and courts effectively.
+
+## Deployment
+
+### Azure Container Apps
+
+For detailed instructions on deploying this application to Azure Container Apps, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+Quick deployment:
+```bash
+# Make the script executable (first time only)
+chmod +x deploy-azure.sh
+
+# Run the deployment script
+./deploy-azure.sh
+```
+
+The script will:
+- Create an Azure resource group
+- Set up a Container Apps environment
+- Build and deploy your application
+- Provide you with the URL to access your app
+
+For manual deployment or advanced options, refer to the [DEPLOYMENT.md](DEPLOYMENT.md) guide.

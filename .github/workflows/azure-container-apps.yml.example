@@ -1,0 +1,116 @@
+name: Deploy to Azure Container Apps
+
+# This workflow deploys the application to Azure Container Apps
+# To use this workflow:
+# 1. Create an Azure service principal and add it as a secret named AZURE_CREDENTIALS
+# 2. Update the environment variables below with your Azure resource names
+# 3. Uncomment the workflow triggers below
+
+# on:
+#   push:
+#     branches: [ main ]
+#   workflow_dispatch:
+
+env:
+  RESOURCE_GROUP: tournament-allocator-rg
+  CONTAINER_APP_NAME: tournament-allocator
+  CONTAINER_APP_ENV: tournament-allocator-env
+  ACR_NAME: tournamentallocatoracr  # Must be globally unique
+  LOCATION: eastus
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Create or Update Azure Container Registry
+      run: |
+        # Check if ACR exists, create if it doesn't
+        if ! az acr show --name ${{ env.ACR_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} &> /dev/null; then
+          echo "Creating Azure Container Registry..."
+          az acr create \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name ${{ env.ACR_NAME }} \
+            --sku Basic \
+            --admin-enabled true
+        else
+          echo "ACR already exists"
+        fi
+    
+    - name: Build and push container image to ACR
+      run: |
+        az acr build \
+          --registry ${{ env.ACR_NAME }} \
+          --image tournament-allocator:${{ github.sha }} \
+          --image tournament-allocator:latest \
+          --file Dockerfile \
+          .
+    
+    - name: Get ACR credentials
+      id: acr-creds
+      run: |
+        ACR_LOGIN_SERVER=$(az acr show --name ${{ env.ACR_NAME }} --query loginServer --output tsv)
+        ACR_USERNAME=$(az acr credential show --name ${{ env.ACR_NAME }} --query username --output tsv)
+        ACR_PASSWORD=$(az acr credential show --name ${{ env.ACR_NAME }} --query passwords[0].value --output tsv)
+        echo "::add-mask::$ACR_PASSWORD"
+        echo "login-server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
+        echo "username=$ACR_USERNAME" >> $GITHUB_OUTPUT
+        echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
+    
+    - name: Create or Update Container App Environment
+      run: |
+        # Check if environment exists, create if it doesn't
+        if ! az containerapp env show --name ${{ env.CONTAINER_APP_ENV }} --resource-group ${{ env.RESOURCE_GROUP }} &> /dev/null; then
+          echo "Creating Container Apps Environment..."
+          az containerapp env create \
+            --name ${{ env.CONTAINER_APP_ENV }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --location ${{ env.LOCATION }}
+        else
+          echo "Container Apps Environment already exists"
+        fi
+    
+    - name: Deploy to Azure Container Apps
+      run: |
+        # Check if container app exists
+        if az containerapp show --name ${{ env.CONTAINER_APP_NAME }} --resource-group ${{ env.RESOURCE_GROUP }} &> /dev/null; then
+          echo "Updating existing Container App..."
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ steps.acr-creds.outputs.login-server }}/tournament-allocator:${{ github.sha }}
+        else
+          echo "Creating new Container App..."
+          az containerapp create \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --environment ${{ env.CONTAINER_APP_ENV }} \
+            --image ${{ steps.acr-creds.outputs.login-server }}/tournament-allocator:${{ github.sha }} \
+            --target-port 8080 \
+            --ingress external \
+            --registry-server ${{ steps.acr-creds.outputs.login-server }} \
+            --registry-username ${{ steps.acr-creds.outputs.username }} \
+            --registry-password ${{ steps.acr-creds.outputs.password }} \
+            --cpu 0.5 \
+            --memory 1.0Gi \
+            --min-replicas 1 \
+            --max-replicas 3
+        fi
+    
+    - name: Get Application URL
+      run: |
+        FQDN=$(az containerapp show \
+          --name ${{ env.CONTAINER_APP_NAME }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --query properties.configuration.ingress.fqdn \
+          --output tsv)
+        echo "Application deployed successfully!"
+        echo "URL: https://$FQDN"
