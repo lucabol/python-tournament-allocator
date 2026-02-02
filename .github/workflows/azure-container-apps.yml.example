@@ -15,7 +15,7 @@ env:
   RESOURCE_GROUP: tournament-allocator-rg
   CONTAINER_APP_NAME: tournament-allocator
   CONTAINER_APP_ENV: tournament-allocator-env
-  ACR_NAME: tournamentallocatoracr  # Must be globally unique
+  ACR_NAME: tournamentallocatoracr  # IMPORTANT: Update this to your unique ACR name (lowercase alphanumeric, 5-50 chars)
   LOCATION: eastus
 
 jobs:

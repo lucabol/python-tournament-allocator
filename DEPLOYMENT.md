@@ -92,7 +92,8 @@ Follow steps 1-3 from Method 1.
 #### Step 4: Create an Azure Container Registry
 
 ```bash
-ACR_NAME="tournamentallocator$(date +%s)"  # Must be globally unique
+# Must be globally unique across Azure (lowercase alphanumeric only, 5-50 characters)
+ACR_NAME="tournamentallocator$(date +%s)"
 
 az acr create \
   --resource-group $RESOURCE_GROUP \
@@ -100,6 +101,8 @@ az acr create \
   --sku Basic \
   --admin-enabled true
 ```
+
+**Note**: The ACR name must be globally unique and can only contain lowercase alphanumeric characters. If using the GitHub Actions workflow, you'll need to update the `ACR_NAME` environment variable in `.github/workflows/azure-container-apps.yml.example` with your actual ACR name.
 
 #### Step 5: Build and Push Image to ACR
 

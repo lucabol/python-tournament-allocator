@@ -41,9 +41,10 @@ htmlcov/
 *.swo
 *~
 
-# Documentation
+# Documentation (excluding key docs that may be useful in the container)
 *.md
 !README.md
+!DEPLOYMENT.md
 
 # OS
 .DS_Store
