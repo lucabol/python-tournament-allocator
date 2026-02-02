@@ -51,14 +51,35 @@ python app.py
 
 The application will be available at `http://localhost:5000`
 
-### Production Deployment
-See deployment guides:
-- **[Azure App Service - Quick Start](QUICKSTART_AZURE.md)** - Get started in 10 minutes
-- **[Azure App Service - Full Guide](AZURE_DEPLOYMENT.md)** - Complete deployment documentation
+### Production Deployment to Azure
 
-Other deployment options:
+**🚀 New! Complete Azure App Service setup included!**
+
+This repository is fully configured for Azure App Service deployment. Choose your path:
+
+#### For First-Time Users (Easiest)
+1. Read **[QUICKSTART_AZURE.md](QUICKSTART_AZURE.md)** - Deploy in 10 minutes via Azure Portal
+2. Follow the 3-step process to get your app live
+
+#### For Detailed Setup
+- **[AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md)** - Comprehensive guide with 3 deployment methods
+- **[DEPLOYMENT_CHECKLIST.md](DEPLOYMENT_CHECKLIST.md)** - Step-by-step checklist
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical architecture and diagrams
+- **[SETUP_SUMMARY.md](SETUP_SUMMARY.md)** - Complete overview
+
+**What's Included:**
+- ✅ Production-ready startup script (`startup.sh`)
+- ✅ Gunicorn WSGI server configuration
+- ✅ GitHub Actions CI/CD workflow
+- ✅ Azure build configuration
+- ✅ Environment template (`.env.example`)
+- ✅ 1,500+ lines of documentation
+
+**Pricing:** Starting at $0/month (Free tier) or $13/month (Basic tier - recommended)
+
+#### Other Deployment Options
 - Azure Container Apps
-- Docker containers
+- Docker containers  
 - Any Python-capable hosting platform
 
 ## Overview of Tournament Allocation Process
