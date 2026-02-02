@@ -45,6 +45,7 @@ if [ ! -f "data/schedule.yaml" ]; then
 fi
 
 # Start the application with gunicorn
-# Using 4 workers and binding to port 8000 (Azure App Service default)
+# Using 4 workers and binding to the port specified by Azure (default 8000)
 cd src
-gunicorn --bind=0.0.0.0:8000 --workers=4 --timeout=600 app:app
+PORT="${PORT:-8000}"
+gunicorn --bind=0.0.0.0:$PORT --workers=4 --timeout=600 app:app
