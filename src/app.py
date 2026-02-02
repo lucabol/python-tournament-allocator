@@ -989,6 +989,56 @@ def api_load_test_data():
     return jsonify({'success': True})
 
 
+@app.route('/api/test-teams', methods=['POST'])
+def api_load_test_teams():
+    """Load test teams for development/testing."""
+    test_teams = {
+        'Pool A': {
+            'teams': ['Adam - Rob', 'Alex - Sara', 'Anna - Lisa', 'Amy - Emma'],
+            'advance': 2
+        },
+        'Pool B': {
+            'teams': ['Ben - Kim', 'Brian - Pat', 'Beth - Jordan', 'Blake - Morgan'],
+            'advance': 2
+        },
+        'Pool C': {
+            'teams': ['Chris - Taylor', 'Carl - Drew', 'Claire - Avery', 'Cody - Sage'],
+            'advance': 2
+        },
+        'Pool D': {
+            'teams': ['David - Zoe', 'Dan - Mia', 'Diana - Jake', 'Derek - Lily'],
+            'advance': 2
+        }
+    }
+    save_teams(test_teams)
+    
+    # Clear any existing results and schedule
+    if os.path.exists(RESULTS_FILE):
+        os.remove(RESULTS_FILE)
+    if os.path.exists(SCHEDULE_FILE):
+        os.remove(SCHEDULE_FILE)
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/test-courts', methods=['POST'])
+def api_load_test_courts():
+    """Load test courts for development/testing."""
+    test_courts = [
+        {'name': 'Court 1', 'start_time': '09:00', 'end_time': '02:00'},
+        {'name': 'Court 2', 'start_time': '09:00', 'end_time': '02:00'},
+        {'name': 'Court 3', 'start_time': '09:00', 'end_time': '02:00'},
+        {'name': 'Court 4', 'start_time': '09:00', 'end_time': '02:00'}
+    ]
+    save_courts(test_courts)
+    
+    # Clear any existing schedule
+    if os.path.exists(SCHEDULE_FILE):
+        os.remove(SCHEDULE_FILE)
+    
+    return jsonify({'success': True})
+
+
 @app.route('/api/generate-random-results', methods=['POST'])
 def api_generate_random_results():
     """Generate random results for all scheduled pool matches."""

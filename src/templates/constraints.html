@@ -159,10 +159,6 @@
     <h2>Actions</h2>
     <div class="form-grid">
         <div class="form-group">
-            <p class="help-text">Load sample data for testing (4 pools, 16 teams, 4 courts).</p>
-            <button type="button" class="btn btn-primary" onclick="loadTestData()">Load Test Data</button>
-        </div>
-        <div class="form-group">
             <p class="help-text">Delete all teams, courts, schedules, results, and settings.</p>
             <button type="button" class="btn btn-danger" onclick="resetAll()">Reset All Data</button>
         </div>
@@ -178,19 +174,6 @@ function updateSetting(field, value) {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
-    });
-}
-
-function loadTestData() {
-    fetch('/api/test-data', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'}
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            location.reload();
-        }
     });
 }
 
