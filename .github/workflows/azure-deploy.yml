@@ -1,0 +1,80 @@
+# This workflow will build and deploy a Python application to Azure App Service
+# To use this workflow:
+# 1. Create an Azure App Service with Python 3.11 runtime
+# 2. Download the publish profile from Azure Portal (App Service > Deployment Center > Manage publish profile)
+# 3. Add the publish profile as a GitHub secret named AZURE_WEBAPP_PUBLISH_PROFILE
+# 4. Update the AZURE_WEBAPP_NAME below with your app service name
+
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: your-app-name-here  # Set this to your application's name
+  PYTHON_VERSION: '3.11'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python version
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Create and start virtual environment
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Zip artifact for deployment
+        run: |
+          zip -r release.zip . -x "venv/*" ".git/*" ".github/*" "tests/*" "*.pyc" "__pycache__/*"
+
+      - name: Upload artifact for deployment jobs
+        uses: actions/upload-artifact@v3
+        with:
+          name: python-app
+          path: release.zip
+
+  deploy:
+    permissions:
+      contents: none
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v3
+        with:
+          name: python-app
+
+      - name: Unzip artifact for deployment
+        run: unzip release.zip
+
+      - name: 'Deploy to Azure Web App'
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          startup-command: 'chmod +x /home/site/wwwroot/startup.sh && /home/site/wwwroot/startup.sh'

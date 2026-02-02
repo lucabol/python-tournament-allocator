@@ -1,6 +1,6 @@
 # Tournament Allocator
 
-This project is designed to allocate teams to courts for a tournament, supporting both pool play and single elimination formats. It provides a structured way to manage tournament logistics, ensuring that teams are allocated to courts according to specified constraints.
+A Flask web application designed to allocate teams to courts for beach volleyball tournaments. Supports pool play, single elimination, and double elimination brackets with constraint-based scheduling using Google OR-Tools.
 
 ## Project Structure
 
@@ -42,12 +42,24 @@ python-tournament-allocator
 
 ## Running the Application
 
-To run the tournament allocation script, execute the following command in your terminal:
-```
-python src/main.py
+### Local Development
+To run the Flask web application locally:
+```bash
+cd src
+python app.py
 ```
 
-Follow the prompts to input the necessary data and view the allocation results.
+The application will be available at `http://localhost:5000`
+
+### Production Deployment
+See deployment guides:
+- **[Azure App Service - Quick Start](QUICKSTART_AZURE.md)** - Get started in 10 minutes
+- **[Azure App Service - Full Guide](AZURE_DEPLOYMENT.md)** - Complete deployment documentation
+
+Other deployment options:
+- Azure Container Apps
+- Docker containers
+- Any Python-capable hosting platform
 
 ## Overview of Tournament Allocation Process
 
