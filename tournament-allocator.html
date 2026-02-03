@@ -451,7 +451,10 @@
 
         <div id="teams" class="tab-content">
             <div class="section">
-                <h2>Manage Teams</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>Manage Teams</h2>
+                    <button class="btn btn-secondary" onclick="loadTestTeams()">Load Test Teams</button>
+                </div>
                 
                 <div class="card">
                     <h3>Add New Pool</h3>
@@ -490,7 +493,10 @@
 
         <div id="courts" class="tab-content">
             <div class="section">
-                <h2>Manage Courts</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>Manage Courts</h2>
+                    <button class="btn btn-secondary" onclick="loadTestCourts()">Load Test Courts</button>
+                </div>
                 
                 <div class="card">
                     <h3>Add New Court</h3>
@@ -1279,6 +1285,52 @@
             saveState();
             updateUI();
             alert('Sample data loaded!');
+        }
+
+        function loadTestTeams() {
+            if (!confirm('This will replace current teams/pools. Continue?')) {
+                return;
+            }
+            
+            AppState.pools = {
+                'Pool A': {
+                    teams: ['Adam - Rob', 'Alex - Sara', 'Anna - Lisa', 'Amy - Emma'],
+                    advance: 2
+                },
+                'Pool B': {
+                    teams: ['Ben - Kim', 'Brian - Pat', 'Beth - Jordan', 'Blake - Morgan'],
+                    advance: 2
+                },
+                'Pool C': {
+                    teams: ['Chris - Taylor', 'Carl - Drew', 'Claire - Avery', 'Cody - Sage'],
+                    advance: 2
+                },
+                'Pool D': {
+                    teams: ['David - Zoe', 'Dan - Mia', 'Diana - Jake', 'Derek - Lily'],
+                    advance: 2
+                }
+            };
+            
+            saveState();
+            updateUI();
+            alert('Test teams loaded!');
+        }
+
+        function loadTestCourts() {
+            if (!confirm('This will replace current courts. Continue?')) {
+                return;
+            }
+            
+            AppState.courts = [
+                { name: 'Court 1', startTime: '09:00', endTime: '22:00' },
+                { name: 'Court 2', startTime: '09:00', endTime: '22:00' },
+                { name: 'Court 3', startTime: '09:00', endTime: '22:00' },
+                { name: 'Court 4', startTime: '09:00', endTime: '22:00' }
+            ];
+            
+            saveState();
+            updateUI();
+            alert('Test courts loaded!');
         }
 
         function exportData() {
