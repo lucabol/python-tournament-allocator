@@ -714,19 +714,15 @@
         }
 
         function removeTeam(poolName, teamIndex) {
-            if (confirm('Remove this team?')) {
-                AppState.pools[poolName].teams.splice(teamIndex, 1);
-                saveState();
-                updateUI();
-            }
+            AppState.pools[poolName].teams.splice(teamIndex, 1);
+            saveState();
+            updateUI();
         }
 
         function removePool(poolName) {
-            if (confirm(`Remove pool "${poolName}" and all its teams?`)) {
-                delete AppState.pools[poolName];
-                saveState();
-                updateUI();
-            }
+            delete AppState.pools[poolName];
+            saveState();
+            updateUI();
         }
 
         // Court Management
@@ -752,11 +748,9 @@
         }
 
         function removeCourt(index) {
-            if (confirm('Remove this court?')) {
-                AppState.courts.splice(index, 1);
-                saveState();
-                updateUI();
-            }
+            AppState.courts.splice(index, 1);
+            saveState();
+            updateUI();
         }
 
         // Settings Management
@@ -1314,10 +1308,6 @@
 
         // Data Management
         function loadSampleData() {
-            if (!confirm('This will replace current data. Continue?')) {
-                return;
-            }
-            
             AppState.pools = {
                 'Pool A': {
                     teams: ['Adam - Rob', 'Alex - Sara', 'Anna - Lisa', 'Amy - Emma'],
@@ -1357,10 +1347,6 @@
         }
 
         function loadTestTeams() {
-            if (!confirm('This will replace current teams/pools. Continue?')) {
-                return;
-            }
-            
             AppState.pools = {
                 'Pool A': {
                     teams: ['Adam - Rob', 'Alex - Sara', 'Anna - Lisa', 'Amy - Emma'],
@@ -1386,10 +1372,6 @@
         }
 
         function loadTestCourts() {
-            if (!confirm('This will replace current courts. Continue?')) {
-                return;
-            }
-            
             AppState.courts = [
                 { name: 'Court 1', startTime: '09:00', endTime: '22:00' },
                 { name: 'Court 2', startTime: '09:00', endTime: '22:00' },
@@ -1405,10 +1387,6 @@
         function generateRandomPoolResults() {
             if (Object.keys(AppState.pools).length === 0) {
                 alert('Please load teams first!');
-                return;
-            }
-            
-            if (!confirm('This will generate random scores for all pool matches. Continue?')) {
                 return;
             }
             
@@ -1438,10 +1416,6 @@
         function generateRandomBracketResults() {
             if (!AppState.bracketMatches || AppState.bracketMatches.length === 0) {
                 alert('Please generate bracket first!');
-                return;
-            }
-            
-            if (!confirm('This will generate random scores for bracket matches. Continue?')) {
                 return;
             }
             
@@ -1499,10 +1473,8 @@
         }
 
         function resetAll() {
-            if (confirm('Are you sure you want to reset all data? This cannot be undone.')) {
-                localStorage.removeItem('tournamentState');
-                location.reload();
-            }
+            localStorage.removeItem('tournamentState');
+            location.reload();
         }
 
         function printSchedule() {
