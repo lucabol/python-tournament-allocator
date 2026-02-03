@@ -2,6 +2,22 @@
 
 This project is designed to allocate teams to courts for a tournament, supporting both pool play and single elimination formats. It provides a structured way to manage tournament logistics, ensuring that teams are allocated to courts according to specified constraints.
 
+## 🆕 Client-Side Version Available!
+
+A new **standalone HTML application** is now available that runs entirely in the browser with no backend required! Perfect for:
+- Quick tournament setup without server infrastructure
+- Offline tournament management  
+- Easy deployment (just open the HTML file!)
+- Privacy-focused data handling (data never leaves your browser)
+
+**See [`CLIENT-SIDE-README.md`](CLIENT-SIDE-README.md) for details and [`tournament-allocator.html`](tournament-allocator.html) to get started!**
+
+---
+
+## Python/Flask Version (Original)
+
+The original Python/Flask web application with advanced constraint-based scheduling is still available below:
+
 ## Project Structure
 
 ```
