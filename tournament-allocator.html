@@ -564,11 +564,8 @@
             <div class="section" id="schedule-content">
                 <table class="schedule-table" id="schedule-table">
                     <thead>
-                        <tr>
+                        <tr id="schedule-header">
                             <th>Time</th>
-                            <th>Court</th>
-                            <th>Match</th>
-                            <th>Type</th>
                         </tr>
                     </thead>
                     <tbody id="schedule-tbody">
@@ -579,7 +576,10 @@
 
         <div id="results" class="tab-content">
             <div class="section">
-                <h2>Pool Play Results</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>Pool Play Results</h2>
+                    <button class="btn btn-secondary" onclick="generateRandomPoolResults()">Generate Random Results</button>
+                </div>
                 <div class="alert alert-info">
                     Enter match results to track pool standings and determine bracket seeding.
                 </div>
@@ -594,7 +594,10 @@
 
         <div id="bracket" class="tab-content">
             <div class="section">
-                <h2>Elimination Bracket</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2>Elimination Bracket</h2>
+                    <button class="btn btn-secondary" onclick="generateRandomBracketResults()">Generate Random Results</button>
+                </div>
                 <div class="alert alert-info">
                     Enter pool results first to generate the bracket with seeded teams.
                 </div>
@@ -625,7 +628,8 @@
             },
             schedule: [],
             poolResults: {},
-            bracketResults: {}
+            bracketResults: {},
+            bracketMatches: []
         };
 
         // Initialize
@@ -649,6 +653,7 @@
                 AppState.schedule = loaded.schedule || [];
                 AppState.poolResults = loaded.poolResults || {};
                 AppState.bracketResults = loaded.bracketResults || {};
+                AppState.bracketMatches = loaded.bracketMatches || [];
             }
         }
 
@@ -850,6 +855,9 @@
             
             // Generate bracket matches
             const bracketMatches = generateEliminationMatches(seededTeams);
+            
+            // Store bracket matches in AppState for random results generation
+            AppState.bracketMatches = bracketMatches;
             
             // Assign bracket matches to courts
             assignBracketMatchesToCourts(bracketMatches);
@@ -1154,16 +1162,52 @@
 
         function updateSchedule() {
             const tbody = document.getElementById('schedule-tbody');
+            const header = document.getElementById('schedule-header');
             tbody.innerHTML = '';
+            header.innerHTML = '<th>Time</th>';
             
+            if (AppState.schedule.length === 0) {
+                return;
+            }
+            
+            // Get unique courts
+            const courts = [...new Set(AppState.schedule.map(m => m.court))].sort();
+            
+            // Add court columns to header
+            courts.forEach(court => {
+                const th = document.createElement('th');
+                th.textContent = court;
+                header.appendChild(th);
+            });
+            
+            // Group matches by time
+            const matchesByTime = {};
             AppState.schedule.forEach(match => {
+                if (!matchesByTime[match.time]) {
+                    matchesByTime[match.time] = {};
+                }
+                matchesByTime[match.time][match.court] = match;
+            });
+            
+            // Create rows for each time slot
+            Object.keys(matchesByTime).sort().forEach(time => {
                 const row = tbody.insertRow();
-                row.innerHTML = `
-                    <td>${match.time}</td>
-                    <td>${match.court}</td>
-                    <td>${match.match}</td>
-                    <td>${match.type}</td>
-                `;
+                const timeCell = row.insertCell();
+                timeCell.textContent = time;
+                
+                courts.forEach(court => {
+                    const cell = row.insertCell();
+                    const match = matchesByTime[time][court];
+                    if (match) {
+                        cell.innerHTML = `
+                            <div style="font-weight: 600;">${match.match}</div>
+                            <div style="font-size: 0.9em; color: #666;">${match.type}</div>
+                        `;
+                    } else {
+                        cell.textContent = '—';
+                        cell.style.color = '#ccc';
+                    }
+                });
             });
         }
 
@@ -1331,6 +1375,69 @@
             saveState();
             updateUI();
             alert('Test courts loaded!');
+        }
+
+        function generateRandomPoolResults() {
+            if (Object.keys(AppState.pools).length === 0) {
+                alert('Please load teams first!');
+                return;
+            }
+            
+            if (!confirm('This will generate random scores for all pool matches. Continue?')) {
+                return;
+            }
+            
+            const poolMatches = generatePoolPlayMatches();
+            AppState.poolResults = {};
+            
+            for (const poolName in poolMatches) {
+                const matches = poolMatches[poolName];
+                AppState.poolResults[poolName] = {};
+                
+                matches.forEach((match, idx) => {
+                    // Generate random scores between 15 and 25 (typical volleyball game scores)
+                    const score1 = Math.floor(Math.random() * 11) + 15;
+                    const score2 = Math.floor(Math.random() * 11) + 15;
+                    AppState.poolResults[poolName][idx] = {
+                        score1: score1,
+                        score2: score2
+                    };
+                });
+            }
+            
+            saveState();
+            updateUI();
+            alert('Random pool results generated!');
+        }
+
+        function generateRandomBracketResults() {
+            if (!AppState.bracketMatches || AppState.bracketMatches.length === 0) {
+                alert('Please generate bracket first!');
+                return;
+            }
+            
+            if (!confirm('This will generate random scores for bracket matches. Continue?')) {
+                return;
+            }
+            
+            AppState.bracketResults = {};
+            
+            // Generate random results for bracket matches
+            AppState.bracketMatches.forEach((match, idx) => {
+                if (match.team1 !== 'TBD' && match.team2 !== 'TBD' && match.team1 !== 'BYE' && match.team2 !== 'BYE') {
+                    const score1 = Math.floor(Math.random() * 11) + 15;
+                    const score2 = Math.floor(Math.random() * 11) + 15;
+                    AppState.bracketResults[idx] = {
+                        score1: score1,
+                        score2: score2,
+                        winner: score1 > score2 ? match.team1 : match.team2
+                    };
+                }
+            });
+            
+            saveState();
+            updateUI();
+            alert('Random bracket results generated!');
         }
 
         function exportData() {
