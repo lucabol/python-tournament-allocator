@@ -814,9 +814,12 @@
                 courtIndex++;
             }
             
+            // Generate brackets automatically
+            generateBracket(true);
+            
             saveState();
             updateUI();
-            alert('Schedule generated successfully!');
+            alert('Schedule and brackets generated successfully!');
         }
 
         function generatePoolPlayMatches() {
@@ -841,7 +844,7 @@
         }
 
         // Bracket Generation
-        function generateBracket() {
+        function generateBracket(silent = false) {
             // Get pool standings
             const standings = calculateStandings();
             
@@ -849,7 +852,9 @@
             const seededTeams = seedTeamsFromPools(standings);
             
             if (seededTeams.length === 0) {
-                alert('No teams to create bracket. Complete pool play first.');
+                if (!silent) {
+                    alert('No teams to create bracket. Complete pool play first.');
+                }
                 return;
             }
             
@@ -864,7 +869,9 @@
             
             saveState();
             updateUI();
-            alert('Bracket generated successfully!');
+            if (!silent) {
+                alert('Bracket generated successfully!');
+            }
         }
 
         function seedTeamsFromPools(standings) {
@@ -990,7 +997,10 @@
                         team: team,
                         wins: 0,
                         losses: 0,
-                        points: 0,
+                        setsWon: 0,
+                        setsLost: 0,
+                        pointsWon: 0,
+                        pointsLost: 0,
                         matchesPlayed: 0
                     };
                 });
@@ -1008,23 +1018,36 @@
                         
                         teamStats[team1].matchesPlayed++;
                         teamStats[team2].matchesPlayed++;
-                        teamStats[team1].points += result.score1;
-                        teamStats[team2].points += result.score2;
+                        teamStats[team1].pointsWon += result.score1;
+                        teamStats[team1].pointsLost += result.score2;
+                        teamStats[team2].pointsWon += result.score2;
+                        teamStats[team2].pointsLost += result.score1;
                         
                         if (result.score1 > result.score2) {
                             teamStats[team1].wins++;
                             teamStats[team2].losses++;
+                            teamStats[team1].setsWon++;
+                            teamStats[team2].setsLost++;
                         } else if (result.score2 > result.score1) {
                             teamStats[team2].wins++;
                             teamStats[team1].losses++;
+                            teamStats[team2].setsWon++;
+                            teamStats[team1].setsLost++;
                         }
                     }
                 }
                 
-                // Sort by wins, then points
+                // Calculate differences
+                Object.values(teamStats).forEach(team => {
+                    team.setDiff = team.setsWon - team.setsLost;
+                    team.pointDiff = team.pointsWon - team.pointsLost;
+                });
+                
+                // Sort by wins, then set diff, then point diff
                 standings[poolName] = Object.values(teamStats).sort((a, b) => {
                     if (b.wins !== a.wins) return b.wins - a.wins;
-                    return b.points - a.points;
+                    if (b.setDiff !== a.setDiff) return b.setDiff - a.setDiff;
+                    return b.pointDiff - a.pointDiff;
                 });
             }
             
@@ -1262,7 +1285,8 @@
                             <th>Team</th>
                             <th>W</th>
                             <th>L</th>
-                            <th>Points</th>
+                            <th>Set Diff</th>
+                            <th>Point Diff</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1271,7 +1295,8 @@
                                 <td>${team.team}</td>
                                 <td>${team.wins}</td>
                                 <td>${team.losses}</td>
-                                <td>${team.points}</td>
+                                <td>${team.setDiff >= 0 ? '+' : ''}${team.setDiff}</td>
+                                <td>${team.pointDiff >= 0 ? '+' : ''}${team.pointDiff}</td>
                             </tr>
                         `).join('')}
                     </tbody>
