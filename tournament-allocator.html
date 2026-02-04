@@ -547,6 +547,7 @@
                         <input type="checkbox" id="silver-bracket" checked>
                     </div>
                     <button class="btn btn-success" onclick="saveSettings()">Save Settings</button>
+                    <button class="btn btn-danger" onclick="resetAll()">Reset Data</button>
                 </div>
             </div>
         </div>
@@ -674,12 +675,10 @@
             const advance = parseInt(document.getElementById('new-pool-advance').value);
             
             if (!name) {
-                alert('Please enter a pool name');
                 return;
             }
             
             if (AppState.pools[name]) {
-                alert('Pool already exists');
                 return;
             }
             
@@ -698,12 +697,10 @@
             const teamName = document.getElementById('new-team-name').value.trim();
             
             if (!poolName) {
-                alert('Please select a pool');
                 return;
             }
             
             if (!teamName) {
-                alert('Please enter a team name');
                 return;
             }
             
@@ -732,7 +729,6 @@
             const end = document.getElementById('new-court-end').value;
             
             if (!name) {
-                alert('Please enter a court name');
                 return;
             }
             
@@ -761,18 +757,16 @@
             AppState.settings.silverBracket = document.getElementById('silver-bracket').checked;
             
             saveState();
-            alert('Settings saved!');
+            saveState();
         }
 
         // Schedule Generation (Simplified Greedy Algorithm)
         function generateSchedule() {
             if (Object.keys(AppState.pools).length === 0) {
-                alert('Please add pools and teams first');
                 return;
             }
             
             if (AppState.courts.length === 0) {
-                alert('Please add courts first');
                 return;
             }
             
@@ -813,7 +807,6 @@
             
             saveState();
             updateUI();
-            alert('Schedule and brackets generated successfully!');
         }
 
         function generatePoolPlayMatches() {
@@ -837,92 +830,362 @@
             return matches;
         }
 
-        // Bracket Generation
+        // Bracket Generation - Double Elimination for Gold and Silver
         function generateBracket(silent = false) {
             // Get pool standings
             const standings = calculateStandings();
             
             // Seed teams from pools
-            const seededTeams = seedTeamsFromPools(standings);
+            // Gold = 1st place teams (pool winners)
+            // Silver = 2nd place teams (pool runners-up)
+            const { goldTeams, silverTeams } = seedTeamsFromPools(standings);
             
-            if (seededTeams.length === 0) {
+            if (goldTeams.length < 2) {
                 if (!silent) {
-                    alert('No teams to create bracket. Complete pool play first.');
+                    return;
                 }
                 return;
             }
             
-            // Generate bracket matches
-            const bracketMatches = generateEliminationMatches(seededTeams);
+            // Generate Gold double elimination bracket (pool winners)
+            const goldBracketData = generateDoubleEliminationBracket(goldTeams, 'Gold');
             
-            // Store bracket matches in AppState for random results generation
-            AppState.bracketMatches = bracketMatches;
+            // Generate Silver double elimination bracket (pool runners-up) if enabled
+            let silverBracketData = null;
+            if (AppState.settings.silverBracket && silverTeams.length >= 2) {
+                silverBracketData = generateDoubleEliminationBracket(silverTeams, 'Silver');
+            }
+            
+            // Store bracket data in AppState
+            AppState.bracketData = {
+                gold: goldBracketData,
+                silver: silverBracketData
+            };
+            
+            // Combine all matches
+            AppState.bracketMatches = [
+                ...goldBracketData.winnersMatches,
+                ...goldBracketData.losersMatches,
+                goldBracketData.grandFinal
+            ].filter(m => m);
+            
+            if (silverBracketData) {
+                AppState.bracketMatches.push(
+                    ...silverBracketData.winnersMatches,
+                    ...silverBracketData.losersMatches,
+                    silverBracketData.grandFinal
+                );
+            }
             
             // Assign bracket matches to courts
-            assignBracketMatchesToCourts(bracketMatches);
+            assignBracketMatchesToCourts(AppState.bracketMatches);
             
             saveState();
             updateUI();
-            if (!silent) {
-                alert('Bracket generated successfully!');
-            }
         }
 
         function seedTeamsFromPools(standings) {
-            const seededTeams = [];
+            const goldTeams = [];
+            const silverTeams = [];
             const poolNames = Object.keys(AppState.pools).sort();
             
-            // Seed by position across all pools
+            // Gold bracket = teams that ADVANCE from pools (based on "Teams to Advance" setting)
+            // Silver bracket = teams that DON'T advance (remaining teams in each pool)
+            
+            // First, collect all advancing teams for Gold (by position for proper seeding)
             const maxAdvance = Math.max(...Object.values(AppState.pools).map(p => p.advance));
             
             for (let position = 0; position < maxAdvance; position++) {
                 for (const poolName of poolNames) {
                     const poolData = AppState.pools[poolName];
-                    if (position < poolData.advance) {
-                        const poolStandings = standings[poolName] || [];
+                    const poolStandings = standings[poolName] || [];
+                    
+                    if (position < poolData.advance && poolStandings.length > position) {
                         const team = poolStandings[position] || { team: `#${position + 1} ${poolName}` };
-                        seededTeams.push(team.team);
+                        goldTeams.push(team.team);
                     }
                 }
             }
             
-            return seededTeams;
+            // Then, collect non-advancing teams for Silver
+            for (const poolName of poolNames) {
+                const poolData = AppState.pools[poolName];
+                const poolStandings = standings[poolName] || [];
+                
+                // Teams that don't advance (positions beyond poolData.advance)
+                for (let position = poolData.advance; position < poolStandings.length; position++) {
+                    const team = poolStandings[position];
+                    if (team) {
+                        silverTeams.push(team.team);
+                    }
+                }
+            }
+            
+            return { goldTeams, silverTeams };
         }
 
-        function generateEliminationMatches(teams) {
+        function generateDoubleEliminationBracket(teams, prefix) {
             const bracketSize = nextPowerOf2(teams.length);
-            const matches = [];
+            const totalWinnersRounds = Math.log2(bracketSize);
+            const totalLosersRounds = 2 * (totalWinnersRounds - 1);
             
-            // First round
-            const firstRound = [];
+            let matchIdx = 0;
+            
+            // Generate Winners Bracket
+            const winnersMatches = [];
+            let winnersRounds = {};
+            
+            // First round of winners bracket
+            const bracketOrder = generateBracketOrder(bracketSize);
+            let currentTeamsInRound = bracketSize;
+            let roundMatches = [];
+            
             for (let i = 0; i < bracketSize / 2; i++) {
-                const team1 = teams[i] || 'BYE';
-                const team2 = teams[bracketSize - 1 - i] || 'BYE';
+                const seed1 = bracketOrder[i * 2];
+                const seed2 = bracketOrder[i * 2 + 1];
+                const team1 = teams[seed1 - 1] || 'BYE';
+                const team2 = teams[seed2 - 1] || 'BYE';
                 
-                if (team1 !== 'BYE' || team2 !== 'BYE') {
-                    firstRound.push({ team1, team2, round: getRoundName(bracketSize) });
+                const match = {
+                    team1, team2,
+                    round: getWinnersRoundName(currentTeamsInRound),
+                    bracket: prefix + ' Winners',
+                    matchIdx: matchIdx++,
+                    matchNum: i + 1,
+                    isBye: team1 === 'BYE' || team2 === 'BYE'
+                };
+                
+                if (match.isBye) {
+                    match.autoWinner = team1 === 'BYE' ? team2 : team1;
                 }
+                
+                roundMatches.push(match);
             }
+            winnersRounds[getWinnersRoundName(currentTeamsInRound)] = roundMatches;
+            winnersMatches.push(...roundMatches);
             
-            matches.push(...firstRound);
-            
-            // Generate subsequent rounds
-            let currentRound = bracketSize / 2;
-            let matchesInRound = firstRound.length / 2;
-            
-            while (matchesInRound >= 1) {
-                for (let i = 0; i < matchesInRound; i++) {
-                    matches.push({
-                        team1: 'TBD',
-                        team2: 'TBD',
-                        round: getRoundName(currentRound)
+            // Subsequent winners rounds
+            currentTeamsInRound /= 2;
+            while (currentTeamsInRound >= 2) {
+                roundMatches = [];
+                const numMatches = currentTeamsInRound / 2;
+                for (let i = 0; i < numMatches; i++) {
+                    roundMatches.push({
+                        team1: 'TBD', team2: 'TBD',
+                        round: getWinnersRoundName(currentTeamsInRound),
+                        bracket: prefix + ' Winners',
+                        matchIdx: matchIdx++,
+                        matchNum: i + 1
                     });
                 }
-                currentRound /= 2;
-                matchesInRound /= 2;
+                winnersRounds[getWinnersRoundName(currentTeamsInRound)] = roundMatches;
+                winnersMatches.push(...roundMatches);
+                currentTeamsInRound /= 2;
             }
             
-            return matches;
+            // Generate Losers Bracket
+            const losersMatches = [];
+            let losersRounds = {};
+            
+            // Losers bracket has alternating "minor" and "major" rounds
+            // Minor: losers from same level play each other
+            // Major: winners of minor play against dropdowns from winners bracket
+            for (let lr = 0; lr < totalLosersRounds; lr++) {
+                roundMatches = [];
+                const roundName = getLosersRoundName(lr, totalLosersRounds);
+                const isMinor = lr % 2 === 0;
+                
+                // Calculate matches in this round
+                let matchesInRound;
+                if (lr === 0) {
+                    matchesInRound = bracketSize / 4; // First minor round
+                } else if (isMinor) {
+                    matchesInRound = Math.max(1, bracketSize / Math.pow(2, Math.floor(lr / 2) + 2));
+                } else {
+                    matchesInRound = Math.max(1, bracketSize / Math.pow(2, Math.floor(lr / 2) + 2));
+                }
+                
+                for (let i = 0; i < matchesInRound; i++) {
+                    roundMatches.push({
+                        team1: 'TBD', team2: 'TBD',
+                        round: roundName,
+                        bracket: prefix + ' Losers',
+                        matchIdx: matchIdx++,
+                        matchNum: i + 1,
+                        isMinor
+                    });
+                }
+                losersRounds[roundName] = roundMatches;
+                losersMatches.push(...roundMatches);
+            }
+            
+            // Grand Final
+            const grandFinal = {
+                team1: 'TBD', team2: 'TBD',
+                round: 'Grand Final',
+                bracket: prefix + ' Grand Final',
+                matchIdx: matchIdx++,
+                matchNum: 1,
+                note: 'Winners Bracket Champion vs Losers Bracket Champion'
+            };
+            
+            return {
+                winnersMatches,
+                losersMatches,
+                grandFinal,
+                winnersRounds,
+                losersRounds,
+                bracketSize,
+                totalWinnersRounds,
+                totalLosersRounds
+            };
+        }
+        
+        function generateBracketOrder(size) {
+            // Generate standard bracket seeding order (1 vs size, 2 vs size-1, etc. with proper spacing)
+            if (size === 2) return [1, 2];
+            if (size === 4) return [1, 4, 2, 3];
+            if (size === 8) return [1, 8, 4, 5, 2, 7, 3, 6];
+            if (size === 16) return [1, 16, 8, 9, 4, 13, 5, 12, 2, 15, 7, 10, 3, 14, 6, 11];
+            // For larger brackets, generate recursively
+            const half = generateBracketOrder(size / 2);
+            const result = [];
+            for (const seed of half) {
+                result.push(seed, size + 1 - seed);
+            }
+            return result;
+        }
+        
+        function getWinnersRoundName(teamsInRound) {
+            if (teamsInRound === 2) return 'Winners Final';
+            if (teamsInRound === 4) return 'Winners Semifinal';
+            if (teamsInRound === 8) return 'Winners Quarterfinal';
+            return `Winners Round of ${teamsInRound}`;
+        }
+        
+        function getLosersRoundName(roundNum, totalRounds) {
+            const roundsFromEnd = totalRounds - roundNum - 1;
+            if (roundsFromEnd === 0) return 'Losers Final';
+            if (roundsFromEnd === 1) return 'Losers Semifinal';
+            return `Losers Round ${roundNum + 1}`;
+        }
+
+        function propagateWinners() {
+            if (!AppState.bracketMatches || AppState.bracketMatches.length === 0) return;
+            if (!AppState.bracketData) return;
+            
+            // Process both Gold and Silver brackets
+            const bracketTypes = ['gold', 'silver'];
+            
+            for (const bracketType of bracketTypes) {
+                const bracketData = AppState.bracketData[bracketType];
+                if (!bracketData) continue;
+                
+                const { winnersRounds, losersRounds } = bracketData;
+                const prefix = bracketType.charAt(0).toUpperCase() + bracketType.slice(1);
+                
+                // Propagate within Winners Bracket
+                const winnersRoundNames = Object.keys(winnersRounds);
+                for (let r = 0; r < winnersRoundNames.length - 1; r++) {
+                    const currentRound = winnersRounds[winnersRoundNames[r]];
+                    const nextRound = winnersRounds[winnersRoundNames[r + 1]];
+                    
+                    for (let i = 0; i < currentRound.length; i++) {
+                        const match = currentRound[i];
+                        const actualMatch = AppState.bracketMatches.find(m => m.matchIdx === match.matchIdx && m.bracket === match.bracket);
+                        if (!actualMatch) continue;
+                        
+                        const result = AppState.bracketResults[match.matchIdx];
+                        
+                        let winner = match.autoWinner || (result && result.winner);
+                        let loser = null;
+                        
+                        if (result && result.winner) {
+                            loser = result.winner === actualMatch.team1 ? actualMatch.team2 : actualMatch.team1;
+                        }
+                        
+                        // Propagate winner to next winners round
+                        if (winner && nextRound) {
+                            const nextMatchIdx = Math.floor(i / 2);
+                            if (nextMatchIdx < nextRound.length) {
+                                const nextMatch = AppState.bracketMatches.find(m => m.matchIdx === nextRound[nextMatchIdx].matchIdx);
+                                if (nextMatch) {
+                                    if (i % 2 === 0) nextMatch.team1 = winner;
+                                    else nextMatch.team2 = winner;
+                                }
+                            }
+                        }
+                        
+                        // Drop loser to losers bracket
+                        if (loser && loser !== 'BYE' && loser !== 'TBD') {
+                            const losersRoundIdx = r === 0 ? 0 : (r * 2 - 1);
+                            const losersRoundNames = Object.keys(losersRounds);
+                            if (losersRoundIdx < losersRoundNames.length) {
+                                const targetLosersRound = losersRounds[losersRoundNames[losersRoundIdx]];
+                                if (targetLosersRound) {
+                                    const targetIdx = i % targetLosersRound.length;
+                                    const targetMatch = AppState.bracketMatches.find(m => m.matchIdx === targetLosersRound[targetIdx].matchIdx);
+                                    if (targetMatch) {
+                                        if (targetMatch.isMinor) {
+                                            if (i % 2 === 0) targetMatch.team1 = loser;
+                                            else targetMatch.team2 = loser;
+                                        } else {
+                                            targetMatch.team2 = loser;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Propagate within Losers Bracket
+                const losersRoundNames = Object.keys(losersRounds);
+                for (let r = 0; r < losersRoundNames.length - 1; r++) {
+                    const currentRound = losersRounds[losersRoundNames[r]];
+                    const nextRound = losersRounds[losersRoundNames[r + 1]];
+                    
+                    for (let i = 0; i < currentRound.length; i++) {
+                        const match = currentRound[i];
+                        const result = AppState.bracketResults[match.matchIdx];
+                        
+                        let winner = result && result.winner;
+                        
+                        if (winner && nextRound) {
+                            const nextMatchIdx = Math.floor(i / 2);
+                            if (nextMatchIdx < nextRound.length) {
+                                const nextMatch = AppState.bracketMatches.find(m => m.matchIdx === nextRound[nextMatchIdx].matchIdx);
+                                if (nextMatch) {
+                                    if (i % 2 === 0) nextMatch.team1 = winner;
+                                    else nextMatch.team2 = winner;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Populate Grand Final for this bracket
+                const grandFinal = AppState.bracketMatches.find(m => m.bracket === prefix + ' Grand Final');
+                if (grandFinal) {
+                    // Winners bracket champion
+                    const winnersFinal = winnersRounds['Winners Final'];
+                    if (winnersFinal && winnersFinal.length > 0) {
+                        const wfResult = AppState.bracketResults[winnersFinal[0].matchIdx];
+                        if (wfResult && wfResult.winner) {
+                            grandFinal.team1 = wfResult.winner;
+                        }
+                    }
+                    
+                    // Losers bracket champion
+                    const losersFinal = losersRounds['Losers Final'];
+                    if (losersFinal && losersFinal.length > 0) {
+                        const lfResult = AppState.bracketResults[losersFinal[0].matchIdx];
+                        if (lfResult && lfResult.winner) {
+                            grandFinal.team2 = lfResult.winner;
+                        }
+                    }
+                }
+            }
         }
 
         function assignBracketMatchesToCourts(bracketMatches) {
@@ -1303,7 +1566,176 @@
 
         function updateBracket() {
             const bracketDiv = document.getElementById('bracket-display');
-            bracketDiv.innerHTML = '<div class="alert alert-info">Generate the bracket after completing pool play results.</div>';
+            const bracketResultsDiv = document.getElementById('bracket-match-results');
+            
+            if (!AppState.bracketMatches || AppState.bracketMatches.length === 0) {
+                bracketDiv.innerHTML = '<div class="alert alert-info">Generate the bracket after completing pool play results.</div>';
+                bracketResultsDiv.innerHTML = '';
+                return;
+            }
+            
+            // Propagate winners first
+            propagateWinners();
+            
+            // Group matches by bracket category
+            const goldWinners = {};
+            const goldLosers = {};
+            let goldGrandFinal = null;
+            const silverWinners = {};
+            const silverLosers = {};
+            let silverGrandFinal = null;
+            
+            AppState.bracketMatches.forEach((match) => {
+                if (match.bracket === 'Gold Winners') {
+                    if (!goldWinners[match.round]) goldWinners[match.round] = [];
+                    goldWinners[match.round].push(match);
+                } else if (match.bracket === 'Gold Losers') {
+                    if (!goldLosers[match.round]) goldLosers[match.round] = [];
+                    goldLosers[match.round].push(match);
+                } else if (match.bracket === 'Gold Grand Final') {
+                    goldGrandFinal = match;
+                } else if (match.bracket === 'Silver Winners') {
+                    if (!silverWinners[match.round]) silverWinners[match.round] = [];
+                    silverWinners[match.round].push(match);
+                } else if (match.bracket === 'Silver Losers') {
+                    if (!silverLosers[match.round]) silverLosers[match.round] = [];
+                    silverLosers[match.round].push(match);
+                } else if (match.bracket === 'Silver Grand Final') {
+                    silverGrandFinal = match;
+                }
+            });
+            
+            let bracketHtml = '';
+            
+            // Helper function to render a bracket section
+            function renderBracketSection(title, color, emoji, description, rounds, grandFinal) {
+                let html = `<div style="margin-bottom: 30px;">
+                    <h2 style="color: ${color}; border-bottom: 2px solid ${color}; padding-bottom: 10px;">
+                        ${emoji} ${title}
+                    </h2>
+                    <p style="color: #666; font-size: 0.9em;">${description}</p>
+                    <div class="bracket" style="display: flex; gap: 20px; overflow-x: auto;">`;
+                
+                for (const roundName in rounds) {
+                    html += `<div class="bracket-round">
+                        <h3>${roundName}</h3>`;
+                    
+                    rounds[roundName].forEach(match => {
+                        const result = AppState.bracketResults[match.matchIdx];
+                        const isAutoWin = match.autoWinner || match.isBye;
+                        const team1Class = (result && result.winner === match.team1) || (isAutoWin && match.team1 !== 'BYE') ? 'winner' : '';
+                        const team2Class = result && result.winner === match.team2 ? 'winner' : '';
+                        const score1 = result ? result.score1 : '';
+                        const score2 = result ? result.score2 : '';
+                        
+                        html += `<div class="bracket-match" style="${match.isBye ? 'opacity: 0.6;' : ''}">
+                            <div class="bracket-team ${team1Class}">${match.team1} ${score1 ? `<span>(${score1})</span>` : ''}</div>
+                            <div class="bracket-team ${team2Class}">${match.team2 !== 'BYE' ? match.team2 : '<em style="color:#999;">BYE</em>'} ${score2 ? `<span>(${score2})</span>` : ''}</div>
+                        </div>`;
+                    });
+                    
+                    html += '</div>';
+                }
+                
+                // Add Grand Final if exists
+                if (grandFinal) {
+                    const result = AppState.bracketResults[grandFinal.matchIdx];
+                    const team1Class = result && result.winner === grandFinal.team1 ? 'winner' : '';
+                    const team2Class = result && result.winner === grandFinal.team2 ? 'winner' : '';
+                    const score1 = result ? result.score1 : '';
+                    const score2 = result ? result.score2 : '';
+                    
+                    html += `<div class="bracket-round">
+                        <h3>Grand Final</h3>
+                        <div class="bracket-match" style="min-width: 250px;">
+                            <div class="bracket-team ${team1Class}">${grandFinal.team1} ${score1 ? `<span>(${score1})</span>` : ''}</div>
+                            <div class="bracket-team ${team2Class}">${grandFinal.team2} ${score2 ? `<span>(${score2})</span>` : ''}</div>
+                        </div>
+                    </div>`;
+                }
+                
+                html += '</div></div>';
+                return html;
+            }
+            
+            // Gold Brackets
+            bracketHtml += '<h1 style="color: #ffc107; margin-bottom: 20px;">🥇 GOLD BRACKET</h1>';
+            bracketHtml += '<p style="color: #666; margin-bottom: 20px;">Advancing teams from pool play</p>';
+            bracketHtml += renderBracketSection('Gold Winners', '#28a745', '🏆', 
+                'Advancing teams compete here. Losers drop to Gold Losers bracket.', goldWinners, null);
+            if (Object.keys(goldLosers).length > 0) {
+                bracketHtml += renderBracketSection('Gold Losers', '#dc3545', '💪', 
+                    'Teams with one loss. Second loss means elimination.', goldLosers, goldGrandFinal);
+            }
+            
+            // Silver Brackets
+            if (Object.keys(silverWinners).length > 0) {
+                bracketHtml += '<hr style="margin: 40px 0; border-color: #6c757d;">';
+                bracketHtml += '<h1 style="color: #6c757d; margin-bottom: 20px;">🥈 SILVER BRACKET</h1>';
+                bracketHtml += '<p style="color: #666; margin-bottom: 20px;">Non-advancing teams from pool play</p>';
+                bracketHtml += renderBracketSection('Silver Winners', '#17a2b8', '🏆', 
+                    'Non-advancing teams compete here. Losers drop to Silver Losers bracket.', silverWinners, null);
+                if (Object.keys(silverLosers).length > 0) {
+                    bracketHtml += renderBracketSection('Silver Losers', '#6c757d', '💪', 
+                        'Teams with one loss. Second loss means elimination.', silverLosers, silverGrandFinal);
+                }
+            }
+            
+            bracketDiv.innerHTML = bracketHtml;
+            
+            // Render bracket match results inputs
+            let resultsHtml = '';
+            
+            function renderResultInputs(title, color, bracketFilter) {
+                let html = `<h3 style="color: ${color};">${title}</h3><div class="card">`;
+                let hasMatches = false;
+                AppState.bracketMatches.forEach((match) => {
+                    if (!bracketFilter(match)) return;
+                    if (match.team1 === 'TBD' || match.team2 === 'TBD' || match.team1 === 'BYE' || match.team2 === 'BYE') return;
+                    hasMatches = true;
+                    const result = AppState.bracketResults[match.matchIdx] || {};
+                    html += `<div class="form-group" style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                        <span style="min-width: 150px;">${match.team1}</span>
+                        <input type="number" value="${result.score1 || ''}" onchange="updateBracketResult(${match.matchIdx}, 'score1', this.value)" style="width: 60px;" min="0">
+                        <span>vs</span>
+                        <input type="number" value="${result.score2 || ''}" onchange="updateBracketResult(${match.matchIdx}, 'score2', this.value)" style="width: 60px;" min="0">
+                        <span style="min-width: 150px;">${match.team2}</span>
+                        <span style="min-width: 120px; color: #666;">(${match.round})</span>
+                    </div>`;
+                });
+                if (!hasMatches) html += '<p style="color: #999;">No matches ready for scoring yet.</p>';
+                html += '</div>';
+                return html;
+            }
+            
+            resultsHtml += renderResultInputs('Gold Winners Results', '#28a745', m => m.bracket === 'Gold Winners');
+            resultsHtml += renderResultInputs('Gold Losers Results', '#dc3545', m => m.bracket === 'Gold Losers' || m.bracket === 'Gold Grand Final');
+            
+            if (Object.keys(silverWinners).length > 0) {
+                resultsHtml += renderResultInputs('Silver Winners Results', '#17a2b8', m => m.bracket === 'Silver Winners');
+                resultsHtml += renderResultInputs('Silver Losers Results', '#6c757d', m => m.bracket === 'Silver Losers' || m.bracket === 'Silver Grand Final');
+            }
+            
+            bracketResultsDiv.innerHTML = resultsHtml;
+        }
+        
+        function updateBracketResult(matchIdx, field, value) {
+            if (!AppState.bracketResults[matchIdx]) {
+                AppState.bracketResults[matchIdx] = {};
+            }
+            AppState.bracketResults[matchIdx][field] = parseInt(value) || 0;
+            
+            // Determine winner
+            const result = AppState.bracketResults[matchIdx];
+            if (result.score1 !== undefined && result.score2 !== undefined) {
+                const match = AppState.bracketMatches.find(m => m.matchIdx === matchIdx);
+                if (match) {
+                    result.winner = result.score1 > result.score2 ? match.team1 : match.team2;
+                }
+            }
+            
+            saveState();
+            updateBracket();
         }
 
         // Data Management
@@ -1343,7 +1775,6 @@
             
             saveState();
             updateUI();
-            alert('Sample data loaded!');
         }
 
         function loadTestTeams() {
@@ -1368,7 +1799,6 @@
             
             saveState();
             updateUI();
-            alert('Test teams loaded!');
         }
 
         function loadTestCourts() {
@@ -1381,12 +1811,10 @@
             
             saveState();
             updateUI();
-            alert('Test courts loaded!');
         }
 
         function generateRandomPoolResults() {
             if (Object.keys(AppState.pools).length === 0) {
-                alert('Please load teams first!');
                 return;
             }
             
@@ -1410,33 +1838,62 @@
             
             saveState();
             updateUI();
-            alert('Random pool results generated!');
         }
 
         function generateRandomBracketResults() {
             if (!AppState.bracketMatches || AppState.bracketMatches.length === 0) {
-                alert('Please generate bracket first!');
                 return;
             }
             
             AppState.bracketResults = {};
             
-            // Generate random results for bracket matches
-            AppState.bracketMatches.forEach((match, idx) => {
-                if (match.team1 !== 'TBD' && match.team2 !== 'TBD' && match.team1 !== 'BYE' && match.team2 !== 'BYE') {
-                    const score1 = Math.floor(Math.random() * 11) + 15;
-                    const score2 = Math.floor(Math.random() * 11) + 15;
-                    AppState.bracketResults[idx] = {
-                        score1: score1,
-                        score2: score2,
-                        winner: score1 > score2 ? match.team1 : match.team2
-                    };
+            // First propagate any auto-winners (BYE matches)
+            propagateWinners();
+            
+            // Process Winners bracket first, then Losers, then Grand Final
+            const bracketOrder = ['Winners', 'Losers', 'Grand Final'];
+            
+            for (const bracketType of bracketOrder) {
+                // Get rounds for this bracket type
+                const bracketMatches = AppState.bracketMatches.filter(m => 
+                    m.bracket && m.bracket.includes(bracketType) || (bracketType === 'Grand Final' && m.round === 'Grand Final')
+                );
+                
+                // Group by round
+                const rounds = {};
+                bracketMatches.forEach(match => {
+                    if (!rounds[match.round]) rounds[match.round] = [];
+                    rounds[match.round].push(match);
+                });
+                
+                // Process rounds in order
+                for (const roundName in rounds) {
+                    // Propagate winners first
+                    propagateWinners();
+                    
+                    // Generate results for matches in this round
+                    for (const match of rounds[roundName]) {
+                        if (match.team1 !== 'TBD' && match.team2 !== 'TBD' && 
+                            match.team1 !== 'BYE' && match.team2 !== 'BYE') {
+                            const score1 = Math.floor(Math.random() * 11) + 15;
+                            let score2 = Math.floor(Math.random() * 11) + 15;
+                            // Ensure no ties
+                            if (score1 === score2) score2 += 1;
+                            AppState.bracketResults[match.matchIdx] = {
+                                score1: score1,
+                                score2: score2,
+                                winner: score1 > score2 ? match.team1 : match.team2
+                            };
+                        }
+                    }
                 }
-            });
+            }
+            
+            // Final propagation
+            propagateWinners();
             
             saveState();
             updateUI();
-            alert('Random bracket results generated!');
         }
 
         function exportData() {
@@ -1462,9 +1919,8 @@
                         Object.assign(AppState, imported);
                         saveState();
                         updateUI();
-                        alert('Data imported successfully!');
                     } catch (error) {
-                        alert('Error importing data: ' + error.message);
+                        // Silent error handling
                     }
                 };
                 reader.readAsText(file);
