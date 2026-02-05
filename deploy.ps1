@@ -42,16 +42,17 @@ if (-not $env:AZURE_SUBSCRIPTION_ID) {
 # Set defaults for optional variables
 $subscriptionId = $env:AZURE_SUBSCRIPTION_ID
 $resourceGroup = if ($env:AZURE_RESOURCE_GROUP) { $env:AZURE_RESOURCE_GROUP } else { "tournament-allocator-rg" }
-$location = if ($env:AZURE_LOCATION) { $env:AZURE_LOCATION } else { "westeurope" }
-$appName = if ($env:AZURE_APP_NAME) { $env:AZURE_APP_NAME } else { "tournament-allocator-$(Get-Random -Maximum 9999)" }
-$appServicePlan = "$appName-plan"
-$appServiceSku = if ($env:AZURE_APP_SERVICE_SKU) { $env:AZURE_APP_SERVICE_SKU } else { "F1" }
+$location = if ($env:AZURE_LOCATION) { $env:AZURE_LOCATION } else { "eastus" }
+$appName = if ($env:AZURE_APP_NAME) { $env:AZURE_APP_NAME } else { "tournament-allocator" }
+$appServicePlan = if ($env:AZURE_APP_SERVICE_PLAN) { $env:AZURE_APP_SERVICE_PLAN } else { "tournament-allocator-plan" }
+$appServiceSku = if ($env:AZURE_APP_SERVICE_SKU) { $env:AZURE_APP_SERVICE_SKU } else { "B1" }
 
 Write-Host "=== Azure Deployment Configuration ===" -ForegroundColor Cyan
 Write-Host "Subscription: $subscriptionId"
 Write-Host "Resource Group: $resourceGroup"
 Write-Host "Location: $location"
 Write-Host "App Name: $appName"
+Write-Host "App Service Plan: $appServicePlan"
 Write-Host "App Service SKU: $appServiceSku"
 Write-Host ""
 
@@ -104,7 +105,15 @@ Write-Host "Configuring startup command..." -ForegroundColor Yellow
 az webapp config set `
     --name $appName `
     --resource-group $resourceGroup `
-    --startup-file "cd src && gunicorn --bind=0.0.0.0 --timeout 600 app:app" `
+    --startup-file "gunicorn --bind=0.0.0.0:8000 --chdir /home/site/wwwroot/src --timeout 600 app:app" `
+    --output none
+
+# Enable Oryx build (to install requirements.txt)
+Write-Host "Enabling Oryx build..." -ForegroundColor Yellow
+az webapp config appsettings set `
+    --name $appName `
+    --resource-group $resourceGroup `
+    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true `
     --output none
 
 # Create deployment package
@@ -127,12 +136,32 @@ Compress-Archive -Path (Join-Path $PSScriptRoot "src"), (Join-Path $PSScriptRoot
 # Add requirements.txt to the zip
 Compress-Archive -Path $tempRequirements -Update -DestinationPath $zipFile
 
+# Ensure the webapp is started before deployment
+Write-Host "Starting webapp..." -ForegroundColor Yellow
+az webapp start --name $appName --resource-group $resourceGroup --output none
+
+# Wait for webapp to be ready
+Write-Host "Waiting for webapp to be ready..." -ForegroundColor Yellow
+$maxRetries = 10
+$retryCount = 0
+do {
+    Start-Sleep -Seconds 5
+    $state = az webapp show --name $appName --resource-group $resourceGroup --query "state" -o tsv
+    $retryCount++
+    Write-Host "  Webapp state: $state (attempt $retryCount/$maxRetries)"
+} while ($state -ne "Running" -and $retryCount -lt $maxRetries)
+
+if ($state -ne "Running") {
+    Write-Warning "Webapp may not be fully started. Proceeding with deployment anyway..."
+}
+
 # Deploy
 Write-Host "Deploying application..." -ForegroundColor Yellow
-az webapp deployment source config-zip `
+az webapp deploy `
     --name $appName `
     --resource-group $resourceGroup `
-    --src $zipFile `
+    --src-path $zipFile `
+    --type zip `
     --output none
 
 # Cleanup
