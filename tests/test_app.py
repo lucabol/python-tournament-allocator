@@ -484,11 +484,12 @@ class TestLiveRoute:
         assert b'Team Alpha' in response.data
         assert b'Team Beta' in response.data
     
-    def test_live_page_has_auto_refresh(self, client, temp_data_dir):
-        """Test live page contains auto-refresh functionality."""
+    def test_live_page_has_sse(self, client, temp_data_dir):
+        """Test live page uses EventSource (SSE) for live updates."""
         response = client.get('/live')
         assert response.status_code == 200
-        assert b'Auto-refresh' in response.data or b'refresh-countdown' in response.data
+        assert b'EventSource' in response.data
+        assert b'/api/live-stream' in response.data
     
     def test_live_page_is_read_only(self, client, temp_data_dir):
         """Test live page does not contain score input fields."""
@@ -508,3 +509,43 @@ class TestLiveRoute:
         assert response.status_code == 200
         # Should not have score input fields (which are in the manager views)
         assert b'class="score-input"' not in response.data
+
+
+class TestLiveSSE:
+    """Tests for SSE-based live update endpoints."""
+
+    def test_live_html_returns_partial(self, client, temp_data_dir):
+        """Test /api/live-html returns partial HTML without full page wrapper."""
+        response = client.get('/api/live-html')
+        assert response.status_code == 200
+        html = response.data
+        # Partial should not contain full-page elements
+        assert b'<html' not in html
+        assert b'<head' not in html
+        assert b'</html>' not in html
+        # Should still contain the live content
+        assert b'Tournament Not Started' in html or b'Pool Standings' in html
+
+    def test_live_html_shows_standings(self, client, temp_data_dir):
+        """Test /api/live-html returns standings when teams exist."""
+        import app as app_module
+
+        teams_file = temp_data_dir / "teams.yaml"
+        yaml_content = """Pool A:
+  teams:
+    - Team Alpha
+    - Team Beta
+  advance: 2
+"""
+        teams_file.write_text(yaml_content)
+
+        response = client.get('/api/live-html')
+        assert response.status_code == 200
+        assert b'Pool A' in response.data
+        assert b'Team Alpha' in response.data
+
+    def test_live_stream_returns_event_stream(self, client, temp_data_dir):
+        """Test /api/live-stream returns the correct content type."""
+        response = client.get('/api/live-stream')
+        assert response.status_code == 200
+        assert 'text/event-stream' in response.content_type

@@ -14,4 +14,4 @@ if [ -d "$APP_ROOT/antenv/bin" ]; then
 fi
 
 cd "$APP_ROOT/src"
-exec gunicorn --bind=0.0.0.0:8000 --timeout 600 app:app
+exec gunicorn --bind=0.0.0.0:8000 --timeout 600 --threads 4 app:app

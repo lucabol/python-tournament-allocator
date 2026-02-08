@@ -4,7 +4,8 @@ Flask web application for Tournament Allocator.
 import os
 import csv
 import yaml
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+import time
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context
 from core.models import Team, Court
 from core.allocation import AllocationManager
 from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling
@@ -1765,26 +1766,28 @@ def print_view():
                           now=current_date)
 
 
-@app.route('/live')
-def live():
-    """Read-only live view of tournament standings and brackets for players."""
+def _get_live_data() -> dict:
+    """Build the template context dict for the live tournament view.
+
+    Returns:
+        Dictionary with keys: pools, standings, schedule, results,
+        bracket_data, silver_bracket_data, silver_bracket_enabled.
+    """
     pools = load_teams()
     results = load_results()
     standings = calculate_pool_standings(pools, results)
     constraints = load_constraints()
     bracket_type = constraints.get('bracket_type', 'double')
     silver_bracket_enabled = constraints.get('silver_bracket_enabled', False)
-    
-    # Load and enrich schedule data
+
     schedule_data, stats = load_schedule()
     if schedule_data:
         schedule_data = enrich_schedule_with_results(schedule_data, results, pools, standings)
-    
-    # Generate bracket data
+
     bracket_data = None
     silver_bracket_data = None
     bracket_results = results.get('bracket', {})
-    
+
     if pools:
         if bracket_type == 'double':
             from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
@@ -1796,15 +1799,71 @@ def live():
             bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
             if silver_bracket_enabled:
                 silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
-    
-    return render_template('live.html',
-                          pools=pools,
-                          standings=standings,
-                          schedule=schedule_data,
-                          results=results.get('pool_play', {}),
-                          bracket_data=bracket_data,
-                          silver_bracket_data=silver_bracket_data,
-                          silver_bracket_enabled=silver_bracket_enabled)
+
+    return dict(
+        pools=pools,
+        standings=standings,
+        schedule=schedule_data,
+        results=results.get('pool_play', {}),
+        bracket_data=bracket_data,
+        silver_bracket_data=silver_bracket_data,
+        silver_bracket_enabled=silver_bracket_enabled,
+    )
+
+
+@app.route('/live')
+def live():
+    """Read-only live view of tournament standings and brackets for players."""
+    return render_template('live.html', **_get_live_data())
+
+
+@app.route('/api/live-html')
+def api_live_html():
+    """Return only the inner HTML of the live content area (partial template)."""
+    return render_template('live_content.html', **_get_live_data())
+
+
+def _get_data_file_mtimes() -> dict:
+    """Return modification times for the data files the live page depends on.
+
+    Returns:
+        Dictionary mapping file path to its mtime (float), or 0.0 if missing.
+    """
+    files = [RESULTS_FILE, SCHEDULE_FILE, TEAMS_FILE, CONSTRAINTS_FILE]
+    return {f: os.path.getmtime(f) if os.path.exists(f) else 0.0 for f in files}
+
+
+@app.route('/api/live-stream')
+def api_live_stream():
+    """Server-Sent Events stream that notifies clients when data changes."""
+
+    def generate():
+        """Yield SSE events, checking data file mtimes every 3 seconds."""
+        last_mtimes = _get_data_file_mtimes()
+        heartbeat_counter = 0
+
+        while True:
+            time.sleep(3)
+            heartbeat_counter += 3
+
+            current_mtimes = _get_data_file_mtimes()
+            if current_mtimes != last_mtimes:
+                last_mtimes = current_mtimes
+                yield f"event: update\ndata: {time.time()}\n\n"
+
+            # Send heartbeat every ~15 seconds to keep connection alive
+            if heartbeat_counter >= 15:
+                heartbeat_counter = 0
+                yield ": heartbeat\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+        },
+    )
 
 
 @app.route('/api/print-settings', methods=['POST'])

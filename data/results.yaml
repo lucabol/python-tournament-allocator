@@ -330,13 +330,12 @@ pool_play:
     winner: Alex - Sara
   Amy - Emma_vs_Anna - Lisa_Pool A:
     completed: true
-    loser: Anna - Lisa
     sets:
-    - - 12
+    - - 25
       - 21
     team1: Anna - Lisa
     team2: Amy - Emma
-    winner: Amy - Emma
+    winner: Anna - Lisa
   Ben - Kim_vs_Beth - Jordan_Pool B:
     completed: true
     loser: Ben - Kim
