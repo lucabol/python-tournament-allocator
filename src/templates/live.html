@@ -23,7 +23,6 @@
                 <span id="sse-dot" class="sse-dot disconnected"></span>
                 <span id="sse-label">Connecting…</span>
             </span>
-            <button type="button" class="btn btn-sm btn-secondary" id="refresh-now-btn">Refresh Now</button>
         </div>
     </header>
     
@@ -41,8 +40,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const contentEl = document.getElementById('live-content');
     const dotEl = document.getElementById('sse-dot');
     const labelEl = document.getElementById('sse-label');
-    const refreshBtn = document.getElementById('refresh-now-btn');
-
     function setStatus(state) {
         dotEl.className = 'sse-dot ' + state;
         if (state === 'connected') labelEl.textContent = 'Live';
@@ -56,8 +53,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(function(html) { contentEl.innerHTML = html; })
             .catch(function(err) { console.error('Failed to fetch live content:', err); });
     }
-
-    refreshBtn.addEventListener('click', fetchContent);
 
     if (typeof EventSource === 'undefined') {
         // Fallback for browsers without SSE support: poll every 30s
