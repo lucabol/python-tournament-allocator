@@ -541,16 +541,16 @@ def calculate_pool_standings(pools, results):
 def get_default_constraints():
     """Return default constraints."""
     return {
-        'match_duration_minutes': 30,
+        'match_duration_minutes': 25,
         'days_number': 1,
-        'min_break_between_matches_minutes': 0,
+        'min_break_between_matches_minutes': 5,
         'time_slot_increment_minutes': 15,
         'day_end_time_limit': '02:00',
         'bracket_type': 'double',
         'scoring_format': 'single_set',
         'pool_in_same_court': True,
         'silver_bracket_enabled': True,
-        'pool_to_bracket_delay_minutes': 0,
+        'pool_to_bracket_delay_minutes': 120,
         'team_specific_constraints': [],
 
         'general_constraints': [],

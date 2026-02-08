@@ -157,12 +157,8 @@
 
 <section class="section">
     <h2>Actions</h2>
-    <div class="form-grid">
-        <div class="form-group">
-            <p class="help-text">Delete all teams, courts, schedules, results, and settings.</p>
-            <button type="button" class="btn btn-danger" onclick="resetAll()">Reset All Data</button>
-        </div>
-    </div>
+    <p class="help-text">Delete all teams, courts, schedules, results, and settings.</p>
+    <button type="button" class="btn btn-danger" style="width: auto;" onclick="resetAll()">Reset All Data</button>
 </section>
 
 <script>
@@ -178,6 +174,9 @@ function updateSetting(field, value) {
 }
 
 function resetAll() {
+    if (!confirm('Are you sure you want to reset all data? This will delete all teams, courts, schedules, results, and settings.')) {
+        return;
+    }
     fetch('/api/reset', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
