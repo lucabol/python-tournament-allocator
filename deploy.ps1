@@ -70,42 +70,83 @@ if (-not $SkipLogin) {
 Write-Host "Setting subscription..." -ForegroundColor Yellow
 az account set --subscription $subscriptionId
 
-# Register required resource providers
-Write-Host "Registering Microsoft.Web resource provider..." -ForegroundColor Yellow
-az provider register --namespace Microsoft.Web --wait
-Write-Host "Registering Microsoft.Quota resource provider..." -ForegroundColor Yellow
-az provider register --namespace Microsoft.Quota --wait
-Write-Host "Registering Microsoft.Compute resource provider..." -ForegroundColor Yellow
-az provider register --namespace Microsoft.Compute --wait
+function Ensure-ProviderRegistered {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Namespace
+    )
 
-# Create resource group
-Write-Host "Creating resource group '$resourceGroup'..." -ForegroundColor Yellow
-az group create --name $resourceGroup --location $location --output none
+    $state = az provider show --namespace $Namespace --query "registrationState" -o tsv 2>$null
+    if ($state -ne "Registered") {
+        Write-Host "Registering $Namespace resource provider..." -ForegroundColor Yellow
+        az provider register --namespace $Namespace --wait
+    } else {
+        Write-Host "$Namespace resource provider already registered." -ForegroundColor DarkGray
+    }
+}
 
-# Create App Service Plan (Linux, Python)
-Write-Host "Creating App Service Plan '$appServicePlan'..." -ForegroundColor Yellow
-az appservice plan create `
-    --name $appServicePlan `
-    --resource-group $resourceGroup `
-    --sku $appServiceSku `
-    --is-linux `
-    --output none
+# Register required resource providers (skip if already registered)
+Ensure-ProviderRegistered -Namespace "Microsoft.Web"
+Ensure-ProviderRegistered -Namespace "Microsoft.Quota"
+Ensure-ProviderRegistered -Namespace "Microsoft.Compute"
 
-# Create Web App
-Write-Host "Creating Web App '$appName'..." -ForegroundColor Yellow
-az webapp create `
-    --name $appName `
-    --resource-group $resourceGroup `
-    --plan $appServicePlan `
-    --runtime "PYTHON:3.11" `
-    --output none
+# Create resource group (if missing)
+Write-Host "Ensuring resource group '$resourceGroup' exists..." -ForegroundColor Yellow
+$rgExists = az group exists --name $resourceGroup | ConvertFrom-Json
+if (-not $rgExists) {
+    az group create --name $resourceGroup --location $location --output none
+} else {
+    Write-Host "Resource group already exists." -ForegroundColor DarkGray
+}
+
+# Create App Service Plan (Linux, Python) if missing
+Write-Host "Ensuring App Service Plan '$appServicePlan' exists..." -ForegroundColor Yellow
+$planExists = $false
+try {
+    az appservice plan show --name $appServicePlan --resource-group $resourceGroup --output none
+    $planExists = $true
+} catch {
+    $planExists = $false
+}
+
+if (-not $planExists) {
+    az appservice plan create `
+        --name $appServicePlan `
+        --resource-group $resourceGroup `
+        --sku $appServiceSku `
+        --is-linux `
+        --output none
+} else {
+    Write-Host "App Service Plan already exists." -ForegroundColor DarkGray
+}
+
+# Create Web App if missing
+Write-Host "Ensuring Web App '$appName' exists..." -ForegroundColor Yellow
+$appExists = $false
+try {
+    az webapp show --name $appName --resource-group $resourceGroup --output none
+    $appExists = $true
+} catch {
+    $appExists = $false
+}
+
+if (-not $appExists) {
+    az webapp create `
+        --name $appName `
+        --resource-group $resourceGroup `
+        --plan $appServicePlan `
+        --runtime "PYTHON:3.11" `
+        --output none
+} else {
+    Write-Host "Web App already exists." -ForegroundColor DarkGray
+}
 
 # Configure startup command for Flask
 Write-Host "Configuring startup command..." -ForegroundColor Yellow
 az webapp config set `
     --name $appName `
     --resource-group $resourceGroup `
-    --startup-file "gunicorn --bind=0.0.0.0:8000 --chdir /home/site/wwwroot/src --timeout 600 app:app" `
+    --startup-file "startup.sh" `
     --output none
 
 # Enable Oryx build (to install requirements.txt)
@@ -113,7 +154,7 @@ Write-Host "Enabling Oryx build..." -ForegroundColor Yellow
 az webapp config appsettings set `
     --name $appName `
     --resource-group $resourceGroup `
-    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true `
+    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true DISABLE_COLLECTSTATIC=true `
     --output none
 
 # Create deployment package
@@ -121,24 +162,28 @@ Write-Host "Creating deployment package..." -ForegroundColor Yellow
 $zipFile = Join-Path $env:TEMP "deploy.zip"
 if (Test-Path $zipFile) { Remove-Item $zipFile }
 
-# Add gunicorn to requirements if not present
+$stagingDir = Join-Path $env:TEMP ("deploy-staging-" + [Guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path $stagingDir | Out-Null
+
+Copy-Item -Path (Join-Path $PSScriptRoot "src") -Destination $stagingDir -Recurse
+Copy-Item -Path (Join-Path $PSScriptRoot "data") -Destination $stagingDir -Recurse
+Copy-Item -Path (Join-Path $PSScriptRoot "startup.sh") -Destination $stagingDir
+
 $requirementsPath = Join-Path $PSScriptRoot "requirements.txt"
 $requirements = Get-Content $requirementsPath
 if ($requirements -notcontains "gunicorn") {
-    $tempRequirements = Join-Path $env:TEMP "requirements.txt"
-    ($requirements + "gunicorn") | Set-Content $tempRequirements
-} else {
-    $tempRequirements = $requirementsPath
+    $requirements = $requirements + "gunicorn"
 }
 
-# Create zip with src, data, and requirements
-Compress-Archive -Path (Join-Path $PSScriptRoot "src"), (Join-Path $PSScriptRoot "data") -DestinationPath $zipFile
-# Add requirements.txt to the zip
-Compress-Archive -Path $tempRequirements -Update -DestinationPath $zipFile
+$stagedRequirements = Join-Path $stagingDir "requirements.txt"
+$requirements | Set-Content $stagedRequirements
 
-# Ensure the webapp is started before deployment
-Write-Host "Starting webapp..." -ForegroundColor Yellow
-az webapp start --name $appName --resource-group $resourceGroup --output none
+Compress-Archive -Path (Join-Path $stagingDir "*") -DestinationPath $zipFile
+
+# Restart webapp so config changes take effect before deploying
+Write-Host "Restarting webapp to apply config changes..." -ForegroundColor Yellow
+az webapp restart --name $appName --resource-group $resourceGroup --output none
+Start-Sleep -Seconds 10
 
 # Wait for webapp to be ready
 Write-Host "Waiting for webapp to be ready..." -ForegroundColor Yellow
@@ -157,25 +202,43 @@ if ($state -ne "Running") {
 
 # Deploy
 Write-Host "Deploying application..." -ForegroundColor Yellow
+Write-Host "Uploading zip to Kudu and running remote build (this can take several minutes for numpy/pandas/ortools)..." -ForegroundColor DarkGray
+$deployStart = Get-Date
 az webapp deploy `
     --name $appName `
     --resource-group $resourceGroup `
     --src-path $zipFile `
     --type zip `
+    --clean true `
+    --track-status false `
+    --timeout 600000 `
     --output none
+$deployDuration = [math]::Round(((Get-Date) - $deployStart).TotalSeconds)
+Write-Host "Deployment command finished in $deployDuration seconds." -ForegroundColor DarkGray
 
 # Cleanup
 Remove-Item $zipFile -ErrorAction SilentlyContinue
-if ($tempRequirements -ne $requirementsPath) {
-    Remove-Item $tempRequirements -ErrorAction SilentlyContinue
-}
+Remove-Item $stagingDir -Recurse -Force -ErrorAction SilentlyContinue
 
 # Get the URL
 $url = "https://$appName.azurewebsites.net"
+
+$latestDeploymentId = $null
+try {
+    $latestDeploymentId = az webapp log deployment list --name $appName --resource-group $resourceGroup --query "[0].id" -o tsv 2>$null
+} catch {
+    $latestDeploymentId = $null
+}
 
 Write-Host ""
 Write-Host "=== Deployment Complete ===" -ForegroundColor Green
 Write-Host "App URL: $url" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "To view logs: az webapp log tail --name $appName --resource-group $resourceGroup"
+if ($latestDeploymentId) {
+    Write-Host "To view build logs: az webapp log deployment show --name $appName --resource-group $resourceGroup --deployment-id $latestDeploymentId"
+} else {
+    Write-Host "To view build logs: az webapp log deployment show --name $appName --resource-group $resourceGroup --deployment-id <id>"
+    Write-Host "To list deployment IDs: az webapp log deployment list --name $appName --resource-group $resourceGroup --query \"[0].id\" -o tsv"
+}
 Write-Host "To delete: az group delete --name $resourceGroup --yes"
