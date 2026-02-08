@@ -7,8 +7,8 @@
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        .sse-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; }
-        .sse-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .sse-status { display: inline-flex; align-items: center; gap: 6px; font-size: 1.1rem; }
+        .sse-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
         .sse-dot.connected { background: #22c55e; }
         .sse-dot.reconnecting { background: #eab308; animation: pulse 1s infinite; }
         .sse-dot.disconnected { background: #ef4444; }
@@ -17,7 +17,13 @@
 </head>
 <body>
     <header class="live-header">
-        <h1>📺 Live Tournament</h1>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <img src="https://montgobvc.com/wp-content/uploads/2024/02/LOGO-MBVC-001.png" alt="Montgó Beach Volley Club" style="height: 50px; width: auto;">
+            <div>
+                <h1 style="margin: 0; font-size: 1.5rem;">{{ print_settings.title }}</h1>
+                <div style="font-size: 0.95rem; color: #6b7280;">{{ print_settings.subtitle }}</div>
+            </div>
+        </div>
         <div class="page-header-actions">
             <span class="sse-status">
                 <span id="sse-dot" class="sse-dot disconnected"></span>

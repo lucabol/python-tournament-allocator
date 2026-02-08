@@ -1808,6 +1808,7 @@ def _get_live_data() -> dict:
         bracket_data=bracket_data,
         silver_bracket_data=silver_bracket_data,
         silver_bracket_enabled=silver_bracket_enabled,
+        print_settings=load_print_settings(),
     )
 
 

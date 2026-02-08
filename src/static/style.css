@@ -1852,14 +1852,16 @@ tr:hover .court-save-btn {
 
 /* Live Page Header (standalone, no navigation) */
 .live-header {
-    background: var(--primary-color);
-    color: white;
+    background: transparent;
+    color: inherit;
     padding: 1rem 2rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
     gap: 1rem;
+    border-bottom: 3px double #1f2937;
+    margin-bottom: 1rem;
 }
 
 .live-header h1 {
