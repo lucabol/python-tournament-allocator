@@ -74,6 +74,10 @@ document.addEventListener('DOMContentLoaded', function() {
         setStatus('connected');
     });
 
+    source.addEventListener('connected', function() {
+        setStatus('connected');
+    });
+
     source.addEventListener('update', function(e) {
         fetchContent();
     });

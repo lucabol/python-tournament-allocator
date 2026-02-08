@@ -1840,6 +1840,9 @@ def api_live_stream():
 
     def generate():
         """Yield SSE events, checking data file mtimes every 3 seconds."""
+        # Send immediate connected event so client shows "Live" status right away
+        yield "event: connected\ndata: ok\n\n"
+        
         last_mtimes = _get_data_file_mtimes()
         heartbeat_counter = 0
 
