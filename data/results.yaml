@@ -1,221 +1,11 @@
-bracket:
-  bracket_reset_Bracket Reset_1:
-    completed: true
-    loser: David - Zoe
-    sets:
-    - - 13
-      - 21
-    winner: Adam - Rob
-  grand_final_Grand Final_1:
-    completed: true
-    loser: David - Zoe
-    sets:
-    - - 18
-      - 21
-    winner: Adam - Rob
-  losers_Losers Final_1:
-    completed: true
-    loser: Chris - Taylor
-    sets:
-    - - 18
-      - 21
-    winner: Adam - Rob
-  losers_Losers Round 1_1:
-    completed: true
-    loser: Alex - Sara
-    sets:
-    - - 13
-      - 21
-    winner: Dan - Mia
-  losers_Losers Round 1_2:
-    completed: true
-    loser: Beth - Jordan
-    sets:
-    - - 21
-      - 12
-    winner: Ben - Kim
-  losers_Losers Round 2_1:
-    completed: true
-    loser: Dan - Mia
-    sets:
-    - - 21
-      - 16
-    winner: Adam - Rob
-  losers_Losers Round 2_2:
-    completed: true
-    loser: Claire - Avery
-    sets:
-    - - 17
-      - 21
-    winner: Ben - Kim
-  losers_Losers Semifinal_1:
-    completed: true
-    loser: Ben - Kim
-    sets:
-    - - 21
-      - 13
-    winner: Adam - Rob
-  silver_bracket_reset_Bracket Reset_1:
-    completed: true
-    loser: Amy - Emma
-    sets:
-    - - 14
-      - 21
-    winner: Anna - Lisa
-  silver_grand_final_Grand Final_1:
-    completed: true
-    loser: Amy - Emma
-    sets:
-    - - 18
-      - 21
-    winner: Anna - Lisa
-  silver_losers_Losers Final_1:
-    completed: true
-    loser: Brian - Pat
-    sets:
-    - - 11
-      - 21
-    winner: Anna - Lisa
-  silver_losers_Losers Round 1_1:
-    completed: true
-    loser: Derek - Lily
-    sets:
-    - - 14
-      - 21
-    winner: Diana - Jake
-  silver_losers_Losers Round 1_2:
-    completed: true
-    loser: Cody - Sage
-    sets:
-    - - 21
-      - 14
-    winner: Carl - Drew
-  silver_losers_Losers Round 2_1:
-    completed: true
-    loser: Diana - Jake
-    sets:
-    - - 21
-      - 16
-    winner: Anna - Lisa
-  silver_losers_Losers Round 2_2:
-    completed: true
-    loser: Blake - Morgan
-    sets:
-    - - 13
-      - 21
-    winner: Carl - Drew
-  silver_losers_Losers Semifinal_1:
-    completed: true
-    loser: Carl - Drew
-    sets:
-    - - 21
-      - 10
-    winner: Anna - Lisa
-  silver_winners_Winners Final_1:
-    completed: true
-    loser: Brian - Pat
-    sets:
-    - - 21
-      - 16
-    winner: Amy - Emma
-  silver_winners_Winners Quarterfinal_1:
-    completed: true
-    loser: Derek - Lily
-    sets:
-    - - 21
-      - 10
-    winner: Amy - Emma
-  silver_winners_Winners Quarterfinal_2:
-    completed: true
-    loser: Diana - Jake
-    sets:
-    - - 12
-      - 21
-    winner: Anna - Lisa
-  silver_winners_Winners Quarterfinal_3:
-    completed: true
-    loser: Carl - Drew
-    sets:
-    - - 21
-      - 16
-    winner: Brian - Pat
-  silver_winners_Winners Quarterfinal_4:
-    completed: true
-    loser: Cody - Sage
-    sets:
-    - - 12
-      - 21
-    winner: Blake - Morgan
-  silver_winners_Winners Semifinal_1:
-    completed: true
-    loser: Anna - Lisa
-    sets:
-    - - 21
-      - 13
-    winner: Amy - Emma
-  silver_winners_Winners Semifinal_2:
-    completed: true
-    loser: Blake - Morgan
-    sets:
-    - - 21
-      - 11
-    winner: Brian - Pat
-  winners_Winners Final_1:
-    completed: true
-    loser: Chris - Taylor
-    sets:
-    - - 21
-      - 11
-    winner: David - Zoe
-  winners_Winners Quarterfinal_1:
-    completed: true
-    loser: Alex - Sara
-    sets:
-    - - 16
-      - 21
-    winner: David - Zoe
-  winners_Winners Quarterfinal_2:
-    completed: true
-    loser: Dan - Mia
-    sets:
-    - - 18
-      - 21
-    winner: Adam - Rob
-  winners_Winners Quarterfinal_3:
-    completed: true
-    loser: Ben - Kim
-    sets:
-    - - 12
-      - 21
-    winner: Claire - Avery
-  winners_Winners Quarterfinal_4:
-    completed: true
-    loser: Beth - Jordan
-    sets:
-    - - 21
-      - 19
-    winner: Chris - Taylor
-  winners_Winners Semifinal_1:
-    completed: true
-    loser: Adam - Rob
-    sets:
-    - - 21
-      - 18
-    winner: David - Zoe
-  winners_Winners Semifinal_2:
-    completed: true
-    loser: Claire - Avery
-    sets:
-    - - 13
-      - 21
-    winner: Chris - Taylor
+bracket: {}
 bracket_type: single
 pool_play:
   '#1 Pool A_vs_#2 Pool D_Bracket':
     completed: true
     loser: '#1 Pool A'
     sets:
-    - - 12
+    - - 14
       - 21
     team1: '#1 Pool A'
     team2: '#2 Pool D'
@@ -224,7 +14,7 @@ pool_play:
     completed: true
     loser: '#1 Pool B'
     sets:
-    - - 11
+    - - 12
       - 21
     team1: '#1 Pool B'
     team2: '#2 Pool C'
@@ -234,7 +24,7 @@ pool_play:
     loser: '#2 Pool B'
     sets:
     - - 21
-      - 12
+      - 11
     team1: '#1 Pool C'
     team2: '#2 Pool B'
     winner: '#1 Pool C'
@@ -242,7 +32,7 @@ pool_play:
     completed: true
     loser: '#1 Pool D'
     sets:
-    - - 13
+    - - 15
       - 21
     team1: '#1 Pool D'
     team2: '#2 Pool A'
@@ -261,7 +51,7 @@ pool_play:
     loser: '#4 Pool C'
     sets:
     - - 21
-      - 16
+      - 11
     team1: '#3 Pool B'
     team2: '#4 Pool C'
     winner: '#3 Pool B'
@@ -269,7 +59,7 @@ pool_play:
     completed: true
     loser: '#3 Pool C'
     sets:
-    - - 11
+    - - 12
       - 21
     team1: '#3 Pool C'
     team2: '#4 Pool B'
@@ -279,60 +69,61 @@ pool_play:
     loser: '#4 Pool A'
     sets:
     - - 21
-      - 17
+      - 13
     team1: '#3 Pool D'
     team2: '#4 Pool A'
     winner: '#3 Pool D'
   Adam - Rob_vs_Alex - Sara_Pool A:
     completed: true
-    loser: Adam - Rob
+    loser: Alex - Sara
     sets:
-    - - 10
-      - 21
+    - - 21
+      - 10
     team1: Adam - Rob
     team2: Alex - Sara
-    winner: Alex - Sara
+    winner: Adam - Rob
   Adam - Rob_vs_Amy - Emma_Pool A:
     completed: true
     loser: Amy - Emma
     sets:
     - - 21
-      - 12
+      - 11
     team1: Adam - Rob
     team2: Amy - Emma
     winner: Adam - Rob
   Adam - Rob_vs_Anna - Lisa_Pool A:
     completed: true
-    loser: Anna - Lisa
+    loser: Adam - Rob
     sets:
-    - - 21
-      - 14
+    - - 16
+      - 21
     team1: Adam - Rob
     team2: Anna - Lisa
-    winner: Adam - Rob
+    winner: Anna - Lisa
   Alex - Sara_vs_Amy - Emma_Pool A:
     completed: true
-    loser: Amy - Emma
+    loser: Alex - Sara
     sets:
-    - - 21
-      - 16
+    - - 19
+      - 21
     team1: Alex - Sara
     team2: Amy - Emma
-    winner: Alex - Sara
+    winner: Amy - Emma
   Alex - Sara_vs_Anna - Lisa_Pool A:
     completed: true
     loser: Anna - Lisa
     sets:
     - - 21
-      - 18
+      - 17
     team1: Alex - Sara
     team2: Anna - Lisa
     winner: Alex - Sara
   Amy - Emma_vs_Anna - Lisa_Pool A:
     completed: true
+    loser: Amy - Emma
     sets:
-    - - 25
-      - 21
+    - - 21
+      - 17
     team1: Anna - Lisa
     team2: Amy - Emma
     winner: Anna - Lisa
@@ -340,62 +131,62 @@ pool_play:
     completed: true
     loser: Ben - Kim
     sets:
-    - - 16
+    - - 13
       - 21
     team1: Ben - Kim
     team2: Beth - Jordan
     winner: Beth - Jordan
   Ben - Kim_vs_Blake - Morgan_Pool B:
     completed: true
-    loser: Blake - Morgan
+    loser: Ben - Kim
     sets:
-    - - 21
-      - 11
+    - - 11
+      - 21
     team1: Ben - Kim
     team2: Blake - Morgan
-    winner: Ben - Kim
+    winner: Blake - Morgan
   Ben - Kim_vs_Brian - Pat_Pool B:
     completed: true
-    loser: Brian - Pat
+    loser: Ben - Kim
     sets:
-    - - 21
-      - 15
+    - - 17
+      - 21
     team1: Ben - Kim
     team2: Brian - Pat
-    winner: Ben - Kim
+    winner: Brian - Pat
   Beth - Jordan_vs_Blake - Morgan_Pool B:
     completed: true
     loser: Blake - Morgan
     sets:
     - - 21
-      - 14
+      - 15
     team1: Beth - Jordan
     team2: Blake - Morgan
     winner: Beth - Jordan
   Beth - Jordan_vs_Brian - Pat_Pool B:
     completed: true
-    loser: Beth - Jordan
-    sets:
-    - - 21
-      - 15
-    team1: Brian - Pat
-    team2: Beth - Jordan
-    winner: Brian - Pat
-  Blake - Morgan_vs_Brian - Pat_Pool B:
-    completed: true
     loser: Brian - Pat
     sets:
-    - - 17
+    - - 16
       - 21
     team1: Brian - Pat
+    team2: Beth - Jordan
+    winner: Beth - Jordan
+  Blake - Morgan_vs_Brian - Pat_Pool B:
+    completed: true
+    loser: Blake - Morgan
+    sets:
+    - - 21
+      - 18
+    team1: Brian - Pat
     team2: Blake - Morgan
-    winner: Blake - Morgan
+    winner: Brian - Pat
   Carl - Drew_vs_Chris - Taylor_Pool C:
     completed: true
     loser: Carl - Drew
     sets:
     - - 21
-      - 18
+      - 15
     team1: Chris - Taylor
     team2: Carl - Drew
     winner: Chris - Taylor
@@ -403,7 +194,7 @@ pool_play:
     completed: true
     loser: Carl - Drew
     sets:
-    - - 11
+    - - 15
       - 21
     team1: Carl - Drew
     team2: Claire - Avery
@@ -412,7 +203,7 @@ pool_play:
     completed: true
     loser: Carl - Drew
     sets:
-    - - 13
+    - - 12
       - 21
     team1: Carl - Drew
     team2: Cody - Sage
@@ -422,7 +213,7 @@ pool_play:
     loser: Claire - Avery
     sets:
     - - 21
-      - 11
+      - 12
     team1: Chris - Taylor
     team2: Claire - Avery
     winner: Chris - Taylor
@@ -431,97 +222,97 @@ pool_play:
     loser: Cody - Sage
     sets:
     - - 21
-      - 15
+      - 14
     team1: Chris - Taylor
     team2: Cody - Sage
     winner: Chris - Taylor
   Claire - Avery_vs_Cody - Sage_Pool C:
     completed: true
-    loser: Cody - Sage
+    loser: Claire - Avery
     sets:
-    - - 21
-      - 13
+    - - 15
+      - 21
     team1: Claire - Avery
     team2: Cody - Sage
-    winner: Claire - Avery
+    winner: Cody - Sage
   Dan - Mia_vs_David - Zoe_Pool D:
+    completed: true
+    loser: Dan - Mia
+    sets:
+    - - 21
+      - 16
+    team1: David - Zoe
+    team2: Dan - Mia
+    winner: David - Zoe
+  Dan - Mia_vs_Derek - Lily_Pool D:
+    completed: true
+    loser: Dan - Mia
+    sets:
+    - - 15
+      - 21
+    team1: Dan - Mia
+    team2: Derek - Lily
+    winner: Derek - Lily
+  Dan - Mia_vs_Diana - Jake_Pool D:
+    completed: true
+    loser: Dan - Mia
+    sets:
+    - - 13
+      - 21
+    team1: Dan - Mia
+    team2: Diana - Jake
+    winner: Diana - Jake
+  David - Zoe_vs_Derek - Lily_Pool D:
     completed: true
     loser: David - Zoe
     sets:
-    - - 14
+    - - 10
       - 21
     team1: David - Zoe
-    team2: Dan - Mia
-    winner: Dan - Mia
-  Dan - Mia_vs_Derek - Lily_Pool D:
-    completed: true
-    loser: Derek - Lily
-    sets:
-    - - 21
-      - 12
-    team1: Dan - Mia
     team2: Derek - Lily
-    winner: Dan - Mia
-  Dan - Mia_vs_Diana - Jake_Pool D:
+    winner: Derek - Lily
+  David - Zoe_vs_Diana - Jake_Pool D:
     completed: true
     loser: Diana - Jake
     sets:
     - - 21
-      - 15
-    team1: Dan - Mia
-    team2: Diana - Jake
-    winner: Dan - Mia
-  David - Zoe_vs_Derek - Lily_Pool D:
-    completed: true
-    loser: Derek - Lily
-    sets:
-    - - 21
-      - 11
+      - 16
     team1: David - Zoe
-    team2: Derek - Lily
+    team2: Diana - Jake
     winner: David - Zoe
-  David - Zoe_vs_Diana - Jake_Pool D:
-    completed: true
-    loser: David - Zoe
-    sets:
-    - - 18
-      - 21
-    team1: David - Zoe
-    team2: Diana - Jake
-    winner: Diana - Jake
   Derek - Lily_vs_Diana - Jake_Pool D:
     completed: true
     loser: Diana - Jake
     sets:
-    - - 14
+    - - 11
       - 21
     team1: Diana - Jake
     team2: Derek - Lily
     winner: Derek - Lily
   Loser GF_vs_Winner GF_Bracket:
     completed: true
-    loser: Winner GF
+    loser: Loser GF
     sets:
-    - - 13
-      - 21
+    - - 21
+      - 12
     team1: Winner GF
     team2: Loser GF
-    winner: Loser GF
+    winner: Winner GF
   Loser SGF_vs_Winner SGF_Silver Bracket:
     completed: true
-    loser: Winner SGF
+    loser: Loser SGF
     sets:
-    - - 14
-      - 21
+    - - 21
+      - 16
     team1: Winner SGF
     team2: Loser SGF
-    winner: Loser SGF
+    winner: Winner SGF
   Loser SW1-M1_vs_Loser SW1-M2_Silver Bracket:
     completed: true
     loser: Loser SW1-M2
     sets:
     - - 21
-      - 17
+      - 15
     team1: Loser SW1-M1
     team2: Loser SW1-M2
     winner: Loser SW1-M1
@@ -529,26 +320,26 @@ pool_play:
     completed: true
     loser: Loser SW1-M3
     sets:
-    - - 16
+    - - 19
       - 21
     team1: Loser SW1-M3
     team2: Loser SW1-M4
     winner: Loser SW1-M4
   Loser SW2-M1_vs_Winner SL1-M1_Silver Bracket:
     completed: true
-    loser: Winner SL1-M1
+    loser: Loser SW2-M1
     sets:
-    - - 21
-      - 14
+    - - 15
+      - 21
     team1: Loser SW2-M1
     team2: Winner SL1-M1
-    winner: Loser SW2-M1
+    winner: Winner SL1-M1
   Loser SW2-M2_vs_Winner SL1-M2_Silver Bracket:
     completed: true
     loser: Winner SL1-M2
     sets:
     - - 21
-      - 17
+      - 14
     team1: Loser SW2-M2
     team2: Winner SL1-M2
     winner: Loser SW2-M2
@@ -563,64 +354,64 @@ pool_play:
     winner: Winner SL3-M1
   Loser W1-M1_vs_Loser W1-M2_Bracket:
     completed: true
-    loser: Loser W1-M2
+    loser: Loser W1-M1
     sets:
-    - - 21
-      - 17
+    - - 12
+      - 21
     team1: Loser W1-M1
     team2: Loser W1-M2
-    winner: Loser W1-M1
+    winner: Loser W1-M2
   Loser W1-M3_vs_Loser W1-M4_Bracket:
     completed: true
     loser: Loser W1-M3
     sets:
-    - - 17
+    - - 16
       - 21
     team1: Loser W1-M3
     team2: Loser W1-M4
     winner: Loser W1-M4
   Loser W2-M1_vs_Winner L1-M1_Bracket:
     completed: true
-    loser: Winner L1-M1
+    loser: Loser W2-M1
     sets:
-    - - 21
-      - 17
+    - - 18
+      - 21
     team1: Loser W2-M1
     team2: Winner L1-M1
-    winner: Loser W2-M1
+    winner: Winner L1-M1
   Loser W2-M2_vs_Winner L1-M2_Bracket:
     completed: true
-    loser: Loser W2-M2
-    sets:
-    - - 17
-      - 21
-    team1: Loser W2-M2
-    team2: Winner L1-M2
-    winner: Winner L1-M2
-  Loser W3-M1_vs_Winner L3-M1_Bracket:
-    completed: true
-    loser: Loser W3-M1
-    sets:
-    - - 15
-      - 21
-    team1: Loser W3-M1
-    team2: Winner L3-M1
-    winner: Winner L3-M1
-  Winner L2-M1_vs_Winner L2-M2_Bracket:
-    completed: true
-    loser: Winner L2-M2
+    loser: Winner L1-M2
     sets:
     - - 21
       - 18
+    team1: Loser W2-M2
+    team2: Winner L1-M2
+    winner: Loser W2-M2
+  Loser W3-M1_vs_Winner L3-M1_Bracket:
+    completed: true
+    loser: Winner L3-M1
+    sets:
+    - - 21
+      - 12
+    team1: Loser W3-M1
+    team2: Winner L3-M1
+    winner: Loser W3-M1
+  Winner L2-M1_vs_Winner L2-M2_Bracket:
+    completed: true
+    loser: Winner L2-M1
+    sets:
+    - - 17
+      - 21
     team1: Winner L2-M1
     team2: Winner L2-M2
-    winner: Winner L2-M1
+    winner: Winner L2-M2
   Winner SL2-M1_vs_Winner SL2-M2_Silver Bracket:
     completed: true
     loser: Winner SL2-M2
     sets:
     - - 21
-      - 19
+      - 16
     team1: Winner SL2-M1
     team2: Winner SL2-M2
     winner: Winner SL2-M1
@@ -628,44 +419,44 @@ pool_play:
     completed: true
     loser: Winner SW1-M1
     sets:
-    - - 12
+    - - 14
       - 21
     team1: Winner SW1-M1
     team2: Winner SW1-M2
     winner: Winner SW1-M2
   Winner SW1-M3_vs_Winner SW1-M4_Silver Bracket:
     completed: true
-    loser: Winner SW1-M4
+    loser: Winner SW1-M3
     sets:
-    - - 21
-      - 15
+    - - 10
+      - 21
     team1: Winner SW1-M3
     team2: Winner SW1-M4
-    winner: Winner SW1-M3
+    winner: Winner SW1-M4
   Winner SW2-M1_vs_Winner SW2-M2_Silver Bracket:
     completed: true
-    loser: Winner SW2-M2
+    loser: Winner SW2-M1
     sets:
-    - - 21
-      - 14
+    - - 16
+      - 21
     team1: Winner SW2-M1
     team2: Winner SW2-M2
-    winner: Winner SW2-M1
+    winner: Winner SW2-M2
   Winner W1-M1_vs_Winner W1-M2_Bracket:
     completed: true
-    loser: Winner W1-M1
+    loser: Winner W1-M2
     sets:
-    - - 12
-      - 21
+    - - 21
+      - 13
     team1: Winner W1-M1
     team2: Winner W1-M2
-    winner: Winner W1-M2
+    winner: Winner W1-M1
   Winner W1-M3_vs_Winner W1-M4_Bracket:
     completed: true
     loser: Winner W1-M4
     sets:
     - - 21
-      - 10
+      - 14
     team1: Winner W1-M3
     team2: Winner W1-M4
     winner: Winner W1-M3
@@ -674,25 +465,25 @@ pool_play:
     loser: Winner W2-M2
     sets:
     - - 21
-      - 15
+      - 12
     team1: Winner W2-M1
     team2: Winner W2-M2
     winner: Winner W2-M1
   Winner of Losers Bracket_vs_Winner of Winners Bracket_Bracket:
     completed: true
-    loser: Winner of Winners Bracket
+    loser: Winner of Losers Bracket
     sets:
-    - - 11
-      - 21
+    - - 21
+      - 19
     team1: Winner of Winners Bracket
     team2: Winner of Losers Bracket
-    winner: Winner of Losers Bracket
+    winner: Winner of Winners Bracket
   Winner of SLosers Bracket_vs_Winner of SWinners Bracket_Silver Bracket:
     completed: true
     loser: Winner of SLosers Bracket
     sets:
     - - 21
-      - 18
+      - 14
     team1: Winner of SWinners Bracket
     team2: Winner of SLosers Bracket
     winner: Winner of SWinners Bracket

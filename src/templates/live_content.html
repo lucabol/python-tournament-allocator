@@ -83,12 +83,63 @@
         </div>
     </div>
     {% endfor %}
-    
-    <!-- Bracket Phase Schedule -->
-    {% if 'Bracket Phase' in schedule %}
+</section>
+{% endif %}
+
+<!-- Pool Standings Section -->
+<section class="section standings-section">
+    <h2>📊 Pool Standings</h2>
+    {% if standings %}
+    <div class="standings-grid">
+        {% for pool_name, team_list in standings.items() %}
+        <div class="pool-standings">
+            <h3>{{ pool_name }}</h3>
+            <table class="standings-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Team</th>
+                        <th>W</th>
+                        <th>L</th>
+                        <th>Sets</th>
+                        <th>Δ Sets</th>
+                        <th>Δ Pts</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team in team_list %}
+                    {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
+                    {% set has_played = team.matches_played > 0 %}
+                    <tr class="{% if loop.index <= advance_count and has_played %}advancing{% endif %}">
+                        <td>{{ loop.index }}</td>
+                        <td>{{ team.team }}</td>
+                        <td>{{ team.wins }}</td>
+                        <td>{{ team.losses }}</td>
+                        <td>{{ team.sets_won }}-{{ team.sets_lost }}</td>
+                        <td class="{% if team.set_diff > 0 %}positive{% elif team.set_diff < 0 %}negative{% endif %}">
+                            {{ '+' if team.set_diff > 0 else '' }}{{ team.set_diff }}
+                        </td>
+                        <td class="{% if team.point_diff > 0 %}positive{% elif team.point_diff < 0 %}negative{% endif %}">
+                            {{ '+' if team.point_diff > 0 else '' }}{{ team.point_diff }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-note">No pool results recorded yet.</p>
+    {% endif %}
+</section>
+
+<!-- Bracket Phase Schedule -->
+{% if schedule and 'Bracket Phase' in schedule %}
+<section class="section schedule-section">
+    <h2>📅 Bracket Phase Schedule</h2>
     {% set bracket_day_data = schedule['Bracket Phase'] %}
     <div class="day-section bracket-schedule">
-        <h3>Bracket Phase</h3>
         
         {% set bracket_time_slots = bracket_day_data['_time_slots'] %}
         {% set bracket_courts = bracket_day_data.keys() | reject('equalto', '_time_slots') | list %}
@@ -142,57 +193,8 @@
             </table>
         </div>
     </div>
-    {% endif %}
 </section>
 {% endif %}
-
-<!-- Pool Standings Section -->
-<section class="section standings-section">
-    <h2>📊 Pool Standings</h2>
-    {% if standings %}
-    <div class="standings-grid">
-        {% for pool_name, team_list in standings.items() %}
-        <div class="pool-standings">
-            <h3>{{ pool_name }}</h3>
-            <table class="standings-table">
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Team</th>
-                        <th>W</th>
-                        <th>L</th>
-                        <th>Sets</th>
-                        <th>Δ Sets</th>
-                        <th>Δ Pts</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for team in team_list %}
-                    {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
-                    {% set has_played = team.matches_played > 0 %}
-                    <tr class="{% if loop.index <= advance_count and has_played %}advancing{% endif %}">
-                        <td>{{ loop.index }}</td>
-                        <td>{{ team.team }}</td>
-                        <td>{{ team.wins }}</td>
-                        <td>{{ team.losses }}</td>
-                        <td>{{ team.sets_won }}-{{ team.sets_lost }}</td>
-                        <td class="{% if team.set_diff > 0 %}positive{% elif team.set_diff < 0 %}negative{% endif %}">
-                            {{ '+' if team.set_diff > 0 else '' }}{{ team.set_diff }}
-                        </td>
-                        <td class="{% if team.point_diff > 0 %}positive{% elif team.point_diff < 0 %}negative{% endif %}">
-                            {{ '+' if team.point_diff > 0 else '' }}{{ team.point_diff }}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="empty-note">No pool results recorded yet.</p>
-    {% endif %}
-</section>
 
 <!-- Brackets Section -->
 {% if bracket_data %}

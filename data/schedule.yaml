@@ -733,8 +733,8 @@ schedule:
         pool: Pool A
         start_time: 09:30
         teams:
-        - Alex - Sara
-        - Amy - Emma
+        - Adam - Rob
+        - Anna - Lisa
       - day: Day 1
         end_time: '10:30'
         pool: Pool A
@@ -748,21 +748,21 @@ schedule:
         start_time: '10:30'
         teams:
         - Alex - Sara
-        - Anna - Lisa
+        - Amy - Emma
       - day: Day 1
         end_time: '11:30'
         pool: Pool A
         start_time: '11:00'
         teams:
-        - Adam - Rob
         - Alex - Sara
+        - Anna - Lisa
       - day: Day 1
         end_time: '12:00'
         pool: Pool A
         start_time: '11:30'
         teams:
         - Adam - Rob
-        - Anna - Lisa
+        - Alex - Sara
       time_to_match:
         09:00:
           day: Day 1
@@ -778,8 +778,8 @@ schedule:
           pool: Pool A
           start_time: 09:30
           teams:
-          - Alex - Sara
-          - Amy - Emma
+          - Adam - Rob
+          - Anna - Lisa
         '10:00':
           day: Day 1
           end_time: '10:30'
@@ -795,15 +795,15 @@ schedule:
           start_time: '10:30'
           teams:
           - Alex - Sara
-          - Anna - Lisa
+          - Amy - Emma
         '11:00':
           day: Day 1
           end_time: '11:30'
           pool: Pool A
           start_time: '11:00'
           teams:
-          - Adam - Rob
           - Alex - Sara
+          - Anna - Lisa
         '11:30':
           day: Day 1
           end_time: '12:00'
@@ -811,7 +811,7 @@ schedule:
           start_time: '11:30'
           teams:
           - Adam - Rob
-          - Anna - Lisa
+          - Alex - Sara
     Court 2:
       matches:
       - day: Day 1
@@ -826,22 +826,22 @@ schedule:
         pool: Pool B
         start_time: 09:30
         teams:
+        - Ben - Kim
         - Brian - Pat
-        - Blake - Morgan
       - day: Day 1
         end_time: '10:30'
         pool: Pool B
         start_time: '10:00'
         teams:
-        - Brian - Pat
-        - Beth - Jordan
+        - Ben - Kim
+        - Blake - Morgan
       - day: Day 1
         end_time: '11:00'
         pool: Pool B
         start_time: '10:30'
         teams:
-        - Ben - Kim
         - Brian - Pat
+        - Beth - Jordan
       - day: Day 1
         end_time: '11:30'
         pool: Pool B
@@ -854,7 +854,7 @@ schedule:
         pool: Pool B
         start_time: '11:30'
         teams:
-        - Ben - Kim
+        - Brian - Pat
         - Blake - Morgan
       time_to_match:
         09:00:
@@ -871,24 +871,24 @@ schedule:
           pool: Pool B
           start_time: 09:30
           teams:
+          - Ben - Kim
           - Brian - Pat
-          - Blake - Morgan
         '10:00':
           day: Day 1
           end_time: '10:30'
           pool: Pool B
           start_time: '10:00'
           teams:
-          - Brian - Pat
-          - Beth - Jordan
+          - Ben - Kim
+          - Blake - Morgan
         '10:30':
           day: Day 1
           end_time: '11:00'
           pool: Pool B
           start_time: '10:30'
           teams:
-          - Ben - Kim
           - Brian - Pat
+          - Beth - Jordan
         '11:00':
           day: Day 1
           end_time: '11:30'
@@ -903,7 +903,7 @@ schedule:
           pool: Pool B
           start_time: '11:30'
           teams:
-          - Ben - Kim
+          - Brian - Pat
           - Blake - Morgan
     Court 3:
       matches:
@@ -912,29 +912,29 @@ schedule:
         pool: Pool C
         start_time: 09:00
         teams:
-        - Chris - Taylor
+        - Carl - Drew
         - Claire - Avery
       - day: Day 1
         end_time: '10:00'
         pool: Pool C
         start_time: 09:30
         teams:
+        - Chris - Taylor
         - Claire - Avery
-        - Cody - Sage
       - day: Day 1
         end_time: '10:30'
         pool: Pool C
         start_time: '10:00'
         teams:
         - Chris - Taylor
-        - Cody - Sage
+        - Carl - Drew
       - day: Day 1
         end_time: '11:00'
         pool: Pool C
         start_time: '10:30'
         teams:
-        - Carl - Drew
-        - Claire - Avery
+        - Chris - Taylor
+        - Cody - Sage
       - day: Day 1
         end_time: '11:30'
         pool: Pool C
@@ -947,8 +947,8 @@ schedule:
         pool: Pool C
         start_time: '11:30'
         teams:
-        - Chris - Taylor
-        - Carl - Drew
+        - Claire - Avery
+        - Cody - Sage
       time_to_match:
         09:00:
           day: Day 1
@@ -956,7 +956,7 @@ schedule:
           pool: Pool C
           start_time: 09:00
           teams:
-          - Chris - Taylor
+          - Carl - Drew
           - Claire - Avery
         09:30:
           day: Day 1
@@ -964,8 +964,8 @@ schedule:
           pool: Pool C
           start_time: 09:30
           teams:
+          - Chris - Taylor
           - Claire - Avery
-          - Cody - Sage
         '10:00':
           day: Day 1
           end_time: '10:30'
@@ -973,15 +973,15 @@ schedule:
           start_time: '10:00'
           teams:
           - Chris - Taylor
-          - Cody - Sage
+          - Carl - Drew
         '10:30':
           day: Day 1
           end_time: '11:00'
           pool: Pool C
           start_time: '10:30'
           teams:
-          - Carl - Drew
-          - Claire - Avery
+          - Chris - Taylor
+          - Cody - Sage
         '11:00':
           day: Day 1
           end_time: '11:30'
@@ -996,8 +996,8 @@ schedule:
           pool: Pool C
           start_time: '11:30'
           teams:
-          - Chris - Taylor
-          - Carl - Drew
+          - Claire - Avery
+          - Cody - Sage
     Court 4:
       matches:
       - day: Day 1
@@ -1006,35 +1006,35 @@ schedule:
         start_time: 09:00
         teams:
         - Dan - Mia
-        - Diana - Jake
+        - Derek - Lily
       - day: Day 1
         end_time: '10:00'
         pool: Pool D
         start_time: 09:30
         teams:
-        - David - Zoe
-        - Derek - Lily
+        - Dan - Mia
+        - Diana - Jake
       - day: Day 1
         end_time: '10:30'
         pool: Pool D
         start_time: '10:00'
         teams:
-        - Dan - Mia
+        - David - Zoe
         - Derek - Lily
       - day: Day 1
         end_time: '11:00'
         pool: Pool D
         start_time: '10:30'
         teams:
-        - David - Zoe
         - Diana - Jake
+        - Derek - Lily
       - day: Day 1
         end_time: '11:30'
         pool: Pool D
         start_time: '11:00'
         teams:
+        - David - Zoe
         - Diana - Jake
-        - Derek - Lily
       - day: Day 1
         end_time: '12:00'
         pool: Pool D
@@ -1050,22 +1050,22 @@ schedule:
           start_time: 09:00
           teams:
           - Dan - Mia
-          - Diana - Jake
+          - Derek - Lily
         09:30:
           day: Day 1
           end_time: '10:00'
           pool: Pool D
           start_time: 09:30
           teams:
-          - David - Zoe
-          - Derek - Lily
+          - Dan - Mia
+          - Diana - Jake
         '10:00':
           day: Day 1
           end_time: '10:30'
           pool: Pool D
           start_time: '10:00'
           teams:
-          - Dan - Mia
+          - David - Zoe
           - Derek - Lily
         '10:30':
           day: Day 1
@@ -1073,16 +1073,16 @@ schedule:
           pool: Pool D
           start_time: '10:30'
           teams:
-          - David - Zoe
           - Diana - Jake
+          - Derek - Lily
         '11:00':
           day: Day 1
           end_time: '11:30'
           pool: Pool D
           start_time: '11:00'
           teams:
+          - David - Zoe
           - Diana - Jake
-          - Derek - Lily
         '11:30':
           day: Day 1
           end_time: '12:00'
