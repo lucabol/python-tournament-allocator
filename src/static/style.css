@@ -229,6 +229,10 @@ h3 {
     color: var(--text-muted);
 }
 
+.form-group label.btn {
+    color: white;
+}
+
 input[type="text"],
 input[type="number"],
 input[type="time"],

@@ -3,9 +3,10 @@ Flask web application for Tournament Allocator.
 """
 import os
 import csv
+import glob
 import yaml
 import time
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file
 from core.models import Team, Court
 from core.allocation import AllocationManager
 from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling
@@ -24,6 +25,22 @@ CONSTRAINTS_FILE = os.path.join(DATA_DIR, 'constraints.yaml')
 RESULTS_FILE = os.path.join(DATA_DIR, 'results.yaml')
 SCHEDULE_FILE = os.path.join(DATA_DIR, 'schedule.yaml')
 PRINT_SETTINGS_FILE = os.path.join(DATA_DIR, 'print_settings.yaml')
+LOGO_FILE_PREFIX = os.path.join(DATA_DIR, 'logo')
+DEFAULT_LOGO_URL = 'https://montgobvc.com/wp-content/uploads/2024/02/LOGO-MBVC-001.png'
+ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'}
+
+
+def _find_logo_file():
+    """Find uploaded logo file in data directory (any extension)."""
+    matches = glob.glob(LOGO_FILE_PREFIX + '.*')
+    return matches[0] if matches else None
+
+
+def _delete_logo_file():
+    """Delete any uploaded logo file."""
+    existing = _find_logo_file()
+    if existing:
+        os.remove(existing)
 
 
 def load_print_settings():
@@ -953,6 +970,7 @@ def api_reset_all():
         os.remove(SCHEDULE_FILE)
     if os.path.exists(CONSTRAINTS_FILE):
         os.remove(CONSTRAINTS_FILE)
+    _delete_logo_file()
     
     return jsonify({'success': True})
 
@@ -1892,6 +1910,32 @@ def update_print_settings():
         settings['subtitle'] = data['subtitle']
     
     save_print_settings(settings)
+    return jsonify({'success': True})
+
+
+@app.route('/api/logo')
+def api_logo():
+    """Serve the uploaded logo, or redirect to default."""
+    logo_path = _find_logo_file()
+    if logo_path:
+        return send_file(logo_path)
+    return redirect(DEFAULT_LOGO_URL)
+
+
+@app.route('/api/upload-logo', methods=['POST'])
+def api_upload_logo():
+    """Upload a custom logo image."""
+    file = request.files.get('logo')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_LOGO_EXTENSIONS:
+        return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(ALLOWED_LOGO_EXTENSIONS)}'}), 400
+
+    _delete_logo_file()
+    logo_path = LOGO_FILE_PREFIX + ext
+    file.save(logo_path)
     return jsonify({'success': True})
 
 
