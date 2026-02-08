@@ -446,3 +446,65 @@ class TestSettingsRoute:
         
         assert response.status_code == 200
         assert b'Alpha Team' in response.data or b'alpha' in response.data.lower()
+
+
+class TestLiveRoute:
+    """Tests for live tournament view page (read-only player view)."""
+    
+    def test_live_page_loads(self, client, temp_data_dir):
+        """Test live page loads successfully."""
+        response = client.get('/live')
+        assert response.status_code == 200
+        assert b'Live Tournament' in response.data
+    
+    def test_live_page_shows_empty_state(self, client, temp_data_dir):
+        """Test live page shows empty state when no teams configured."""
+        response = client.get('/live')
+        assert response.status_code == 200
+        assert b'Tournament Not Started' in response.data or b'No teams' in response.data.lower()
+    
+    def test_live_page_shows_standings(self, client, temp_data_dir):
+        """Test live page shows pool standings when teams exist."""
+        import app as app_module
+        
+        teams_file = temp_data_dir / "teams.yaml"
+        yaml_content = """Pool A:
+  teams:
+    - Team Alpha
+    - Team Beta
+  advance: 2
+"""
+        teams_file.write_text(yaml_content)
+        
+        response = client.get('/live')
+        
+        assert response.status_code == 200
+        assert b'Pool Standings' in response.data
+        assert b'Pool A' in response.data
+        assert b'Team Alpha' in response.data
+        assert b'Team Beta' in response.data
+    
+    def test_live_page_has_auto_refresh(self, client, temp_data_dir):
+        """Test live page contains auto-refresh functionality."""
+        response = client.get('/live')
+        assert response.status_code == 200
+        assert b'Auto-refresh' in response.data or b'refresh-countdown' in response.data
+    
+    def test_live_page_is_read_only(self, client, temp_data_dir):
+        """Test live page does not contain score input fields."""
+        import app as app_module
+        
+        teams_file = temp_data_dir / "teams.yaml"
+        yaml_content = """Pool A:
+  teams:
+    - Team 1
+    - Team 2
+  advance: 2
+"""
+        teams_file.write_text(yaml_content)
+        
+        response = client.get('/live')
+        
+        assert response.status_code == 200
+        # Should not have score input fields (which are in the manager views)
+        assert b'class="score-input"' not in response.data

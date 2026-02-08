@@ -1781,3 +1781,170 @@ tr:hover .court-save-btn {
     white-space: pre;
     font-family: 'Consolas', 'Monaco', monospace;
 }
+
+/* Live Page Styles */
+.auto-refresh-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-right: 0.5rem;
+}
+
+.auto-refresh-status #refresh-countdown {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.live-bracket .bracket-match {
+    cursor: default;
+}
+
+.live-bracket .bracket-match:hover {
+    transform: none;
+}
+
+.live-match .match-score {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-color);
+    margin-left: auto;
+    padding-left: 0.5rem;
+}
+
+.live-match .bracket-match-team {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.empty-note {
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 1rem;
+    text-align: center;
+}
+
+/* Enhanced champion banners for live view */
+.champion-banner {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #78350f;
+    padding: 1rem 1.5rem;
+    border-radius: 8px;
+    font-size: 1.25rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-lg);
+    animation: champion-glow 2s ease-in-out infinite alternate;
+}
+
+.champion-banner.silver-champion {
+    background: linear-gradient(135deg, #e5e7eb, #9ca3af);
+    color: #374151;
+}
+
+@keyframes champion-glow {
+    from {
+        box-shadow: 0 0 5px rgba(251, 191, 36, 0.5);
+    }
+    to {
+        box-shadow: 0 0 20px rgba(251, 191, 36, 0.8);
+    }
+}
+
+/* Live Page Header (standalone, no navigation) */
+.live-header {
+    background: var(--primary-color);
+    color: white;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.live-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.live-header .page-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.live-header .auto-refresh-status {
+    font-size: 0.875rem;
+    opacity: 0.9;
+}
+
+.live-header .btn {
+    background: rgba(255,255,255,0.2);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
+}
+
+.live-header .btn:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* Live Schedule Styles */
+.live-match-cell {
+    padding: 0.5rem;
+    border-radius: 4px;
+    background: var(--bg-color);
+    font-size: 0.8125rem;
+}
+
+.live-match-cell .match-teams-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.125rem 0;
+}
+
+.live-match-cell .team-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.live-match-cell .team-name.winner {
+    font-weight: 600;
+    color: var(--success-color);
+}
+
+.live-match-cell .live-score {
+    font-weight: 600;
+    min-width: 1.5rem;
+    text-align: center;
+    color: var(--text-color);
+}
+
+.live-match-cell .match-pool-label {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 0.25rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.25rem;
+}
+
+.live-match-cell.match-completed {
+    background: #f0fdf4;
+    border-left: 3px solid var(--success-color);
+}
+
+.live-match-cell.placeholder-match {
+    opacity: 0.7;
+    background: #fefce8;
+}
+
+.bracket-schedule {
+    margin-top: 1.5rem;
+}
+
+.bracket-match-cell .match-pool-label {
+    font-size: 0.625rem;
+}

@@ -1765,6 +1765,48 @@ def print_view():
                           now=current_date)
 
 
+@app.route('/live')
+def live():
+    """Read-only live view of tournament standings and brackets for players."""
+    pools = load_teams()
+    results = load_results()
+    standings = calculate_pool_standings(pools, results)
+    constraints = load_constraints()
+    bracket_type = constraints.get('bracket_type', 'double')
+    silver_bracket_enabled = constraints.get('silver_bracket_enabled', False)
+    
+    # Load and enrich schedule data
+    schedule_data, stats = load_schedule()
+    if schedule_data:
+        schedule_data = enrich_schedule_with_results(schedule_data, results, pools, standings)
+    
+    # Generate bracket data
+    bracket_data = None
+    silver_bracket_data = None
+    bracket_results = results.get('bracket', {})
+    
+    if pools:
+        if bracket_type == 'double':
+            from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
+            bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+            if silver_bracket_enabled:
+                silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
+        else:
+            from core.elimination import generate_bracket_with_results, generate_silver_bracket_with_results
+            bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
+            if silver_bracket_enabled:
+                silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
+    
+    return render_template('live.html',
+                          pools=pools,
+                          standings=standings,
+                          schedule=schedule_data,
+                          results=results.get('pool_play', {}),
+                          bracket_data=bracket_data,
+                          silver_bracket_data=silver_bracket_data,
+                          silver_bracket_enabled=silver_bracket_enabled)
+
+
 @app.route('/api/print-settings', methods=['POST'])
 def update_print_settings():
     """API endpoint to update print settings."""
