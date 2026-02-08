@@ -61,10 +61,14 @@ def seed_teams_from_pools(pools: Dict[str, Dict], standings: Optional[Dict] = No
     seed = 1
     # For each finishing position (1st, 2nd, etc.)
     for position in range(1, max_advance + 1):
+        # Gather all teams at this position across pools
+        teams_at_position = []
         for pool_name in pool_names:
             pool_data = pools[pool_name]
             advance_count = pool_data.get('advance', 2)
             if position <= advance_count:
+                team_name = f"#{position} {pool_name}"
+                team_stats = None
                 # Use actual team name from standings only if the team has played games
                 if standings and pool_name in standings:
                     pool_standings = standings[pool_name]
@@ -73,15 +77,23 @@ def seed_teams_from_pools(pools: Dict[str, Dict], standings: Optional[Dict] = No
                         # Only use actual name if team has played at least one match
                         if team_data.get('matches_played', 0) > 0:
                             team_name = team_data['team']
-                        else:
-                            team_name = f"#{position} {pool_name}"
-                    else:
-                        team_name = f"#{position} {pool_name}"
-                else:
-                    team_name = f"#{position} {pool_name}"
+                            team_stats = team_data
                 
-                seeded_teams.append((team_name, seed, pool_name))
-                seed += 1
+                teams_at_position.append((team_name, pool_name, team_stats))
+        
+        # Sort by performance stats if available (wins desc, set_diff desc, point_diff desc),
+        # otherwise keep alphabetical pool order
+        if any(t[2] is not None for t in teams_at_position):
+            teams_at_position.sort(key=lambda t: (
+                -(t[2]['wins'] if t[2] else 0),
+                -(t[2]['set_diff'] if t[2] else 0),
+                -(t[2]['point_diff'] if t[2] else 0),
+                t[1]  # pool_name as final tiebreaker
+            ))
+        
+        for team_name, pool_name, _ in teams_at_position:
+            seeded_teams.append((team_name, seed, pool_name))
+            seed += 1
     
     return seeded_teams
 
@@ -113,6 +125,8 @@ def seed_silver_bracket_teams(pools: Dict[str, Dict], standings: Optional[Dict] 
     seed = 1
     # For each finishing position starting after advance count
     for position in range(1, max_teams_in_pool + 1):
+        # Gather all teams at this position across pools
+        teams_at_position = []
         for pool_name in pool_names:
             pool_data = pools[pool_name]
             advance_count = pool_data.get('advance', 2)
@@ -120,6 +134,8 @@ def seed_silver_bracket_teams(pools: Dict[str, Dict], standings: Optional[Dict] 
             
             # Only include teams that don't advance (position > advance_count)
             if position > advance_count and position <= num_teams:
+                team_name = f"#{position} {pool_name}"
+                team_stats = None
                 # Use actual team name from standings only if the team has played games
                 if standings and pool_name in standings:
                     pool_standings = standings[pool_name]
@@ -127,15 +143,23 @@ def seed_silver_bracket_teams(pools: Dict[str, Dict], standings: Optional[Dict] 
                         team_data = pool_standings[position - 1]
                         if team_data.get('matches_played', 0) > 0:
                             team_name = team_data['team']
-                        else:
-                            team_name = f"#{position} {pool_name}"
-                    else:
-                        team_name = f"#{position} {pool_name}"
-                else:
-                    team_name = f"#{position} {pool_name}"
+                            team_stats = team_data
                 
-                seeded_teams.append((team_name, seed, pool_name))
-                seed += 1
+                teams_at_position.append((team_name, pool_name, team_stats))
+        
+        # Sort by performance stats if available (wins desc, set_diff desc, point_diff desc),
+        # otherwise keep alphabetical pool order
+        if any(t[2] is not None for t in teams_at_position):
+            teams_at_position.sort(key=lambda t: (
+                -(t[2]['wins'] if t[2] else 0),
+                -(t[2]['set_diff'] if t[2] else 0),
+                -(t[2]['point_diff'] if t[2] else 0),
+                t[1]  # pool_name as final tiebreaker
+            ))
+        
+        for team_name, pool_name, _ in teams_at_position:
+            seeded_teams.append((team_name, seed, pool_name))
+            seed += 1
     
     return seeded_teams
 
