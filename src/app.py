@@ -551,6 +551,9 @@ def get_default_constraints():
         'pool_in_same_court': True,
         'silver_bracket_enabled': True,
         'pool_to_bracket_delay_minutes': 120,
+        'club_name': 'Montgó Beach Volley Club',
+        'tournament_name': 'Summer Tournament 2026',
+        'tournament_date': 'July 2026',
         'team_specific_constraints': [],
 
         'general_constraints': [],
@@ -925,6 +928,12 @@ def api_update_settings():
         constraints_data['silver_bracket_enabled'] = data['silver_bracket_enabled']
     if 'pool_to_bracket_delay' in data:
         constraints_data['pool_to_bracket_delay_minutes'] = int(data['pool_to_bracket_delay'])
+    if 'club_name' in data:
+        constraints_data['club_name'] = data['club_name']
+    if 'tournament_name' in data:
+        constraints_data['tournament_name'] = data['tournament_name']
+    if 'tournament_date' in data:
+        constraints_data['tournament_date'] = data['tournament_date']
     
     save_constraints(constraints_data)
     return jsonify({'success': True})
@@ -1809,6 +1818,7 @@ def _get_live_data() -> dict:
         silver_bracket_data=silver_bracket_data,
         silver_bracket_enabled=silver_bracket_enabled,
         print_settings=load_print_settings(),
+        constraints=constraints,
     )
 
 

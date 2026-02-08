@@ -13,16 +13,19 @@
         .sse-dot.reconnecting { background: #eab308; animation: pulse 1s infinite; }
         .sse-dot.disconnected { background: #ef4444; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+        .print-header-logo { display: flex; align-items: center; gap: 1rem; }
+        .print-titles { display: flex; flex-direction: column; gap: 0.25rem; }
+        .print-logo { height: 70px; width: auto; }
+        .organization-name { font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #374151; }
+        .header-title { font-size: 1.75rem; margin: 0; }
+        .header-subtitle { font-size: 1.1rem; font-weight: normal; color: #4b5563; margin: 0; }
     </style>
 </head>
 <body>
     <header class="live-header">
         <div style="display: flex; align-items: center; gap: 1rem;">
-            <img src="https://montgobvc.com/wp-content/uploads/2024/02/LOGO-MBVC-001.png" alt="Montgó Beach Volley Club" style="height: 50px; width: auto;">
-            <div>
-                <h1 style="margin: 0; font-size: 1.5rem;">{{ print_settings.title }}</h1>
-                <div style="font-size: 0.95rem; color: #6b7280;">{{ print_settings.subtitle }}</div>
-            </div>
+            {% include '_tournament_header.html' %}
         </div>
         <div class="page-header-actions">
             <span class="sse-status">

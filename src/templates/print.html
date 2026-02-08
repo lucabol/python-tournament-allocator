@@ -5,14 +5,7 @@
 {% block content %}
 <div class="print-view formal-document">
     <div class="page-header formal-header">
-        <div class="print-header-logo">
-            <img src="https://montgobvc.com/wp-content/uploads/2024/02/LOGO-MBVC-001.png" alt="Montgó Beach Volley Club" class="print-logo">
-            <div class="print-titles">
-                <div class="organization-name">Montgó Beach Volley Club</div>
-                <h1 contenteditable="true" class="editable-title" id="print-title" onblur="savePrintSettings()">{{ print_settings.title }}</h1>
-                <h2 contenteditable="true" class="editable-subtitle" id="print-subtitle" onblur="savePrintSettings()">{{ print_settings.subtitle }}</h2>
-            </div>
-        </div>
+        {% include '_tournament_header.html' %}
         <button type="button" class="btn btn-primary btn-sm no-print" onclick="window.print()">Print</button>
     </div>
 
@@ -328,13 +321,9 @@
     .print-table tr {
         page-break-inside: avoid;
     }
-    .editable-title, .editable-subtitle {
+    .editable-title, .editable-subtitle, .header-title, .header-subtitle {
         border: none !important;
         padding: 0 !important;
-    }
-    .document-meta {
-        border: none !important;
-        background: none !important;
     }
     .formal-divider {
         margin: 0.5rem 0 !important;
@@ -413,33 +402,19 @@
     width: auto;
 }
 
-.editable-title, .editable-subtitle {
-    border: 1px dashed transparent;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    cursor: text;
+.header-title, .header-subtitle {
     margin: 0;
     font-family: 'Times New Roman', Times, serif;
 }
 
-.editable-title {
+.header-title {
     font-size: 1.75rem;
 }
 
-.editable-subtitle {
+.header-subtitle {
     font-size: 1.1rem;
     font-weight: normal;
     color: #4b5563;
-}
-
-.editable-title:hover, .editable-subtitle:hover {
-    border-color: #9ca3af;
-}
-
-.editable-title:focus, .editable-subtitle:focus {
-    outline: none;
-    border-color: #3b82f6;
-    background: #f0f9ff;
 }
 
 .print-section {
@@ -564,16 +539,4 @@
 }
 </style>
 
-<script>
-function savePrintSettings() {
-    const title = document.getElementById('print-title').innerText.trim();
-    const subtitle = document.getElementById('print-subtitle').innerText.trim();
-    
-    fetch('/api/print-settings', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title: title, subtitle: subtitle})
-    });
-}
-</script>
 {% endblock %}

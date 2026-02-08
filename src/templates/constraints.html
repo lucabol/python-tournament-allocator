@@ -10,6 +10,27 @@
     <div class="form-card">
         <div class="form-grid">
             <div class="form-group">
+                <label for="club_name">Club Name</label>
+                <input type="text" id="club_name" name="club_name" 
+                       value="{{ constraints.club_name | default('') }}" placeholder="e.g. Montgó Beach Volley Club"
+                       onchange="updateSetting('club_name', this.value)">
+            </div>
+            
+            <div class="form-group">
+                <label for="tournament_name">Tournament Name</label>
+                <input type="text" id="tournament_name" name="tournament_name" 
+                       value="{{ constraints.tournament_name | default('') }}" placeholder="e.g. Summer Tournament 2026"
+                       onchange="updateSetting('tournament_name', this.value)">
+            </div>
+            
+            <div class="form-group">
+                <label for="tournament_date">Date</label>
+                <input type="text" id="tournament_date" name="tournament_date" 
+                       value="{{ constraints.tournament_date | default('') }}" placeholder="e.g. July 2026"
+                       onchange="updateSetting('tournament_date', this.value)">
+            </div>
+            
+            <div class="form-group">
                 <label for="match_duration">Match Duration (minutes)</label>
                 <input type="number" id="match_duration" name="match_duration" 
                        value="{{ constraints.match_duration_minutes }}" min="15" max="180" required
