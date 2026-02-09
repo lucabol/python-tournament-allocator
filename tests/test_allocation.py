@@ -97,9 +97,9 @@ class TestCourtAvailability:
         # Add an existing match
         manager.schedule[court.name].append((1, existing_start, existing_end, ("Team A", "Team B")))
         
-        # Try to book right after
-        new_start = datetime.datetime.combine(base_date, datetime.time(10, 0))
-        new_end = datetime.datetime.combine(base_date, datetime.time(11, 0))
+        # Try to book right after (accounting for min_break_between_matches_minutes=15)
+        new_start = datetime.datetime.combine(base_date, datetime.time(10, 15))
+        new_end = datetime.datetime.combine(base_date, datetime.time(11, 15))
         
         assert manager._check_court_availability(court, new_start, new_end) is True
     

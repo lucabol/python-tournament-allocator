@@ -103,7 +103,7 @@ def generate_double_elimination_bracket(pools: Dict[str, Dict], standings: Optio
     
     # Grand Final
     grand_final = {
-        'teams': (f'Winner of {prefix}Winners Bracket', f'Winner of {prefix}Losers Bracket'),
+        'teams': ('Winners Bracket Champion', 'Losers Bracket Champion'),
         'round': 'Grand Final',
         'match_number': 1,
         'match_code': f'{prefix}GF',

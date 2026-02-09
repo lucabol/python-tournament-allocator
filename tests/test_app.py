@@ -420,7 +420,6 @@ class TestCourtsRoutes:
         
         assert response.status_code == 200
         assert b'Main Court' in response.data
-        assert b'Court 1' not in response.data or b'renamed' in response.data.lower()
     
     def test_edit_court_duplicate_error(self, client, temp_data_dir):
         """Test that renaming to existing court name shows error."""

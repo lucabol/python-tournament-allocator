@@ -2018,6 +2018,54 @@ def api_live_html():
     return render_template('live_content.html', **_get_live_data())
 
 
+@app.route('/live1')
+def live1():
+    """Mobile-friendly live view: Card-Based Feed design."""
+    return render_template('live1.html', **_get_live_data())
+
+
+@app.route('/api/live1-html')
+def api_live1_html():
+    """Return partial HTML for the live1 card-based feed."""
+    return render_template('live1_content.html', **_get_live_data())
+
+
+@app.route('/live2')
+def live2():
+    """Mobile-friendly live view: Smart Summary + Drill-Down design."""
+    return render_template('live2.html', **_get_live_data())
+
+
+@app.route('/api/live2-html')
+def api_live2_html():
+    """Return partial HTML for the live2 smart summary view."""
+    return render_template('live2_content.html', **_get_live_data())
+
+
+@app.route('/live3')
+def live3():
+    """Mobile-friendly live view: Responsive Table Reflow design."""
+    return render_template('live3.html', **_get_live_data())
+
+
+@app.route('/api/live3-html')
+def api_live3_html():
+    """Return partial HTML for the live3 table reflow view."""
+    return render_template('live3_content.html', **_get_live_data())
+
+
+@app.route('/live4')
+def live4():
+    """Mobile-friendly live view: Combined Card Feed + Drill-Down design."""
+    return render_template('live4.html', **_get_live_data())
+
+
+@app.route('/api/live4-html')
+def api_live4_html():
+    """Return partial HTML for the live4 combined view."""
+    return render_template('live4_content.html', **_get_live_data())
+
+
 def _get_data_file_mtimes() -> dict:
     """Return modification times for the data files the live page depends on.
 

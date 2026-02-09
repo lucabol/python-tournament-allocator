@@ -70,22 +70,22 @@ class TestCalculateLosersRounds:
         assert calculate_losers_bracket_rounds(0) == 0
     
     def test_four_teams(self):
-        """4 team bracket: 2 winners rounds, so 3 losers rounds."""
+        """4 team bracket: 2 winners rounds, so 2 losers rounds."""
         # Winners: Round of 4 -> Final (2 rounds)
-        # Losers: 2 * 2 - 1 = 3 rounds
-        assert calculate_losers_bracket_rounds(4) == 3
+        # Losers: 2 * (2 - 1) = 2 rounds
+        assert calculate_losers_bracket_rounds(4) == 2
     
     def test_eight_teams(self):
-        """8 team bracket: 3 winners rounds, so 5 losers rounds."""
-        assert calculate_losers_bracket_rounds(8) == 5
+        """8 team bracket: 3 winners rounds, so 4 losers rounds."""
+        assert calculate_losers_bracket_rounds(8) == 4
     
     def test_sixteen_teams(self):
-        """16 team bracket: 4 winners rounds, so 7 losers rounds."""
-        assert calculate_losers_bracket_rounds(16) == 7
+        """16 team bracket: 4 winners rounds, so 6 losers rounds."""
+        assert calculate_losers_bracket_rounds(16) == 6
     
     def test_two_teams(self):
-        """2 team bracket: 1 winners round, so 1 losers round."""
-        assert calculate_losers_bracket_rounds(2) == 1
+        """2 team bracket: 1 winners round, so 0 losers rounds."""
+        assert calculate_losers_bracket_rounds(2) == 0
 
 
 class TestGenerateDoubleEliminationBracket:
@@ -113,7 +113,7 @@ class TestGenerateDoubleEliminationBracket:
         result = generate_double_elimination_bracket(pools)
         assert result['bracket_size'] == 2
         assert result['total_winners_rounds'] == 1
-        assert result['total_losers_rounds'] == 1
+        assert result['total_losers_rounds'] == 0
     
     def test_four_teams(self):
         """Four teams creates proper bracket."""
@@ -125,7 +125,7 @@ class TestGenerateDoubleEliminationBracket:
         
         assert result['bracket_size'] == 4
         assert result['total_winners_rounds'] == 2
-        assert result['total_losers_rounds'] == 3
+        assert result['total_losers_rounds'] == 2
         assert len(result['seeded_teams']) == 4
     
     def test_grand_final_present(self):
@@ -309,8 +309,8 @@ class TestDoubleEliminationIntegration:
         # Winners: 3 rounds (8->4->2)
         assert result['total_winners_rounds'] == 3
         
-        # Losers: 5 rounds
-        assert result['total_losers_rounds'] == 5
+        # Losers: 4 rounds
+        assert result['total_losers_rounds'] == 4
         
         # Grand final and reset present
         assert result['grand_final'] is not None
@@ -385,4 +385,4 @@ class TestEdgeCases:
         assert len(result['seeded_teams']) == 16
         assert result['bracket_size'] == 16
         assert result['total_winners_rounds'] == 4
-        assert result['total_losers_rounds'] == 7
+        assert result['total_losers_rounds'] == 6

@@ -1,0 +1,388 @@
+/* ============================================================
+   Live3: Responsive Table Reflow — Mobile-First Design
+   Tables reflow into stacked cards on narrow screens
+   High-contrast light theme for outdoor/beach readability
+   ============================================================ */
+
+/* --- High-contrast overrides --- */
+body {
+    background: #ffffff;
+    color: #111827;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* --- Header --- */
+.live-header {
+    background: #ffffff;
+    border-bottom: 2px solid #111827;
+    padding: 0.75rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.live-header .print-header-logo { gap: 0.5rem; }
+.live-header .print-logo { height: 40px; width: auto; }
+.live-header .organization-name { font-size: 0.7rem; letter-spacing: 0.05em; }
+.live-header .header-title { font-size: 1.1rem; margin: 0; font-weight: 800; color: #111827; }
+.live-header .header-subtitle { font-size: 0.8rem; margin: 0; color: #374151; }
+
+/* --- SSE Status --- */
+.sse-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600; color: #374151; }
+.sse-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.sse-dot.connected { background: #059669; }
+.sse-dot.reconnecting { background: #d97706; animation: pulse 1s infinite; }
+.sse-dot.disconnected { background: #dc2626; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* --- Team Filter --- */
+.team-filter-bar {
+    width: 100%;
+    padding: 0.5rem 1rem;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.team-filter-input {
+    width: 100%;
+    padding: 0.625rem 1rem;
+    font-size: 1rem;
+    border: 2px solid #d1d5db;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #111827;
+    box-sizing: border-box;
+}
+
+.team-filter-input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.team-filter-input::placeholder { color: #9ca3af; }
+
+/* --- Main Container --- */
+.live-container {
+    padding: 0.75rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+/* --- Section Headers --- */
+.section-header {
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: #111827;
+    margin: 1.5rem 0 0.75rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #111827;
+}
+
+.section-header:first-child { margin-top: 0.5rem; }
+
+/* --- Champion Banner --- */
+.champion-banner {
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    color: #78350f;
+    padding: 1rem;
+    border-radius: 10px;
+    font-size: 1.2rem;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 1rem;
+    box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+    animation: champion-glow 2s ease-in-out infinite alternate;
+}
+
+.champion-banner.silver-champion {
+    background: linear-gradient(135deg, #e5e7eb, #9ca3af);
+    color: #1f2937;
+}
+
+@keyframes champion-glow {
+    from { box-shadow: 0 2px 8px rgba(251, 191, 36, 0.4); }
+    to   { box-shadow: 0 4px 20px rgba(251, 191, 36, 0.7); }
+}
+
+/* --- Day header --- */
+.day-header {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #374151;
+    margin: 1rem 0 0.5rem 0;
+}
+
+/* === TABLES — Desktop default === */
+.reflow-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.reflow-table thead th {
+    background: #111827;
+    color: #ffffff;
+    padding: 0.625rem 0.75rem;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.reflow-table tbody td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: top;
+}
+
+.reflow-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* --- Match cell inside table --- */
+.match-cell-reflow {
+    padding: 0.375rem;
+    border-radius: 4px;
+    background: #f9fafb;
+}
+
+.match-cell-reflow.match-completed {
+    background: #f0fdf4;
+    border-left: 3px solid #059669;
+}
+
+.match-cell-reflow.match-placeholder {
+    background: #fffbeb;
+    opacity: 0.8;
+}
+
+.match-cell-reflow .match-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 24px;
+}
+
+.match-cell-reflow .team-name {
+    font-weight: 700;
+    color: #111827;
+    font-size: 0.9rem;
+    flex: 1;
+}
+
+.match-cell-reflow .team-name.winner { color: #047857; }
+
+.match-cell-reflow .cell-score {
+    font-weight: 800;
+    font-size: 1rem;
+    color: #111827;
+    min-width: 1.5rem;
+    text-align: center;
+}
+
+.match-cell-reflow .cell-pool {
+    font-size: 0.7rem;
+    color: #6b7280;
+    text-align: center;
+    margin-top: 0.125rem;
+}
+
+/* --- Standings table --- */
+.standings-reflow {
+    margin-bottom: 1rem;
+}
+
+.standings-reflow h3 {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #111827;
+    margin: 0 0 0.5rem 0;
+}
+
+.standings-reflow .reflow-table tbody tr.advancing {
+    background: #ecfdf5;
+}
+
+.standings-reflow .positive { color: #047857; font-weight: 600; }
+.standings-reflow .negative { color: #dc2626; font-weight: 600; }
+
+/* --- Bracket section --- */
+.bracket-round-label {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #374151;
+    margin: 1rem 0 0.5rem 0;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 0.25rem;
+}
+
+.bracket-sub-header {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #111827;
+    margin: 1.25rem 0 0.5rem 0;
+}
+
+.bracket-match-reflow {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-left: 3px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.625rem 0.75rem;
+    margin-bottom: 0.375rem;
+}
+
+.bracket-match-reflow.match-completed { border-left-color: #059669; background: #f0fdf4; }
+.bracket-match-reflow.grand-final-match { border: 2px solid #f59e0b; border-left: 4px solid #f59e0b; background: #fffbeb; }
+.bracket-match-reflow.bye-match { opacity: 0.5; }
+.bracket-match-reflow.placeholder-match { background: #fffbeb; border-left-color: #d97706; }
+
+.bracket-match-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.bracket-match-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 26px;
+}
+
+.bracket-match-row .team-name { font-weight: 700; color: #111827; font-size: 0.95rem; flex: 1; }
+.bracket-match-row .team-name.winner { color: #047857; }
+.bracket-match-row .bracket-score { font-weight: 800; font-size: 1.1rem; color: #111827; min-width: 2rem; text-align: center; }
+.bye-label { font-size: 0.75rem; color: #9ca3af; font-weight: 700; text-align: center; }
+
+/* --- Empty / Filter --- */
+.empty-state { text-align: center; padding: 3rem 1rem; color: #6b7280; }
+.empty-state h2 { color: #111827; }
+.empty-note { color: #6b7280; font-style: italic; text-align: center; padding: 1rem; }
+.filter-hidden { display: none !important; }
+.filter-highlight { background: #fef08a !important; }
+
+/* --- Footer --- */
+.live-footer {
+    text-align: center;
+    padding: 1.5rem;
+    font-size: 0.8rem;
+    color: #9ca3af;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 2rem;
+}
+
+/* ============================================================
+   MOBILE TABLE REFLOW — Tables become stacked cards
+   ============================================================ */
+@media (max-width: 639px) {
+    /* Schedule table reflow */
+    .reflow-table,
+    .reflow-table thead,
+    .reflow-table tbody,
+    .reflow-table th,
+    .reflow-table td,
+    .reflow-table tr {
+        display: block;
+    }
+
+    .reflow-table thead {
+        /* Hide table headers visually but keep for accessibility */
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+    }
+
+    .reflow-table tbody tr {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    }
+
+    .reflow-table tbody td {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 0.375rem 0;
+        border-bottom: 1px solid #f3f4f6;
+        min-height: 36px;
+    }
+
+    .reflow-table tbody td:last-child {
+        border-bottom: none;
+    }
+
+    .reflow-table tbody td::before {
+        content: attr(data-label);
+        font-weight: 700;
+        color: #6b7280;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        min-width: 5rem;
+        padding-right: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    /* Time cell styling in reflow */
+    .reflow-table tbody td.time-cell {
+        background: #f9fafb;
+        margin: -0.5rem -0.75rem 0.25rem -0.75rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px 8px 0 0;
+        border-bottom: 1px solid #e5e7eb;
+        font-weight: 800;
+        color: #111827;
+    }
+
+    .reflow-table tbody td.time-cell::before {
+        color: #111827;
+    }
+
+    /* Standings table reflow — hide less important columns */
+    .standings-reflow .reflow-table tbody td.col-delta-pts {
+        display: none;
+    }
+
+    .standings-grid {
+        display: flex;
+        flex-direction: column;
+    }
+}
+
+/* --- Tablet+ --- */
+@media (min-width: 640px) {
+    .live-container { padding: 1rem 1.5rem; }
+    .section-header { font-size: 1.5rem; }
+
+    .standings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1rem;
+    }
+}
