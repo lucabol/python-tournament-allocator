@@ -4,8 +4,11 @@ Flask web application for Tournament Allocator.
 import os
 import csv
 import glob
+import io
 import yaml
 import time
+import zipfile
+from datetime import datetime
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file
 from core.models import Team, Court
 from core.allocation import AllocationManager
@@ -28,6 +31,17 @@ PRINT_SETTINGS_FILE = os.path.join(DATA_DIR, 'print_settings.yaml')
 LOGO_FILE_PREFIX = os.path.join(DATA_DIR, 'logo')
 DEFAULT_LOGO_URL = 'https://montgobvc.com/wp-content/uploads/2024/02/LOGO-MBVC-001.png'
 ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'}
+
+# Files eligible for tournament export/import
+EXPORTABLE_FILES = {
+    'teams.yaml': TEAMS_FILE,
+    'courts.csv': COURTS_FILE,
+    'constraints.yaml': CONSTRAINTS_FILE,
+    'results.yaml': RESULTS_FILE,
+    'schedule.yaml': SCHEDULE_FILE,
+    'print_settings.yaml': PRINT_SETTINGS_FILE,
+}
+ALLOWED_IMPORT_NAMES = set(EXPORTABLE_FILES.keys())
 
 
 def _find_logo_file():
@@ -2525,6 +2539,81 @@ def schedule_double_elimination():
                          error=error, 
                          stats=stats,
                          bracket_data=bracket_data)
+
+
+@app.route('/api/export/tournament')
+def api_export_tournament():
+    """Export all tournament data as a downloadable ZIP file."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Add standard data files
+        for archive_name, file_path in EXPORTABLE_FILES.items():
+            if os.path.exists(file_path):
+                zf.write(file_path, archive_name)
+
+        # Add logo file if it exists
+        logo = _find_logo_file()
+        if logo:
+            logo_ext = os.path.splitext(logo)[1]
+            zf.write(logo, f'logo{logo_ext}')
+
+    buffer.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return send_file(
+        buffer,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'tournament_export_{timestamp}.zip',
+    )
+
+
+@app.route('/api/import/tournament', methods=['POST'])
+def api_import_tournament():
+    """Import tournament data from an uploaded ZIP file, replacing current data."""
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        flash('No file selected.', 'error')
+        return redirect(url_for('index'))
+
+    # Read file into memory for validation
+    file_bytes = file.read()
+    if not zipfile.is_zipfile(io.BytesIO(file_bytes)):
+        flash('Uploaded file is not a valid ZIP archive.', 'error')
+        return redirect(url_for('index'))
+
+    with zipfile.ZipFile(io.BytesIO(file_bytes), 'r') as zf:
+        names = set(zf.namelist())
+
+        # Sanity check: must contain at least one core data file
+        if not names & ALLOWED_IMPORT_NAMES:
+            flash('ZIP does not appear to contain tournament data.', 'error')
+            return redirect(url_for('index'))
+
+        # Security: reject entries with path traversal
+        for name in names:
+            if '..' in name or name.startswith('/') or name.startswith('\\'):
+                flash('ZIP contains unsafe file paths. Import aborted.', 'error')
+                return redirect(url_for('index'))
+
+        # Extract allowed data files
+        for name in names:
+            if name in ALLOWED_IMPORT_NAMES:
+                dest = EXPORTABLE_FILES[name]
+                with zf.open(name) as src, open(dest, 'wb') as dst:
+                    dst.write(src.read())
+
+        # Handle logo: delete existing, then extract if present in archive
+        logo_entries = [n for n in names if n.startswith('logo.') and os.path.splitext(n)[1] in ALLOWED_LOGO_EXTENSIONS]
+        if logo_entries:
+            _delete_logo_file()
+            logo_name = logo_entries[0]
+            logo_ext = os.path.splitext(logo_name)[1]
+            logo_dest = LOGO_FILE_PREFIX + logo_ext
+            with zf.open(logo_name) as src, open(logo_dest, 'wb') as dst:
+                dst.write(src.read())
+
+    flash('Tournament data imported successfully.', 'success')
+    return redirect(url_for('index'))
 
 
 if __name__ == '__main__':

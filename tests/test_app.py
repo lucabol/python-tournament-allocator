@@ -6,6 +6,8 @@ import sys
 import os
 import tempfile
 import yaml
+import zipfile
+import io
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
@@ -29,6 +31,10 @@ def temp_data_dir(tmp_path, monkeypatch):
     teams_file = tmp_path / "teams.yaml"
     courts_file = tmp_path / "courts.csv"
     constraints_file = tmp_path / "constraints.yaml"
+    results_file = tmp_path / "results.yaml"
+    schedule_file = tmp_path / "schedule.yaml"
+    print_settings_file = tmp_path / "print_settings.yaml"
+    logo_prefix = str(tmp_path / "logo")
     
     # Initialize with test data
     teams_file.write_text("")
@@ -36,9 +42,26 @@ def temp_data_dir(tmp_path, monkeypatch):
     constraints_file.write_text("")
     
     # Monkeypatch the file paths
+    monkeypatch.setattr(app_module, 'DATA_DIR', str(tmp_path))
     monkeypatch.setattr(app_module, 'TEAMS_FILE', str(teams_file))
     monkeypatch.setattr(app_module, 'COURTS_FILE', str(courts_file))
     monkeypatch.setattr(app_module, 'CONSTRAINTS_FILE', str(constraints_file))
+    monkeypatch.setattr(app_module, 'RESULTS_FILE', str(results_file))
+    monkeypatch.setattr(app_module, 'SCHEDULE_FILE', str(schedule_file))
+    monkeypatch.setattr(app_module, 'PRINT_SETTINGS_FILE', str(print_settings_file))
+    monkeypatch.setattr(app_module, 'LOGO_FILE_PREFIX', logo_prefix)
+
+    # Rebuild derived constants so export/import uses temp paths
+    exportable = {
+        'teams.yaml': str(teams_file),
+        'courts.csv': str(courts_file),
+        'constraints.yaml': str(constraints_file),
+        'results.yaml': str(results_file),
+        'schedule.yaml': str(schedule_file),
+        'print_settings.yaml': str(print_settings_file),
+    }
+    monkeypatch.setattr(app_module, 'EXPORTABLE_FILES', exportable)
+    monkeypatch.setattr(app_module, 'ALLOWED_IMPORT_NAMES', set(exportable.keys()))
     
     return tmp_path
 
@@ -795,3 +818,202 @@ class TestExportScheduleCSV:
         assert 'Team A' in content
         assert 'Team B' in content
         assert 'Court 1' in content
+
+
+class TestExportTournament:
+    """Tests for the tournament ZIP export endpoint."""
+
+    def test_export_returns_zip(self, client, temp_data_dir):
+        """Test GET /api/export/tournament returns a valid ZIP file."""
+        response = client.get('/api/export/tournament')
+        assert response.status_code == 200
+        assert 'application/zip' in response.content_type
+        # Validate that the response body is a valid ZIP
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        assert zf.testzip() is None  # No corrupt files
+
+    def test_export_contains_existing_files(self, client, temp_data_dir):
+        """Test the ZIP includes data files that exist on disk."""
+        # teams.yaml and courts.csv were created by the fixture
+        response = client.get('/api/export/tournament')
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        names = zf.namelist()
+        assert 'teams.yaml' in names
+        assert 'courts.csv' in names
+
+    def test_export_excludes_missing_files(self, client, temp_data_dir):
+        """Test that files which don't exist are simply absent from the ZIP."""
+        # results.yaml was NOT created by the fixture
+        response = client.get('/api/export/tournament')
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        names = zf.namelist()
+        assert 'results.yaml' not in names
+
+    def test_export_includes_logo(self, client, temp_data_dir):
+        """Test that an uploaded logo is included in the export."""
+        import app as app_module
+        logo_path = temp_data_dir / "logo.png"
+        logo_path.write_bytes(b'\x89PNG_FAKE_DATA')
+
+        response = client.get('/api/export/tournament')
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        assert 'logo.png' in zf.namelist()
+        assert zf.read('logo.png') == b'\x89PNG_FAKE_DATA'
+
+    def test_export_attachment_filename(self, client, temp_data_dir):
+        """Test download filename contains 'tournament_export'."""
+        response = client.get('/api/export/tournament')
+        cd = response.headers.get('Content-Disposition', '')
+        assert 'tournament_export' in cd
+        assert '.zip' in cd
+
+
+class TestImportTournament:
+    """Tests for the tournament ZIP import endpoint."""
+
+    def _make_zip(self, files: dict) -> io.BytesIO:
+        """Helper: create an in-memory ZIP from a dict of {name: bytes}."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            for name, data in files.items():
+                zf.writestr(name, data)
+        buf.seek(0)
+        return buf
+
+    def test_import_valid_zip(self, client, temp_data_dir):
+        """Test importing a valid ZIP restores data files."""
+        teams_content = "Pool X:\n  teams:\n    - Alpha\n  advance: 1\n"
+        buf = self._make_zip({'teams.yaml': teams_content})
+
+        response = client.post(
+            '/api/import/tournament',
+            data={'file': (buf, 'tournament.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b'imported successfully' in response.data
+
+        # Verify the file was written
+        pools = load_teams()
+        assert 'Pool X' in pools
+        assert pools['Pool X']['teams'] == ['Alpha']
+
+    def test_import_no_file(self, client, temp_data_dir):
+        """Test import with no file shows error."""
+        response = client.post(
+            '/api/import/tournament',
+            data={},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b'No file selected' in response.data
+
+    def test_import_invalid_file(self, client, temp_data_dir):
+        """Test that uploading a non-ZIP file returns an error."""
+        buf = io.BytesIO(b'this is not a zip')
+        response = client.post(
+            '/api/import/tournament',
+            data={'file': (buf, 'bad.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b'not a valid ZIP' in response.data
+
+    def test_import_rejects_unknown_zip(self, client, temp_data_dir):
+        """Test that a ZIP without any recognised tournament files is rejected."""
+        buf = self._make_zip({'random.txt': 'hello'})
+        response = client.post(
+            '/api/import/tournament',
+            data={'file': (buf, 'unknown.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b'does not appear to contain tournament data' in response.data
+
+    def test_import_rejects_path_traversal(self, client, temp_data_dir):
+        """Test that ZIP entries with path traversal are rejected."""
+        buf = self._make_zip({'../teams.yaml': 'bad', 'teams.yaml': 'ok'})
+        response = client.post(
+            '/api/import/tournament',
+            data={'file': (buf, 'evil.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert response.status_code == 200
+        assert b'unsafe file paths' in response.data
+
+    def test_import_overwrites_existing(self, client, temp_data_dir):
+        """Test that import replaces existing data files."""
+        # Write initial data
+        (temp_data_dir / "teams.yaml").write_text("Pool Old:\n  teams: []\n  advance: 2\n")
+
+        # Import new data
+        new_content = "Pool New:\n  teams:\n    - Bravo\n  advance: 3\n"
+        buf = self._make_zip({'teams.yaml': new_content})
+        client.post(
+            '/api/import/tournament',
+            data={'file': (buf, 'new.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        pools = load_teams()
+        assert 'Pool Old' not in pools
+        assert 'Pool New' in pools
+        assert pools['Pool New']['teams'] == ['Bravo']
+
+    def test_import_handles_logo(self, client, temp_data_dir):
+        """Test that old logo is deleted and new one extracted on import."""
+        # Create an existing logo
+        old_logo = temp_data_dir / "logo.jpg"
+        old_logo.write_bytes(b'OLD')
+
+        # Import with a new logo (different extension)
+        buf = self._make_zip({
+            'teams.yaml': 'Pool Z:\n  teams: []\n  advance: 2\n',
+            'logo.png': b'NEW_PNG',
+        })
+        client.post(
+            '/api/import/tournament',
+            data={'file': (buf, 'logo_import.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        # Old logo should be gone, new one present
+        assert not old_logo.exists()
+        new_logo = temp_data_dir / "logo.png"
+        assert new_logo.exists()
+        assert new_logo.read_bytes() == b'NEW_PNG'
+
+    def test_roundtrip_export_import(self, client, temp_data_dir):
+        """Test that exporting then importing produces identical data."""
+        original_teams = "Pool RT:\n  teams:\n    - Charlie\n    - Delta\n  advance: 2\n"
+        original_courts = "court_name,start_time,end_time\nCourt 1,09:00,18:00\n"
+        (temp_data_dir / "teams.yaml").write_text(original_teams)
+        (temp_data_dir / "courts.csv").write_text(original_courts)
+
+        # Export
+        export_resp = client.get('/api/export/tournament')
+        assert export_resp.status_code == 200
+
+        # Wipe current data
+        (temp_data_dir / "teams.yaml").write_text("")
+        (temp_data_dir / "courts.csv").write_text("court_name,start_time,end_time\n")
+
+        # Import the exported ZIP
+        buf = io.BytesIO(export_resp.data)
+        client.post(
+            '/api/import/tournament',
+            data={'file': (buf, 'roundtrip.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        # Data should match originals
+        assert (temp_data_dir / "teams.yaml").read_text() == original_teams
+        assert (temp_data_dir / "courts.csv").read_text() == original_courts
