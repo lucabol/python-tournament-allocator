@@ -2,6 +2,80 @@
 
 {% block title %}Elimination Bracket - Tournament Allocator{% endblock %}
 
+{# --- Macro: mobile bracket match item with score inputs --- #}
+{% macro mobile_bracket_match(match, scoring_format, extra_class='') %}
+{% set is_bye = match.is_bye %}
+{% set is_placeholder = match.get('is_placeholder') %}
+{% set is_playable = match.get('is_playable') %}
+{% set has_winner = match.get('winner') and not is_bye %}
+<div class="m-match-item bracket-match {% if is_bye %}m-bye{% endif %} {% if is_placeholder %}m-placeholder{% endif %} {% if has_winner %}match-completed{% endif %} {{ extra_class }}"
+     data-round="{{ match.round if match.round is defined else '' }}"
+     data-match="{{ match.match_number }}"
+     data-bracket-type="winners"
+     data-team1="{{ match.teams[0] }}"
+     data-team2="{{ match.teams[1] }}">
+    <div class="m-match-meta">
+        <span>Match {{ match.match_number }}</span>
+        {% if is_playable %}<span>🟢</span>
+        {% elif has_winner %}<span>✓</span>{% endif %}
+    </div>
+    <div class="m-match-row">
+        <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">
+            {% if match.seeds %}({{ match.seeds[0] }}) {% endif %}{{ match.teams[0] }}
+        </span>
+        {% if not is_bye and not is_placeholder %}
+        <div class="score-inputs" data-format="{{ scoring_format }}">
+            {% if scoring_format == 'single_set' %}
+            <input type="number" class="score-input" data-set="0" data-team="0"
+                   value="{{ match.result.sets[0][0] if match.result and match.result.sets and match.result.sets[0] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% else %}
+            {% for i in range(3) %}
+            <input type="number" class="score-input" data-set="{{ i }}" data-team="0"
+                   value="{{ match.result.sets[i][0] if match.result and match.result.sets and match.result.sets|length > i and match.result.sets[i] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="m-match-row">
+        <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">
+            {% if match.seeds %}({{ match.seeds[1] }}) {% endif %}{{ match.teams[1] }}
+        </span>
+        {% if not is_bye and not is_placeholder %}
+        <div class="score-inputs" data-format="{{ scoring_format }}">
+            {% if scoring_format == 'single_set' %}
+            <input type="number" class="score-input" data-set="0" data-team="1"
+                   value="{{ match.result.sets[0][1] if match.result and match.result.sets and match.result.sets[0] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% else %}
+            {% for i in range(3) %}
+            <input type="number" class="score-input" data-set="{{ i }}" data-team="1"
+                   value="{{ match.result.sets[i][1] if match.result and match.result.sets and match.result.sets|length > i and match.result.sets[i] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% if is_bye %}<div class="m-bye-label">BYE</div>{% endif %}
+</div>
+{% endmacro %}
+
+{# --- Macro: mobile seeded teams list --- #}
+{% macro mobile_seeds(seeded_teams) %}
+<div class="m-seed-list">
+    {% for team_name, seed, pool_name in seeded_teams %}
+    <div class="m-seed-item">
+        <span class="seed-number">#{{ seed }}</span>
+        <span class="seed-team">{{ team_name }}</span>
+        <span class="seed-pool">{{ pool_name }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
     <h1>🏆 Single Elimination Bracket</h1>
@@ -16,7 +90,7 @@
 
 <!-- Gold Bracket Section -->
 <div class="bracket-tier gold-bracket">
-<h2 class="bracket-tier-title">🥇 Gold Bracket</h2>
+<h2 class="bracket-tier-title desktop-only">🥇 Gold Bracket</h2>
 
 {% if bracket_data.champion %}
 <div class="champion-banner">
@@ -43,10 +117,32 @@
     </div>
 </div>
 
-<div class="bracket-section">
+{# --- Mobile: hierarchical bracket view --- #}
+<details class="m-drill-down m-bracket-parent mobile-only" open>
+    <summary>🥇 Gold Bracket</summary>
+    <div class="m-drill-down-content">
+        <details class="m-drill-down">
+            <summary>Seeded Teams</summary>
+            <div class="m-drill-down-content">{{ mobile_seeds(bracket_data.seeded_teams) }}</div>
+        </details>
+        <details class="m-drill-down" open>
+            <summary>Bracket Rounds</summary>
+            <div class="m-drill-down-content">
+            {% for round_name, matches in bracket_data.rounds.items() %}
+            <div class="m-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            {{ mobile_bracket_match(match, scoring_format) }}
+            {% endfor %}
+            {% endfor %}
+            </div>
+        </details>
+    </div>
+</details>
+
+<div class="bracket-section desktop-only">
     <h2>Seeded Teams</h2>
     <p class="section-note">Teams are seeded based on pool finish position. Placeholders shown until pool play completes.</p>
-    <div class="seeded-teams-grid">
+    <div class="seeded-teams-grid desktop-only">
         {% for team_name, seed, pool_name in bracket_data.seeded_teams %}
         <div class="seed-card">
             <span class="seed-number">#{{ seed }}</span>
@@ -57,14 +153,16 @@
     </div>
 </div>
 
-<div class="bracket-section">
+<div class="bracket-section desktop-only">
     <h2>Bracket Rounds</h2>
     <p class="section-note">
         <span class="legend-item playable-legend">🟢 Ready to play</span>
         <span class="legend-item completed-legend">✓ Completed</span>
         <span class="legend-item waiting-legend">⏳ Waiting for teams</span>
     </p>
-    <div class="bracket-rounds">
+
+    {# --- Desktop: horizontal bracket rounds --- #}
+    <div class="bracket-rounds desktop-only">
         {% for round_name, matches in bracket_data.rounds.items() %}
         <div class="round-column">
             <h3>{{ round_name }}</h3>
@@ -144,6 +242,8 @@
         </div>
         {% endfor %}
     </div>
+
+
 </div>
 
 </div><!-- end gold-bracket -->
@@ -151,7 +251,7 @@
 <!-- Silver Bracket Section -->
 {% if silver_bracket_enabled and silver_bracket_data %}
 <div class="bracket-tier silver-bracket">
-<h2 class="bracket-tier-title">🥈 Silver Bracket</h2>
+<h2 class="bracket-tier-title desktop-only">🥈 Silver Bracket</h2>
 
 {% if silver_bracket_data.champion %}
 <div class="champion-banner silver-champion">
@@ -178,10 +278,32 @@
     </div>
 </div>
 
-<div class="bracket-section">
+{# --- Mobile: hierarchical silver bracket view --- #}
+<details class="m-drill-down m-bracket-parent mobile-only">
+    <summary>🥈 Silver Bracket</summary>
+    <div class="m-drill-down-content">
+        <details class="m-drill-down">
+            <summary>Seeded Teams</summary>
+            <div class="m-drill-down-content">{{ mobile_seeds(silver_bracket_data.seeded_teams) }}</div>
+        </details>
+        <details class="m-drill-down" open>
+            <summary>Silver Bracket Rounds</summary>
+            <div class="m-drill-down-content">
+            {% for round_name, matches in silver_bracket_data.rounds.items() %}
+            <div class="m-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            {{ mobile_bracket_match(match, scoring_format) }}
+            {% endfor %}
+            {% endfor %}
+            </div>
+        </details>
+    </div>
+</details>
+
+<div class="bracket-section desktop-only">
     <h2>Seeded Teams</h2>
     <p class="section-note">Non-advancing teams seeded by pool finish position.</p>
-    <div class="seeded-teams-grid">
+    <div class="seeded-teams-grid desktop-only">
         {% for team_name, seed, pool_name in silver_bracket_data.seeded_teams %}
         <div class="seed-card">
             <span class="seed-number">#{{ seed }}</span>
@@ -192,9 +314,11 @@
     </div>
 </div>
 
-<div class="bracket-section">
+<div class="bracket-section desktop-only">
     <h2>Bracket Rounds</h2>
-    <div class="bracket-rounds">
+
+    {# --- Desktop: horizontal bracket rounds --- #}
+    <div class="bracket-rounds desktop-only">
         {% for round_name, matches in silver_bracket_data.rounds.items() %}
         <div class="round-column">
             <h3>{{ round_name }}</h3>
@@ -274,6 +398,8 @@
         </div>
         {% endfor %}
     </div>
+
+
 </div>
 </div><!-- end silver-bracket -->
 {% endif %}
@@ -291,7 +417,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const bracketMatches = document.querySelectorAll('.bracket-match:not(.bye-match):not(.placeholder-match)');
+    const bracketMatches = document.querySelectorAll('.bracket-match:not(.bye-match):not(.placeholder-match):not(.m-bye):not(.m-placeholder)');
     
     bracketMatches.forEach(match => {
         const inputs = match.querySelectorAll('.score-input');
@@ -312,8 +438,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const matchNumber = parseInt(match.dataset.match);
         const bracketType = match.dataset.bracketType || 'winners';
         
-        const team1Inputs = match.querySelectorAll('.team-top .score-input');
-        const team2Inputs = match.querySelectorAll('.team-bottom .score-input');
+        // Desktop uses .team-top/.team-bottom, mobile uses .m-match-row with score-inputs
+        let team1Inputs = match.querySelectorAll('.team-top .score-input');
+        let team2Inputs = match.querySelectorAll('.team-bottom .score-input');
+        
+        // Fallback for mobile layout: first and second .m-match-row
+        if (team1Inputs.length === 0) {
+            const rows = match.querySelectorAll('.m-match-row');
+            if (rows.length >= 2) {
+                team1Inputs = rows[0].querySelectorAll('.score-input');
+                team2Inputs = rows[1].querySelectorAll('.score-input');
+            }
+        }
         
         const sets = [];
         const numSets = team1Inputs.length;
@@ -344,7 +480,6 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Refresh page to update bracket advancement
                 if (data.winner) {
                     location.reload();
                 }

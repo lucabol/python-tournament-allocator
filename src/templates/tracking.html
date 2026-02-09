@@ -34,12 +34,12 @@
 {% set pool_days = schedule.keys() | reject('equalto', 'Bracket Phase') | list %}
 {% for day in pool_days %}
 {% set day_data = schedule[day] %}
-<section class="section day-section">
+{% set time_slots = day_data['_time_slots'] %}
+{% set courts = day_data.keys() | reject('equalto', '_time_slots') | list %}
+
+{# --- Desktop: table layout --- #}
+<section class="section day-section desktop-only">
     <h2>{{ day }}</h2>
-    
-    {% set time_slots = day_data['_time_slots'] %}
-    {% set courts = day_data.keys() | reject('equalto', '_time_slots') | list %}
-    
     <div class="schedule-table-wrapper">
         <table class="schedule-table">
             <thead>
@@ -112,13 +112,77 @@
         </table>
     </div>
 </section>
+
+{# --- Mobile: accordion + flat list with score inputs --- #}
+<details class="m-drill-down mobile-only" open>
+    <summary>{{ day }}</summary>
+    <div class="m-drill-down-content">
+        {% for time_slot in time_slots %}
+        {% for court_name in courts %}
+        {% if time_slot in day_data[court_name]['time_to_match'] %}
+            {% set match = day_data[court_name]['time_to_match'][time_slot] %}
+            {% set team1 = match.teams[0] %}
+            {% set team2 = match.teams[1] %}
+            {% set match_key_check = [team1, team2]|sort|join('_vs_') %}
+            {% set pool_name = match.pool if match.pool else '' %}
+            {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
+            {% set match_result = results.get(full_match_key, {}) %}
+            {% set is_completed = match_result.get('completed', false) %}
+            <div class="m-match-item match-cell {% if is_completed %}match-completed{% endif %}"
+                 data-team1="{{ team1 }}"
+                 data-team2="{{ team2 }}"
+                 data-pool="{{ pool_name }}">
+                <div class="m-match-meta">
+                    <span>{{ time_slot }} · {{ court_name }}</span>
+                    {% if pool_name %}<span>{{ pool_name }}</span>{% endif %}
+                </div>
+                <div class="m-match-row match-teams-row">
+                    <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
+                    <div class="score-inputs" data-format="{{ scoring_format }}">
+                        {% if scoring_format == 'single_set' %}
+                            <input type="number" class="score-input set-score" data-set="0" data-team="0"
+                                   value="{{ match_result.sets[0][0] if match_result.sets and match_result.sets[0] else '' }}"
+                                   min="0" max="99" placeholder="-">
+                        {% else %}
+                            {% for i in range(3) %}
+                            <input type="number" class="score-input set-score" data-set="{{ i }}" data-team="0"
+                                   value="{{ match_result.sets[i][0] if match_result.sets and match_result.sets|length > i and match_result.sets[i] else '' }}"
+                                   min="0" max="99" placeholder="-">
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="m-match-row match-teams-row">
+                    <span class="team-name {% if match_result.winner == team2 %}winner{% endif %}">{{ team2 }}</span>
+                    <div class="score-inputs" data-format="{{ scoring_format }}">
+                        {% if scoring_format == 'single_set' %}
+                            <input type="number" class="score-input set-score" data-set="0" data-team="1"
+                                   value="{{ match_result.sets[0][1] if match_result.sets and match_result.sets[0] else '' }}"
+                                   min="0" max="99" placeholder="-">
+                        {% else %}
+                            {% for i in range(3) %}
+                            <input type="number" class="score-input set-score" data-set="{{ i }}" data-team="1"
+                                   value="{{ match_result.sets[i][1] if match_result.sets and match_result.sets|length > i and match_result.sets[i] else '' }}"
+                                   min="0" max="99" placeholder="-">
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+        {% endfor %}
+        {% endfor %}
+    </div>
+</details>
 {% endfor %}
 
 <!-- Pool Standings Section -->
 {% if standings %}
 <section class="section standings-section">
-    <h2>Pool Standings</h2>
-    <div class="standings-grid">
+    <h2 class="desktop-only">Pool Standings</h2>
+
+    {# --- Desktop: table layout --- #}
+    <div class="standings-grid desktop-only">
         {% for pool_name, team_list in standings.items() %}
         <div class="pool-standings">
             <h3>{{ pool_name }}</h3>
@@ -157,6 +221,32 @@
         </div>
         {% endfor %}
     </div>
+
+    {# --- Mobile: compact flex rows --- #}
+    <details class="m-drill-down mobile-only" open>
+        <summary>Pool Standings</summary>
+        <div class="m-drill-down-content">
+        {% for pool_name, team_list in standings.items() %}
+        <div class="m-pool-card">
+            <h4>{{ pool_name }}</h4>
+            {% for team in team_list %}
+            {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
+            {% set has_played = team.matches_played > 0 %}
+            <div class="m-standing-row {% if loop.index <= advance_count and has_played %}advancing{% endif %}">
+                <span class="m-standing-rank">{{ loop.index }}.</span>
+                <span class="m-standing-name">{{ team.team }}</span>
+                <span class="m-standing-stats">
+                    {{ team.wins }}W {{ team.losses }}L
+                    <span class="{% if team.set_diff > 0 %}m-stat-positive{% elif team.set_diff < 0 %}m-stat-negative{% endif %}">
+                        {{ '+' if team.set_diff > 0 else '' }}{{ team.set_diff }}
+                    </span>
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+        </div>
+    </details>
 </section>
 {% endif %}
 
@@ -250,7 +340,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function updateStandings(standings) {
         for (const [poolName, teamList] of Object.entries(standings)) {
-            // Find the pool standings div by iterating
+            // Update desktop standings tables
             document.querySelectorAll('.pool-standings').forEach(div => {
                 const h3 = div.querySelector('h3');
                 if (h3 && h3.textContent === poolName) {
@@ -272,6 +362,29 @@ document.addEventListener('DOMContentLoaded', function() {
                             </tr>
                         `).join('');
                     }
+                }
+            });
+            // Update mobile standings rows
+            document.querySelectorAll('.m-pool-card').forEach(div => {
+                const h4 = div.querySelector('h4');
+                if (h4 && h4.textContent === poolName) {
+                    const rows = div.querySelectorAll('.m-standing-row');
+                    rows.forEach(r => r.remove());
+                    teamList.forEach((team, idx) => {
+                        const row = document.createElement('div');
+                        row.className = 'm-standing-row' + (idx < (team.advance_count || 2) && team.matches_played > 0 ? ' advancing' : '');
+                        row.innerHTML = `
+                            <span class="m-standing-rank">${idx + 1}.</span>
+                            <span class="m-standing-name">${team.team}</span>
+                            <span class="m-standing-stats">
+                                ${team.wins}W ${team.losses}L
+                                <span class="${team.set_diff > 0 ? 'm-stat-positive' : team.set_diff < 0 ? 'm-stat-negative' : ''}">
+                                    ${team.set_diff > 0 ? '+' : ''}${team.set_diff}
+                                </span>
+                            </span>
+                        `;
+                        div.appendChild(row);
+                    });
                 }
             });
         }

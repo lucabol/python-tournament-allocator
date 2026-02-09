@@ -2248,3 +2248,353 @@ tr:hover .court-save-btn {
 .bracket-match-cell .match-pool-label {
     font-size: 0.625rem;
 }
+
+/* ============================================================
+   Mobile Responsive: Accordion + Compact List Layout
+   Toggle between desktop (tables/brackets) and mobile (cards)
+   ============================================================ */
+
+/* Desktop: show desktop-only, hide mobile-only */
+.mobile-only { display: none !important; }
+.desktop-only { display: block !important; }
+
+/* Preserve original display types for desktop-only elements (desktop only) */
+@media (min-width: 640px) {
+    table.desktop-only { display: table !important; }
+    thead.desktop-only { display: table-header-group !important; }
+    .bracket-rounds.desktop-only { display: flex !important; }
+    .seeded-teams-grid.desktop-only { display: grid !important; }
+    .finals-container.desktop-only { display: grid !important; }
+    .grand-final-container.desktop-only { display: grid !important; }
+}
+
+@media (max-width: 639px) {
+    .mobile-only { display: block !important; }
+    .desktop-only { display: none !important; }
+
+    /* Strip outer section chrome so accordions sit flat */
+    .section {
+        background: transparent;
+        box-shadow: none;
+        padding: 0;
+        margin-bottom: 0;
+    }
+
+    /* Hide bracket stats and champion banner on mobile (inside parent accordion) */
+    .bracket-stats,
+    .champion-banner {
+        display: none !important;
+    }
+
+    /* --- Collapsible Sections (details/summary) --- */
+    .m-drill-down {
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        margin-bottom: 0.75rem;
+        background: var(--card-bg);
+        overflow: hidden;
+    }
+
+    .m-drill-down summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.875rem 1rem;
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: var(--text-color);
+        cursor: pointer;
+        user-select: none;
+        min-height: 48px;
+        list-style: none;
+        background: var(--bg-color);
+        border-bottom: 1px solid transparent;
+    }
+
+    .m-drill-down summary::-webkit-details-marker { display: none; }
+
+    .m-drill-down summary::after {
+        content: '\25B6';
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        transition: transform 0.2s;
+    }
+
+    .m-drill-down[open] summary::after {
+        transform: rotate(90deg);
+    }
+
+    .m-drill-down[open] summary {
+        border-bottom-color: var(--border-color);
+    }
+
+    .m-drill-down-content {
+        padding: 0.75rem 1rem;
+    }
+
+    /* --- Parent bracket tier accordion --- */
+    .m-bracket-parent {
+        border-width: 2px;
+        margin-bottom: 1rem;
+    }
+
+    .m-bracket-parent > summary {
+        font-size: 1.25rem;
+        font-weight: 900;
+        padding: 1rem 1.125rem;
+    }
+
+    .m-bracket-parent > .m-drill-down-content {
+        padding: 0.5rem 0.625rem;
+    }
+
+    .m-bracket-parent > .m-drill-down-content > .m-drill-down {
+        margin-bottom: 0.5rem;
+    }
+
+    .m-bracket-parent > .m-drill-down-content > .m-drill-down summary {
+        font-size: 1rem;
+        font-weight: 700;
+        padding: 0.75rem 0.875rem;
+    }
+
+    /* --- Match List Item (compact card) --- */
+    .m-match-item {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-left: 3px solid #d1d5db;
+        border-radius: 6px;
+        padding: 0.625rem 0.75rem;
+        margin-bottom: 0.375rem;
+    }
+
+    .m-match-item.match-completed {
+        border-left-color: var(--success-color);
+        background: #f0fdf4;
+    }
+
+    .m-match-item.m-placeholder {
+        border-left-color: var(--warning-color);
+        background: #fffbeb;
+        opacity: 0.8;
+    }
+
+    .m-match-item.m-bracket-match {
+        border-left-color: var(--warning-color);
+    }
+
+    .m-match-item.m-bye {
+        opacity: 0.5;
+    }
+
+    .m-match-item.m-grand-final {
+        border: 2px solid #f59e0b;
+        border-left: 4px solid #f59e0b;
+        background: #fffbeb;
+    }
+
+    .m-match-item.m-bracket-reset {
+        border: 2px dashed var(--text-muted);
+        border-left: 4px dashed var(--text-muted);
+        background: #f5f5f5;
+    }
+
+    .m-match-item.m-winners {
+        border-left-color: var(--primary-color);
+    }
+
+    .m-match-item.m-losers {
+        border-left-color: var(--danger-color);
+    }
+
+    .m-match-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .m-match-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: 28px;
+        gap: 0.25rem;
+    }
+
+    .m-match-row .team-name {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: var(--text-color);
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .m-match-row .team-name.winner { color: var(--success-color); }
+
+    .m-match-row .m-score {
+        font-size: 1.1rem;
+        font-weight: 800;
+        color: var(--text-color);
+        min-width: 2rem;
+        text-align: center;
+    }
+
+    .m-match-row .score-inputs {
+        display: flex;
+        gap: 0.25rem;
+        flex-shrink: 0;
+    }
+
+    .m-match-row .score-input {
+        width: 2.5rem !important;
+        min-width: 2.5rem !important;
+        max-width: 2.5rem !important;
+        height: 2rem !important;
+        padding: 0.25rem !important;
+        text-align: center;
+        font-size: 0.875rem !important;
+        font-weight: 600;
+        border: 1px solid var(--border-color) !important;
+        border-radius: 4px !important;
+        background: white !important;
+        -moz-appearance: textfield;
+    }
+
+    .m-match-row .score-input::-webkit-outer-spin-button,
+    .m-match-row .score-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .m-match-row .score-input:focus {
+        border-color: var(--primary-color) !important;
+        outline: none;
+    }
+
+    /* --- Round / Section Labels --- */
+    .m-round-label {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: var(--text-muted);
+        margin: 0.75rem 0 0.375rem 0;
+        padding-bottom: 0.25rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .m-section-header {
+        font-size: 1rem;
+        font-weight: 800;
+        color: var(--text-color);
+        margin: 1rem 0 0.5rem 0;
+    }
+
+    .m-match-code {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        font-weight: 600;
+    }
+
+    .m-bye-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-weight: 700;
+        text-align: center;
+        margin-top: 0.125rem;
+    }
+
+    .m-bracket-feed {
+        font-size: 0.625rem;
+        color: var(--danger-color);
+        text-align: center;
+        margin-top: 0.25rem;
+        font-style: italic;
+    }
+
+    .m-match-note {
+        font-size: 0.625rem;
+        color: var(--text-muted);
+        text-align: center;
+        margin-top: 0.25rem;
+        font-style: italic;
+    }
+
+    .m-conditional-badge {
+        font-size: 0.625rem;
+        background: var(--text-muted);
+        color: white;
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        margin-left: 0.5rem;
+    }
+
+    /* --- Pool Standings (compact flex rows) --- */
+    .m-pool-card {
+        margin-bottom: 0.75rem;
+    }
+
+    .m-pool-card h4 {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: var(--text-color);
+        margin: 0 0 0.375rem 0;
+        padding-bottom: 0.25rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .m-standing-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.375rem 0;
+        border-bottom: 1px solid var(--border-color);
+        min-height: 36px;
+        font-size: 0.9rem;
+    }
+
+    .m-standing-row:last-child { border-bottom: none; }
+
+    .m-standing-row.advancing {
+        background: #ecfdf5;
+        margin: 0 -0.75rem;
+        padding: 0.375rem 0.75rem;
+        border-radius: 4px;
+    }
+
+    .m-standing-rank { font-weight: 800; color: var(--text-muted); min-width: 1.5rem; }
+    .m-standing-name { font-weight: 700; color: var(--text-color); flex: 1; margin-left: 0.25rem; }
+    .m-standing-stats { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
+    .m-stat-positive { color: var(--success-color); }
+    .m-stat-negative { color: var(--danger-color); }
+
+    /* --- Seeded Teams (stacked list) --- */
+    .m-seed-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .m-seed-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.375rem 0.5rem;
+        background: var(--bg-color);
+        border-radius: 4px;
+        font-size: 0.875rem;
+    }
+
+    .m-seed-item .seed-number { font-weight: 700; color: var(--primary-color); min-width: 2rem; }
+    .m-seed-item .seed-team { flex: 1; font-weight: 500; }
+    .m-seed-item .seed-pool { font-size: 0.6875rem; color: var(--text-muted); }
+
+    /* --- Stats cards stacked --- */
+    .bracket-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

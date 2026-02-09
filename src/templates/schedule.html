@@ -48,12 +48,12 @@
     {% endif %}
     {% for day in sorted_days %}
     {% set day_data = schedule[day] %}
-    <section class="section day-section">
+    {% set time_slots = day_data['_time_slots'] if '_time_slots' in day_data else [] %}
+    {% set courts = day_data.keys() | reject('equalto', '_time_slots') | list %}
+
+    {# --- Desktop: table layout --- #}
+    <section class="section day-section desktop-only">
         <h2>{{ day }}</h2>
-        
-        {% set time_slots = day_data['_time_slots'] if '_time_slots' in day_data else [] %}
-        {% set courts = day_data.keys() | reject('equalto', '_time_slots') | list %}
-        
         <div class="schedule-table-wrapper">
             <table class="schedule-table">
                 <thead>
@@ -110,6 +110,43 @@
             </table>
         </div>
     </section>
+
+    {# --- Mobile: accordion + flat list --- #}
+    <details class="m-drill-down mobile-only" open>
+        <summary>{{ day }}</summary>
+        <div class="m-drill-down-content">
+            {% for time_slot in time_slots %}
+            {% for court_name in courts %}
+            {% set court_data = day_data[court_name] %}
+            {% set time_to_match = court_data.time_to_match if court_data.time_to_match is defined else {} %}
+            {% if time_slot in time_to_match %}
+                {% set match = time_to_match[time_slot] %}
+                {% set has_result = match.result is defined and match.result and match.result.completed %}
+                <div class="m-match-item {% if has_result %}match-completed{% endif %} {% if match.is_bracket %}m-bracket-match{% endif %} {% if match.is_placeholder %}m-placeholder{% endif %}">
+                    <div class="m-match-meta">
+                        <span>{{ time_slot }} · {{ court_name }}</span>
+                        {% if match.match_code %}<span class="m-match-code">{{ match.match_code }}</span>{% endif %}
+                        {% if match.is_bracket %}<span>{{ match.round }}</span>
+                        {% elif match.pool %}<span>{{ match.pool }}</span>{% endif %}
+                    </div>
+                    <div class="m-match-row">
+                        <span class="team-name {% if has_result and match.result.winner == match.teams[0] %}winner{% endif %}">{{ match.teams[0] }}</span>
+                        {% if has_result and match.result.sets %}
+                        <span class="m-score">{{ match.result.sets | map('first') | join('-') }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="m-match-row">
+                        <span class="team-name {% if has_result and match.result.winner == match.teams[1] %}winner{% endif %}">{{ match.teams[1] }}</span>
+                        {% if has_result and match.result.sets %}
+                        <span class="m-score">{{ match.result.sets | map('last') | join('-') }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endif %}
+            {% endfor %}
+            {% endfor %}
+        </div>
+    </details>
     {% endfor %}
 {% elif not error %}
 <div class="empty-state">

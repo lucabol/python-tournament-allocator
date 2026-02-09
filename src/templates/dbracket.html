@@ -2,6 +2,142 @@
 
 {% block title %}Double Elimination Bracket - Tournament Allocator{% endblock %}
 
+{# --- Macro: mobile bracket match item with score inputs --- #}
+{% macro mobile_bracket_match(match, scoring_format, bracket_type='winners', extra_class='') %}
+{% set is_bye = match.is_bye if match.is_bye is defined else false %}
+{% set is_placeholder = match.get('is_placeholder') %}
+{% set is_playable = match.get('is_playable') %}
+{% set has_winner = match.get('winner') and not is_bye %}
+<div class="m-match-item bracket-match {% if is_bye %}m-bye{% endif %} {% if is_placeholder %}m-placeholder{% endif %} {% if has_winner %}match-completed{% endif %} {{ extra_class }}"
+     data-round="{{ match.round if match.round is defined else '' }}"
+     data-match="{{ match.match_number }}"
+     data-match-code="{{ match.match_code }}"
+     data-bracket-type="{{ bracket_type }}"
+     data-team1="{{ match.teams[0] }}"
+     data-team2="{{ match.teams[1] }}">
+    <div class="m-match-meta">
+        <span class="m-match-code">{{ match.match_code }}</span>
+        {% if is_playable %}<span>🟢</span>
+        {% elif has_winner %}<span>✓</span>{% endif %}
+    </div>
+    <div class="m-match-row">
+        <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">
+            {% if match.seeds is defined and match.seeds %}({{ match.seeds[0] }}) {% endif %}{{ match.teams[0] }}
+        </span>
+        {% if not is_bye and not is_placeholder %}
+        <div class="score-inputs" data-format="{{ scoring_format }}">
+            {% if scoring_format == 'single_set' %}
+            <input type="number" class="score-input" data-set="0" data-team="0"
+                   value="{{ match.result.sets[0][0] if match.result and match.result.sets and match.result.sets[0] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% else %}
+            {% for i in range(3) %}
+            <input type="number" class="score-input" data-set="{{ i }}" data-team="0"
+                   value="{{ match.result.sets[i][0] if match.result and match.result.sets and match.result.sets|length > i and match.result.sets[i] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="m-match-row">
+        <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">
+            {% if match.seeds is defined and match.seeds %}({{ match.seeds[1] }}) {% endif %}{{ match.teams[1] }}
+        </span>
+        {% if not is_bye and not is_placeholder %}
+        <div class="score-inputs" data-format="{{ scoring_format }}">
+            {% if scoring_format == 'single_set' %}
+            <input type="number" class="score-input" data-set="0" data-team="1"
+                   value="{{ match.result.sets[0][1] if match.result and match.result.sets and match.result.sets[0] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% else %}
+            {% for i in range(3) %}
+            <input type="number" class="score-input" data-set="{{ i }}" data-team="1"
+                   value="{{ match.result.sets[i][1] if match.result and match.result.sets and match.result.sets|length > i and match.result.sets[i] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% if is_bye %}<div class="m-bye-label">BYE</div>{% endif %}
+    {% if match.get('losers_feed_to') and not is_bye %}
+    <div class="m-bracket-feed">Loser → {{ match.losers_feed_to }}</div>
+    {% endif %}
+    {% if match.get('note') %}<div class="m-match-note">{{ match.note }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{# --- Macro: mobile grand final / bracket reset --- #}
+{% macro mobile_final_match(match, scoring_format, bracket_type, label, is_conditional=false) %}
+{% set is_placeholder = match.get('is_placeholder') %}
+{% set is_playable = match.get('is_playable') %}
+{% set has_winner = match.get('winner') %}
+{% set needs_reset = match.get('needs_reset', false) if is_conditional else true %}
+<div class="m-match-item bracket-match {% if has_winner %}match-completed{% endif %} {% if not is_conditional %}m-grand-final{% else %}m-bracket-reset{% endif %}"
+     data-round="{{ label }}"
+     data-match="1"
+     data-bracket-type="{{ bracket_type }}"
+     data-team1="{{ match.teams[0] }}"
+     data-team2="{{ match.teams[1] }}">
+    <div class="m-match-meta">
+        <span>{{ label }}{% if is_conditional %} <span class="m-conditional-badge">If Needed</span>{% endif %}</span>
+        {% if is_playable and (not is_conditional or needs_reset) %}<span>🟢</span>
+        {% elif has_winner %}<span>✓</span>{% endif %}
+    </div>
+    <div class="m-match-row">
+        <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">{{ match.teams[0] }}</span>
+        {% if not is_placeholder and (not is_conditional or needs_reset) %}
+        <div class="score-inputs" data-format="{{ scoring_format }}">
+            {% if scoring_format == 'single_set' %}
+            <input type="number" class="score-input" data-set="0" data-team="0"
+                   value="{{ match.result.sets[0][0] if match.result and match.result.sets and match.result.sets[0] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% else %}
+            {% for i in range(3) %}
+            <input type="number" class="score-input" data-set="{{ i }}" data-team="0"
+                   value="{{ match.result.sets[i][0] if match.result and match.result.sets and match.result.sets|length > i and match.result.sets[i] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <div class="m-match-row">
+        <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">{{ match.teams[1] }}</span>
+        {% if not is_placeholder and (not is_conditional or needs_reset) %}
+        <div class="score-inputs" data-format="{{ scoring_format }}">
+            {% if scoring_format == 'single_set' %}
+            <input type="number" class="score-input" data-set="0" data-team="1"
+                   value="{{ match.result.sets[0][1] if match.result and match.result.sets and match.result.sets[0] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% else %}
+            {% for i in range(3) %}
+            <input type="number" class="score-input" data-set="{{ i }}" data-team="1"
+                   value="{{ match.result.sets[i][1] if match.result and match.result.sets and match.result.sets|length > i and match.result.sets[i] else '' }}"
+                   min="0" max="99" placeholder="-">
+            {% endfor %}
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% if match.get('note') %}<div class="m-match-note">{{ match.note }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{# --- Macro: mobile seeded teams list --- #}
+{% macro mobile_seeds(seeded_teams) %}
+<div class="m-seed-list">
+    {% for team_name, seed, pool_name in seeded_teams %}
+    <div class="m-seed-item">
+        <span class="seed-number">#{{ seed }}</span>
+        <span class="seed-team">{{ team_name }}</span>
+        <span class="seed-pool">{{ pool_name }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
     <h1>🏆 Double Elimination Bracket</h1>
@@ -32,12 +168,56 @@
 
 <!-- Gold Bracket Section -->
 <div class="bracket-tier gold-bracket">
-<h2 class="bracket-tier-title">🥇 Gold Bracket</h2>
+<h2 class="bracket-tier-title desktop-only">🥇 Gold Bracket</h2>
 
-<div class="bracket-section">
+{# --- Mobile: hierarchical bracket view --- #}
+<details class="m-drill-down m-bracket-parent mobile-only" open>
+    <summary>🥇 Gold Bracket</summary>
+    <div class="m-drill-down-content">
+        <details class="m-drill-down">
+            <summary>Seeded Teams</summary>
+            <div class="m-drill-down-content">{{ mobile_seeds(bracket_data.seeded_teams) }}</div>
+        </details>
+        <details class="m-drill-down" open>
+            <summary>🔵 Winners Bracket</summary>
+            <div class="m-drill-down-content">
+            {% for round_name, matches in bracket_data.winners_bracket.items() %}
+            <div class="m-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            {{ mobile_bracket_match(match, scoring_format, 'winners', 'm-winners') }}
+            {% endfor %}
+            {% endfor %}
+            </div>
+        </details>
+        <details class="m-drill-down">
+            <summary>🔴 Losers Bracket</summary>
+            <div class="m-drill-down-content">
+            {% for round_name, matches in bracket_data.losers_bracket.items() %}
+            <div class="m-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            {{ mobile_bracket_match(match, scoring_format, 'losers', 'm-losers') }}
+            {% endfor %}
+            {% endfor %}
+            </div>
+        </details>
+        {% if bracket_data.grand_final %}
+        <details class="m-drill-down" open>
+            <summary>🏆 Grand Final</summary>
+            <div class="m-drill-down-content">
+            {{ mobile_final_match(bracket_data.grand_final, scoring_format, 'grand_final', 'Grand Final') }}
+            {% if bracket_data.bracket_reset %}
+            {{ mobile_final_match(bracket_data.bracket_reset, scoring_format, 'bracket_reset', 'Bracket Reset', true) }}
+            {% endif %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+</details>
+
+<div class="bracket-section desktop-only">
     <h2>Seeded Teams</h2>
     <p class="section-note">Teams are seeded based on pool finish position. Placeholders shown until pool play completes.</p>
-    <div class="seeded-teams-grid">
+    <div class="seeded-teams-grid desktop-only">
         {% for team_name, seed, pool_name in bracket_data.seeded_teams %}
         <div class="seed-card">
             <span class="seed-number">#{{ seed }}</span>
@@ -48,14 +228,16 @@
     </div>
 </div>
 
-<div class="bracket-section">
+<div class="bracket-section desktop-only">
     <h2>🔵 Winners Bracket</h2>
     <p class="section-note">
         Teams that haven't lost yet. Losers drop to the Losers Bracket.
         <span class="legend-item playable-legend">🟢 Ready to play</span>
         <span class="legend-item completed-legend">✓ Completed</span>
     </p>
-    <div class="bracket-rounds">
+
+    {# --- Desktop: horizontal bracket rounds --- #}
+    <div class="bracket-rounds desktop-only">
         {% for round_name, matches in bracket_data.winners_bracket.items() %}
         <div class="round-column">
             <h3>{{ round_name }}</h3>
@@ -139,12 +321,16 @@
         </div>
         {% endfor %}
     </div>
+
+
 </div>
 
-<div class="bracket-section losers-section">
+<div class="bracket-section losers-section desktop-only">
     <h2>🔴 Losers Bracket</h2>
     <p class="section-note">Teams with one loss. One more loss means elimination.</p>
-    <div class="bracket-rounds">
+
+    {# --- Desktop: horizontal losers bracket rounds --- #}
+    <div class="bracket-rounds desktop-only">
         {% for round_name, matches in bracket_data.losers_bracket.items() %}
         <div class="round-column">
             <h3>{{ round_name }}</h3>
@@ -219,14 +405,17 @@
         </div>
         {% endfor %}
     </div>
+
+
 </div>
 
-<div class="bracket-section finals-section">
+<div class="bracket-section finals-section desktop-only">
     <h2>🏆 Grand Final</h2>
     <p class="section-note">Winners Bracket Champion vs Losers Bracket Champion</p>
     
     {% if bracket_data.grand_final %}
-    <div class="finals-container">
+    {# --- Desktop: finals container --- #}
+    <div class="finals-container desktop-only">
         <div class="bracket-match grand-final-match {% if bracket_data.grand_final.get('is_playable') %}playable-match{% endif %} {% if bracket_data.grand_final.get('winner') %}completed-match{% endif %}"
              data-round="Grand Final"
              data-match="1"
@@ -352,6 +541,7 @@
         </div>
         {% endif %}
     </div>
+
     {% endif %}
 </div>
 
@@ -360,12 +550,56 @@
 <!-- Silver Bracket Section -->
 {% if silver_bracket_enabled and silver_bracket_data %}
 <div class="bracket-tier silver-bracket">
-<h2 class="bracket-tier-title">🥈 Silver Bracket</h2>
+<h2 class="bracket-tier-title desktop-only">🥈 Silver Bracket</h2>
 
-<div class="bracket-section">
+{# --- Mobile: hierarchical silver bracket view --- #}
+<details class="m-drill-down m-bracket-parent mobile-only">
+    <summary>🥈 Silver Bracket</summary>
+    <div class="m-drill-down-content">
+        <details class="m-drill-down">
+            <summary>Seeded Teams</summary>
+            <div class="m-drill-down-content">{{ mobile_seeds(silver_bracket_data.seeded_teams) }}</div>
+        </details>
+        <details class="m-drill-down" open>
+            <summary>🥈 Winners Bracket</summary>
+            <div class="m-drill-down-content">
+            {% for round_name, matches in silver_bracket_data.winners_bracket.items() %}
+            <div class="m-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            {{ mobile_bracket_match(match, scoring_format, 'silver_winners', 'm-silver-winners') }}
+            {% endfor %}
+            {% endfor %}
+            </div>
+        </details>
+        <details class="m-drill-down">
+            <summary>🥈 Losers Bracket</summary>
+            <div class="m-drill-down-content">
+            {% for round_name, matches in silver_bracket_data.losers_bracket.items() %}
+            <div class="m-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            {{ mobile_bracket_match(match, scoring_format, 'silver_losers', 'm-silver-losers') }}
+            {% endfor %}
+            {% endfor %}
+            </div>
+        </details>
+        {% if silver_bracket_data.grand_final %}
+        <details class="m-drill-down" open>
+            <summary>🥈 Grand Final</summary>
+            <div class="m-drill-down-content">
+            {{ mobile_final_match(silver_bracket_data.grand_final, scoring_format, 'silver_grand_final', 'Silver Grand Final') }}
+            {% if silver_bracket_data.bracket_reset %}
+            {{ mobile_final_match(silver_bracket_data.bracket_reset, scoring_format, 'silver_bracket_reset', 'Silver Bracket Reset', true) }}
+            {% endif %}
+            </div>
+        </details>
+        {% endif %}
+    </div>
+</details>
+
+<div class="bracket-section desktop-only">
     <h2>Seeded Teams</h2>
     <p class="section-note">Teams that didn't advance from pool play compete in the Silver Bracket.</p>
-    <div class="seeded-teams-grid">
+    <div class="seeded-teams-grid desktop-only">
         {% for team_name, seed, pool_name in silver_bracket_data.seeded_teams %}
         <div class="seed-card">
             <span class="seed-number">#{{ seed }}</span>
@@ -377,9 +611,11 @@
 </div>
 
 <!-- Silver Winners Bracket -->
-<div class="bracket-section">
+<div class="bracket-section desktop-only">
     <h2>🥈 Silver Winners Bracket</h2>
-    <div class="bracket-rounds">
+
+    {# --- Desktop --- #}
+    <div class="bracket-rounds desktop-only">
         {% for round_name, matches in silver_bracket_data.winners_bracket.items() %}
         <div class="round-column">
             <h3>{{ round_name }}</h3>
@@ -460,12 +696,16 @@
         </div>
         {% endfor %}
     </div>
+
+
 </div>
 
 <!-- Silver Losers Bracket -->
-<div class="bracket-section">
+<div class="bracket-section desktop-only">
     <h2>🥈 Silver Losers Bracket</h2>
-    <div class="bracket-rounds">
+
+    {# --- Desktop --- #}
+    <div class="bracket-rounds desktop-only">
         {% for round_name, matches in silver_bracket_data.losers_bracket.items() %}
         <div class="round-column">
             <h3>{{ round_name }}</h3>
@@ -536,13 +776,17 @@
         </div>
         {% endfor %}
     </div>
+
+
 </div>
 
 <!-- Silver Grand Final -->
 {% if silver_bracket_data.grand_final %}
-<div class="bracket-section">
+<div class="bracket-section desktop-only">
     <h2>🥈 Silver Grand Final</h2>
-    <div class="grand-final-container">
+
+    {# --- Desktop --- #}
+    <div class="grand-final-container desktop-only">
         <div class="bracket-match grand-final-match {% if silver_bracket_data.grand_final.get('is_placeholder') %}placeholder-match{% endif %} {% if silver_bracket_data.grand_final.get('is_playable') %}playable-match{% endif %} {% if silver_bracket_data.grand_final.get('winner') %}completed-match{% endif %}"
              data-round="Grand Final"
              data-match="1"
@@ -605,11 +849,15 @@
             </div>
         </div>
     </div>
+
+
 </div>
 
 {% if silver_bracket_data.bracket_reset %}
-<div class="bracket-section">
-    <div class="finals-container">
+<div class="bracket-section desktop-only">
+
+    {# --- Desktop --- #}
+    <div class="finals-container desktop-only">
         <div class="bracket-match bracket-reset-match conditional-match {% if silver_bracket_data.bracket_reset.get('needs_reset') and silver_bracket_data.bracket_reset.get('is_playable') %}playable-match{% endif %} {% if silver_bracket_data.bracket_reset.get('winner') %}completed-match{% endif %}"
              data-round="Bracket Reset"
              data-match="1"
@@ -669,6 +917,7 @@
             </div>
         </div>
     </div>
+
 </div>
 {% endif %}
 {% endif %}
@@ -706,8 +955,17 @@ document.addEventListener('DOMContentLoaded', function() {
         const matchNumber = parseInt(match.dataset.match);
         const bracketType = match.dataset.bracketType || 'winners';
         
-        const team1Inputs = match.querySelectorAll('.team-top .score-input');
-        const team2Inputs = match.querySelectorAll('.team-bottom .score-input');
+        let team1Inputs = match.querySelectorAll('.team-top .score-input');
+        let team2Inputs = match.querySelectorAll('.team-bottom .score-input');
+        
+        // Fallback for mobile layout which uses .m-match-row instead of .team-top/.team-bottom
+        if (team1Inputs.length === 0) {
+            const rows = match.querySelectorAll('.m-match-row');
+            if (rows.length >= 2) {
+                team1Inputs = rows[0].querySelectorAll('.score-input');
+                team2Inputs = rows[1].querySelectorAll('.score-input');
+            }
+        }
         
         const sets = [];
         const numSets = team1Inputs.length;
