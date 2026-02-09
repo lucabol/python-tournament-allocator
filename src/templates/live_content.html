@@ -1,5 +1,5 @@
 {# Live Content: Smart Summary + Drill-Down
-   — Now Playing hero at top, everything else in collapsible <details> sections #}
+   — "Up Next" hero at top (one match per court), everything else in collapsible <details> sections #}
 
 {% if not pools %}
 <div class="empty-state">
@@ -16,91 +16,102 @@
 <div class="champion-banner silver-champion">🥈 Silver Champion: <strong>{{ silver_bracket_data.champion }}</strong></div>
 {% endif %}
 
-{# ============ NOW PLAYING HERO ============ #}
-{# Collect all upcoming/in-progress matches from schedule #}
+{# ============ UP NEXT (one match per court) ============ #}
+{# For each court, show the first match (earliest time slot) that hasn't been completed #}
 {% if schedule %}
 <div class="now-playing-hero">
-    <div class="hero-title"><span class="live-dot"></span> Now Playing</div>
-    {% set ns = namespace(found=false) %}
-    
-    {# Pool play matches #}
+    <div class="hero-title"><span class="live-dot"></span> Up Next</div>
+
+    {# Build ordered list of (day_key, day_data) entries — pool days first, then bracket #}
     {% set pool_days = schedule.keys() | reject('equalto', 'Bracket Phase') | list %}
+    {% set all_days = [] %}
     {% for day in pool_days %}
-    {% set day_data = schedule[day] %}
-    {% set time_slots = day_data['_time_slots'] %}
-    {% set courts = day_data.keys() | reject('equalto', '_time_slots') | list %}
-    {% for time_slot in time_slots %}
-    {% for court_name in courts %}
-    {% if time_slot in day_data[court_name]['time_to_match'] %}
-    {% set match = day_data[court_name]['time_to_match'][time_slot] %}
-    {% set team1 = match.teams[0] %}
-    {% set team2 = match.teams[1] %}
-    {% set match_key_check = [team1, team2]|sort|join('_vs_') %}
-    {% set pool_name = match.pool if match.pool else '' %}
-    {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
-    {% set match_result = results.get(full_match_key, {}) %}
-    {% set is_completed = match_result.get('completed', false) %}
-    {% if not is_completed %}
-    {% set ns.found = true %}
-    <div class="hero-match-card" data-teams="{{ team1 }} {{ team2 }}">
-        <div class="hero-match-meta">
-            <span class="meta-time">{{ time_slot }}</span>
-            <span class="meta-court">{{ court_name }}</span>
-            {% if pool_name %}<span class="meta-pool">{{ pool_name }}</span>{% endif %}
-        </div>
-        <div class="hero-match-row">
-            <span class="team-name">{{ team1 }}</span>
-            <span class="hero-score">-</span>
-        </div>
-        <div class="hero-match-row">
-            <span class="team-name">{{ team2 }}</span>
-            <span class="hero-score">-</span>
-        </div>
-    </div>
-    {% endif %}
-    {% endif %}
+        {% if all_days.append((day, schedule[day])) %}{% endif %}
     {% endfor %}
-    {% endfor %}
-    {% endfor %}
-
-    {# Bracket phase matches #}
     {% if 'Bracket Phase' in schedule %}
-    {% set bracket_day_data = schedule['Bracket Phase'] %}
-    {% set bracket_time_slots = bracket_day_data['_time_slots'] %}
-    {% set bracket_courts = bracket_day_data.keys() | reject('equalto', '_time_slots') | list %}
-    {% for time_slot in bracket_time_slots %}
-    {% for court_name in bracket_courts %}
-    {% if time_slot in bracket_day_data[court_name]['time_to_match'] %}
-    {% set match = bracket_day_data[court_name]['time_to_match'][time_slot] %}
-    {% set team1 = match.teams[0] %}
-    {% set team2 = match.teams[1] %}
-    {% set match_result = match.get('result', {}) %}
-    {% set is_completed = match_result.get('completed', false) %}
-    {% if not is_completed and not match.get('is_placeholder') %}
-    {% set ns.found = true %}
-    <div class="hero-match-card" data-teams="{{ team1 }} {{ team2 }}">
+        {% if all_days.append(('Bracket Phase', schedule['Bracket Phase'])) %}{% endif %}
+    {% endif %}
+
+    {# Collect unique court names in order of first appearance #}
+    {% set all_courts = [] %}
+    {% for day_key, day_data in all_days %}
+        {% for court_name in day_data.keys() | reject('equalto', '_time_slots') | list %}
+            {% if court_name not in all_courts %}
+                {% if all_courts.append(court_name) %}{% endif %}
+            {% endif %}
+        {% endfor %}
+    {% endfor %}
+
+    {# For each court, find the first non-completed match across all days #}
+    {% for court_name in all_courts %}
+    {% set court_ns = namespace(next_match=none, next_time=none, next_pool=none, next_round=none, is_bracket=false) %}
+    {% for day_key, day_data in all_days %}
+        {% if court_ns.next_match is none and court_name in day_data %}
+            {% for time_slot in day_data['_time_slots'] %}
+                {% if court_ns.next_match is none and time_slot in day_data[court_name]['time_to_match'] %}
+                    {% set match = day_data[court_name]['time_to_match'][time_slot] %}
+                    {# Check completion: pool play uses results dict, bracket uses match.result #}
+                    {% if day_key == 'Bracket Phase' %}
+                        {% set match_result = match.get('result', {}) %}
+                        {% set is_completed = match_result.get('completed', false) %}
+                        {% if not is_completed and not match.get('is_placeholder') %}
+                            {% set court_ns.next_match = match %}
+                            {% set court_ns.next_time = time_slot %}
+                            {% set court_ns.next_round = match.round if match.round else '' %}
+                            {% set court_ns.is_bracket = true %}
+                        {% endif %}
+                    {% else %}
+                        {% set team1 = match.teams[0] %}
+                        {% set team2 = match.teams[1] %}
+                        {% set match_key_check = [team1, team2]|sort|join('_vs_') %}
+                        {% set pool_name = match.pool if match.pool else '' %}
+                        {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
+                        {% set match_result = results.get(full_match_key, {}) %}
+                        {% set is_completed = match_result.get('completed', false) %}
+                        {% if not is_completed %}
+                            {% set court_ns.next_match = match %}
+                            {% set court_ns.next_time = time_slot %}
+                            {% set court_ns.next_pool = pool_name %}
+                        {% endif %}
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+
+    {% if court_ns.next_match is not none %}
+    {% set m = court_ns.next_match %}
+    <div class="hero-match-card" data-teams="{{ m.teams[0] }} {{ m.teams[1] }}">
         <div class="hero-match-meta">
-            <span class="meta-time">{{ time_slot }}</span>
+            <span class="meta-time">{{ court_ns.next_time }}</span>
             <span class="meta-court">{{ court_name }}</span>
-            {% if match.round %}<span class="meta-pool">{{ match.round }}</span>{% endif %}
+            {% if court_ns.is_bracket and court_ns.next_round %}
+                <span class="meta-pool">{{ court_ns.next_round }}</span>
+            {% elif court_ns.next_pool %}
+                <span class="meta-pool">{{ court_ns.next_pool }}</span>
+            {% endif %}
         </div>
         <div class="hero-match-row">
-            <span class="team-name">{{ team1 }}</span>
+            <span class="team-name">{{ m.teams[0] }}</span>
             <span class="hero-score">-</span>
         </div>
         <div class="hero-match-row">
-            <span class="team-name">{{ team2 }}</span>
+            <span class="team-name">{{ m.teams[1] }}</span>
             <span class="hero-score">-</span>
         </div>
     </div>
-    {% endif %}
+    {% else %}
+    <div class="hero-match-card court-done" data-teams="">
+        <div class="hero-match-meta">
+            <span class="meta-court">{{ court_name }}</span>
+        </div>
+        <p class="empty-note">All matches completed ✓</p>
+    </div>
     {% endif %}
     {% endfor %}
-    {% endfor %}
-    {% endif %}
 
-    {% if not ns.found %}
-    <p class="empty-note">No upcoming matches right now.</p>
+    {% if all_courts | length == 0 %}
+    <p class="empty-note">No matches scheduled.</p>
     {% endif %}
 </div>
 {% endif %}

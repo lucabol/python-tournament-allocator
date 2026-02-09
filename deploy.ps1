@@ -180,65 +180,42 @@ $requirements | Set-Content $stagedRequirements
 
 Compress-Archive -Path (Join-Path $stagingDir "*") -DestinationPath $zipFile
 
-# Restart webapp so config changes take effect before deploying
-Write-Host "Restarting webapp to apply config changes..." -ForegroundColor Yellow
-az webapp restart --name $appName --resource-group $resourceGroup --output none
-Start-Sleep -Seconds 10
+# Wait for config changes to propagate (config set/appsettings set trigger async Kudu restarts)
+Write-Host "Waiting for config changes to propagate..." -ForegroundColor Yellow
+Start-Sleep -Seconds 15
 
-# Wait for webapp to be ready
-Write-Host "Waiting for webapp to be ready..." -ForegroundColor Yellow
-$maxRetries = 10
-$retryCount = 0
-do {
-    Start-Sleep -Seconds 5
-    $state = az webapp show --name $appName --resource-group $resourceGroup --query "state" -o tsv
-    $retryCount++
-    Write-Host "  Webapp state: $state (attempt $retryCount/$maxRetries)"
-} while ($state -ne "Running" -and $retryCount -lt $maxRetries)
-
-if ($state -ne "Running") {
-    Write-Warning "Webapp may not be fully started. Proceeding with deployment anyway..."
-}
-
-# Wait for Kudu (SCM site) to be ready — this is what actually handles zip deployments
-Write-Host "Waiting for Kudu (SCM site) to be ready..." -ForegroundColor Yellow
-$kuduUrl = "https://$appName.scm.azurewebsites.net"
-$kuduReady = $false
-$kuduRetries = 0
-$kuduMaxRetries = 20
-do {
-    try {
-        $response = Invoke-WebRequest -Uri $kuduUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
-        if ($response.StatusCode -eq 200) {
-            $kuduReady = $true
-            Write-Host "  Kudu is ready." -ForegroundColor Green
-        }
-    } catch {
-        $kuduRetries++
-        Write-Host "  Kudu not ready yet (attempt $kuduRetries/$kuduMaxRetries)..." -ForegroundColor DarkGray
-        Start-Sleep -Seconds 10
-    }
-} while (-not $kuduReady -and $kuduRetries -lt $kuduMaxRetries)
-
-if (-not $kuduReady) {
-    Write-Warning "Kudu may not be fully started. Deployment might fail — re-run the script if it does."
-}
-
-# Deploy
+# Deploy with retry logic — Kudu may still be restarting from config changes on first deploy
 Write-Host "Deploying application..." -ForegroundColor Yellow
 Write-Host "Uploading zip to Kudu and running remote build (this can take several minutes for numpy/pandas/ortools)..." -ForegroundColor DarkGray
-$deployStart = Get-Date
-az webapp deploy `
-    --name $appName `
-    --resource-group $resourceGroup `
-    --src-path $zipFile `
-    --type zip `
-    --clean true `
-    --track-status false `
-    --timeout 600000 `
-    --output none
-$deployDuration = [math]::Round(((Get-Date) - $deployStart).TotalSeconds)
-Write-Host "Deployment command finished in $deployDuration seconds." -ForegroundColor DarkGray
+$deployMaxRetries = 3
+$deployAttempt = 0
+$deploySuccess = $false
+while (-not $deploySuccess -and $deployAttempt -lt $deployMaxRetries) {
+    $deployAttempt++
+    $deployStart = Get-Date
+    try {
+        az webapp deploy `
+            --name $appName `
+            --resource-group $resourceGroup `
+            --src-path $zipFile `
+            --type zip `
+            --clean true `
+            --track-status false `
+            --timeout 600000 `
+            --output none
+        $deploySuccess = $true
+        $deployDuration = [math]::Round(((Get-Date) - $deployStart).TotalSeconds)
+        Write-Host "Deployment succeeded in $deployDuration seconds (attempt $deployAttempt/$deployMaxRetries)." -ForegroundColor DarkGray
+    } catch {
+        $deployDuration = [math]::Round(((Get-Date) - $deployStart).TotalSeconds)
+        if ($deployAttempt -lt $deployMaxRetries) {
+            Write-Host "  Deployment attempt $deployAttempt failed after ${deployDuration}s (likely Kudu still restarting). Retrying in 30s..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 30
+        } else {
+            Write-Error "Deployment failed after $deployMaxRetries attempts. Last error: $_"
+        }
+    }
+}
 
 # Cleanup
 Remove-Item $zipFile -ErrorAction SilentlyContinue
