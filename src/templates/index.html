@@ -67,7 +67,7 @@
     {% if schedule_stats %}
     <div class="card">
         <h2>📊 Progress</h2>
-        {% set total = schedule_stats.total_matches|default(0) %}
+        {% set total = pool_total + bracket_total %}
         {% set done = pool_completed + bracket_completed %}
         <div class="stat-number">{{ done }}/{{ total }}</div>
         <p>matches completed</p>
@@ -76,6 +76,10 @@
             <div class="progress-bar-fill" style="width: {{ (done / total * 100)|round }}%"></div>
         </div>
         {% endif %}
+        <div style="font-size:0.85rem;margin-top:0.5rem;color:var(--text-muted)">
+            Pools: {{ pool_completed }}/{{ pool_total }}
+            &bull; Bracket: {{ bracket_completed }}/{{ bracket_total }}
+        </div>
     </div>
     {% else %}
     <div class="card highlight">

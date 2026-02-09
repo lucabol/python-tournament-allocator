@@ -630,6 +630,11 @@ def calculate_match_stats(results):
         for match_key, result in results.get(section, {}).items():
             if not result.get('completed'):
                 continue
+            # Skip bracket results duplicated in pool_play section
+            if section == 'pool_play' and (
+                match_key.endswith('_Bracket') or match_key.endswith('_Silver Bracket')
+            ):
+                continue
             sets = result.get('sets', [])
             if not sets:
                 continue
@@ -744,9 +749,28 @@ def index():
     # Determine tournament phase
     phase = determine_tournament_phase(schedule_data, results, bracket_data)
 
-    # Match progress
-    pool_completed = sum(1 for r in results.get('pool_play', {}).values() if r.get('completed'))
+    # Match progress — filter out bracket results that were also saved in pool_play
+    pool_completed = sum(
+        1 for key, r in results.get('pool_play', {}).items()
+        if r.get('completed') and not key.endswith('_Bracket') and not key.endswith('_Silver Bracket')
+    )
     bracket_completed = sum(1 for r in results.get('bracket', {}).values() if r.get('completed'))
+
+    # Count pool-only vs bracket-only totals from the schedule
+    pool_total = 0
+    bracket_total = 0
+    if schedule_data:
+        for day_name, day_data in schedule_data.items():
+            if day_name == '_time_slots':
+                continue
+            for court_name, court_data in day_data.items():
+                if court_name == '_time_slots':
+                    continue
+                for match in court_data.get('matches', []):
+                    if match.get('is_bracket'):
+                        bracket_total += 1
+                    else:
+                        pool_total += 1
 
     # Aggregate match stats
     match_stats = calculate_match_stats(results)
@@ -763,6 +787,8 @@ def index():
                          phase=phase,
                          pool_completed=pool_completed,
                          bracket_completed=bracket_completed,
+                         pool_total=pool_total,
+                         bracket_total=bracket_total,
                          match_stats=match_stats)
 
 
@@ -1869,13 +1895,24 @@ def tracking():
     constraints = load_constraints()
     scoring_format = constraints.get('scoring_format', 'best_of_3')
     
-    # Calculate tracking stats - use scheduled_matches from the saved stats
-    scheduled_matches = stats.get('scheduled_matches', 0) if stats else 0
-    completed_matches = len([r for r in results.get('pool_play', {}).values() if r.get('completed')])
+    # Calculate tracking stats - count only pool (non-bracket) matches
+    pool_scheduled = 0
+    if schedule_data:
+        for day_data in schedule_data.values():
+            for court_name, court_data in (
+                (c, d) for c, d in day_data.items() if c != '_time_slots'
+            ):
+                for match in court_data.get('matches', []):
+                    if not match.get('is_bracket'):
+                        pool_scheduled += 1
+    completed_matches = sum(
+        1 for key, r in results.get('pool_play', {}).items()
+        if r.get('completed') and not key.endswith('_Bracket') and not key.endswith('_Silver Bracket')
+    )
     tracking_stats = {
-        'scheduled_matches': scheduled_matches,
+        'scheduled_matches': pool_scheduled,
         'completed_matches': completed_matches,
-        'remaining_matches': scheduled_matches - completed_matches
+        'remaining_matches': pool_scheduled - completed_matches
     }
     
     return render_template('tracking.html', schedule=schedule_data, stats=tracking_stats,
