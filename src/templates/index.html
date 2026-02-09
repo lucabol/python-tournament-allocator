@@ -229,10 +229,6 @@
         <a href="{{ url_for('api_export_schedule_csv') }}" class="btn btn-secondary btn-sm">📥 Download CSV</a>
         {% endif %}
         <button onclick="copyLiveLink()" class="btn btn-secondary btn-sm">📡 Copy Live Link</button>
-        <button onclick="copyLiveLink1()" class="btn btn-secondary btn-sm">📡 Copy Live Link 1</button>
-        <button onclick="copyLiveLink2()" class="btn btn-secondary btn-sm">📡 Copy Live Link 2</button>
-        <button onclick="copyLiveLink3()" class="btn btn-secondary btn-sm">📡 Copy Live Link 3</button>
-        <button onclick="copyLiveLink4()" class="btn btn-secondary btn-sm">📡 Copy Live Link 4</button>
         <a href="{{ url_for('api_export_tournament') }}" class="btn btn-secondary btn-sm">💾 Export Tournament</a>
         <button onclick="document.getElementById('import-file').click()" class="btn btn-secondary btn-sm">📂 Import Tournament</button>
     </div>
@@ -244,46 +240,6 @@
 <script>
 function copyLiveLink() {
     const url = window.location.origin + '{{ url_for("live") }}';
-    navigator.clipboard.writeText(url).then(() => {
-        const btn = event.target;
-        const orig = btn.textContent;
-        btn.textContent = '✓ Copied!';
-        setTimeout(() => btn.textContent = orig, 2000);
-    });
-}
-
-function copyLiveLink1() {
-    const url = window.location.origin + '{{ url_for("live1") }}';
-    navigator.clipboard.writeText(url).then(() => {
-        const btn = event.target;
-        const orig = btn.textContent;
-        btn.textContent = '✓ Copied!';
-        setTimeout(() => btn.textContent = orig, 2000);
-    });
-}
-
-function copyLiveLink2() {
-    const url = window.location.origin + '{{ url_for("live2") }}';
-    navigator.clipboard.writeText(url).then(() => {
-        const btn = event.target;
-        const orig = btn.textContent;
-        btn.textContent = '✓ Copied!';
-        setTimeout(() => btn.textContent = orig, 2000);
-    });
-}
-
-function copyLiveLink3() {
-    const url = window.location.origin + '{{ url_for("live3") }}';
-    navigator.clipboard.writeText(url).then(() => {
-        const btn = event.target;
-        const orig = btn.textContent;
-        btn.textContent = '✓ Copied!';
-        setTimeout(() => btn.textContent = orig, 2000);
-    });
-}
-
-function copyLiveLink4() {
-    const url = window.location.origin + '{{ url_for("live4") }}';
     navigator.clipboard.writeText(url).then(() => {
         const btn = event.target;
         const orig = btn.textContent;

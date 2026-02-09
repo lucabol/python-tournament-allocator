@@ -222,27 +222,43 @@
         {% endfor %}
     </div>
 
-    {# --- Mobile: compact flex rows --- #}
+    {# --- Mobile: table layout matching desktop --- #}
     <details class="m-drill-down mobile-only" open>
         <summary>Pool Standings</summary>
         <div class="m-drill-down-content">
         {% for pool_name, team_list in standings.items() %}
         <div class="m-pool-card">
             <h4>{{ pool_name }}</h4>
-            {% for team in team_list %}
-            {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
-            {% set has_played = team.matches_played > 0 %}
-            <div class="m-standing-row {% if loop.index <= advance_count and has_played %}advancing{% endif %}">
-                <span class="m-standing-rank">{{ loop.index }}.</span>
-                <span class="m-standing-name">{{ team.team }}</span>
-                <span class="m-standing-stats">
-                    {{ team.wins }}W {{ team.losses }}L
-                    <span class="{% if team.set_diff > 0 %}m-stat-positive{% elif team.set_diff < 0 %}m-stat-negative{% endif %}">
-                        {{ '+' if team.set_diff > 0 else '' }}{{ team.set_diff }}
-                    </span>
-                </span>
-            </div>
-            {% endfor %}
+            <table class="standings-table m-standings-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Team</th>
+                        <th>W</th>
+                        <th>L</th>
+                        <th>ΔS</th>
+                        <th>ΔP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team in team_list %}
+                    {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
+                    {% set has_played = team.matches_played > 0 %}
+                    <tr class="{% if loop.index <= advance_count and has_played %}advancing{% endif %}">
+                        <td>{{ loop.index }}</td>
+                        <td>{{ team.team }}</td>
+                        <td>{{ team.wins }}</td>
+                        <td>{{ team.losses }}</td>
+                        <td class="{% if team.set_diff > 0 %}positive{% elif team.set_diff < 0 %}negative{% endif %}">
+                            {{ '+' if team.set_diff > 0 else '' }}{{ team.set_diff }}
+                        </td>
+                        <td class="{% if team.point_diff > 0 %}positive{% elif team.point_diff < 0 %}negative{% endif %}">
+                            {{ '+' if team.point_diff > 0 else '' }}{{ team.point_diff }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
         {% endfor %}
         </div>
@@ -364,27 +380,27 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             });
-            // Update mobile standings rows
+            // Update mobile standings tables
             document.querySelectorAll('.m-pool-card').forEach(div => {
                 const h4 = div.querySelector('h4');
                 if (h4 && h4.textContent === poolName) {
-                    const rows = div.querySelectorAll('.m-standing-row');
-                    rows.forEach(r => r.remove());
-                    teamList.forEach((team, idx) => {
-                        const row = document.createElement('div');
-                        row.className = 'm-standing-row' + (idx < (team.advance_count || 2) && team.matches_played > 0 ? ' advancing' : '');
-                        row.innerHTML = `
-                            <span class="m-standing-rank">${idx + 1}.</span>
-                            <span class="m-standing-name">${team.team}</span>
-                            <span class="m-standing-stats">
-                                ${team.wins}W ${team.losses}L
-                                <span class="${team.set_diff > 0 ? 'm-stat-positive' : team.set_diff < 0 ? 'm-stat-negative' : ''}">
+                    const tbody = div.querySelector('tbody');
+                    if (tbody) {
+                        tbody.innerHTML = teamList.map((team, idx) => `
+                            <tr class="${idx < (team.advance_count || 2) && team.matches_played > 0 ? 'advancing' : ''}">
+                                <td>${idx + 1}</td>
+                                <td>${team.team}</td>
+                                <td>${team.wins}</td>
+                                <td>${team.losses}</td>
+                                <td class="${team.set_diff > 0 ? 'positive' : team.set_diff < 0 ? 'negative' : ''}">
                                     ${team.set_diff > 0 ? '+' : ''}${team.set_diff}
-                                </span>
-                            </span>
-                        `;
-                        div.appendChild(row);
-                    });
+                                </td>
+                                <td class="${team.point_diff > 0 ? 'positive' : team.point_diff < 0 ? 'negative' : ''}">
+                                    ${team.point_diff > 0 ? '+' : ''}${team.point_diff}
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
                 }
             });
         }

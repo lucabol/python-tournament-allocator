@@ -200,6 +200,30 @@ if ($state -ne "Running") {
     Write-Warning "Webapp may not be fully started. Proceeding with deployment anyway..."
 }
 
+# Wait for Kudu (SCM site) to be ready — this is what actually handles zip deployments
+Write-Host "Waiting for Kudu (SCM site) to be ready..." -ForegroundColor Yellow
+$kuduUrl = "https://$appName.scm.azurewebsites.net"
+$kuduReady = $false
+$kuduRetries = 0
+$kuduMaxRetries = 20
+do {
+    try {
+        $response = Invoke-WebRequest -Uri $kuduUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+        if ($response.StatusCode -eq 200) {
+            $kuduReady = $true
+            Write-Host "  Kudu is ready." -ForegroundColor Green
+        }
+    } catch {
+        $kuduRetries++
+        Write-Host "  Kudu not ready yet (attempt $kuduRetries/$kuduMaxRetries)..." -ForegroundColor DarkGray
+        Start-Sleep -Seconds 10
+    }
+} while (-not $kuduReady -and $kuduRetries -lt $kuduMaxRetries)
+
+if (-not $kuduReady) {
+    Write-Warning "Kudu may not be fully started. Deployment might fail — re-run the script if it does."
+}
+
 # Deploy
 Write-Host "Deploying application..." -ForegroundColor Yellow
 Write-Host "Uploading zip to Kudu and running remote build (this can take several minutes for numpy/pandas/ortools)..." -ForegroundColor DarkGray

@@ -2,69 +2,80 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Tournament - Tournament Allocator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="theme-color" content="#ffffff">
+    <title>Live Tournament</title>
     <link rel="icon" href="/api/logo">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        .sse-status { display: inline-flex; align-items: center; gap: 6px; font-size: 1.1rem; }
-        .sse-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-        .sse-dot.connected { background: #22c55e; }
-        .sse-dot.reconnecting { background: #eab308; animation: pulse 1s infinite; }
-        .sse-dot.disconnected { background: #ef4444; }
-        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-        .print-header-logo { display: flex; align-items: center; gap: 1rem; }
-        .print-titles { display: flex; flex-direction: column; gap: 0.25rem; }
-        .print-logo { height: 70px; width: auto; }
-        .organization-name { font-size: 0.875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: #374151; }
-        .header-title { font-size: 1.75rem; margin: 0; }
-        .header-subtitle { font-size: 1.1rem; font-weight: normal; color: #4b5563; margin: 0; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='live.css') }}">
 </head>
 <body>
     <header class="live-header">
-        <div style="display: flex; align-items: center; gap: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
             {% include '_tournament_header.html' %}
         </div>
-        <div class="page-header-actions">
+        <div>
             <span class="sse-status">
                 <span id="sse-dot" class="sse-dot disconnected"></span>
                 <span id="sse-label">Connecting…</span>
             </span>
         </div>
     </header>
-    
-    <main class="container" id="live-content">
+
+    <div class="team-filter-bar">
+        <input type="search" id="team-filter" class="team-filter-input"
+               placeholder="🔍 Find my team…" autocomplete="off" spellcheck="false">
+    </div>
+
+    <main class="live-container" id="live-content">
 {% include 'live_content.html' %}
     </main>
-    
-    <footer class="footer">
+
+    <footer class="live-footer">
         <p>Tournament Allocator &copy; 2026</p>
     </footer>
 
 <script>
-// Server-Sent Events live update
 document.addEventListener('DOMContentLoaded', function() {
-    const contentEl = document.getElementById('live-content');
-    const dotEl = document.getElementById('sse-dot');
-    const labelEl = document.getElementById('sse-label');
+    var contentEl = document.getElementById('live-content');
+    var dotEl = document.getElementById('sse-dot');
+    var labelEl = document.getElementById('sse-label');
+    var filterInput = document.getElementById('team-filter');
+
     function setStatus(state) {
         dotEl.className = 'sse-dot ' + state;
-        if (state === 'connected') labelEl.textContent = 'Live';
-        else if (state === 'reconnecting') labelEl.textContent = 'Reconnecting…';
-        else labelEl.textContent = 'Disconnected';
+        labelEl.textContent = state === 'connected' ? 'Live' :
+                              state === 'reconnecting' ? 'Reconnecting…' : 'Disconnected';
     }
+
+    function applyFilter() {
+        var query = filterInput.value.trim().toLowerCase();
+        var items = contentEl.querySelectorAll('[data-teams]');
+        items.forEach(function(el) {
+            if (!query) {
+                el.classList.remove('filter-hidden', 'filter-highlight');
+                return;
+            }
+            var teams = el.getAttribute('data-teams').toLowerCase();
+            if (teams.indexOf(query) !== -1) {
+                el.classList.remove('filter-hidden');
+                el.classList.add('filter-highlight');
+            } else {
+                el.classList.add('filter-hidden');
+                el.classList.remove('filter-highlight');
+            }
+        });
+    }
+
+    filterInput.addEventListener('input', applyFilter);
 
     function fetchContent() {
         fetch('/api/live-html')
             .then(function(r) { return r.text(); })
-            .then(function(html) { contentEl.innerHTML = html; })
+            .then(function(html) { contentEl.innerHTML = html; applyFilter(); })
             .catch(function(err) { console.error('Failed to fetch live content:', err); });
     }
 
     if (typeof EventSource === 'undefined') {
-        // Fallback for browsers without SSE support: poll every 30s
         setStatus('connected');
         labelEl.textContent = 'Polling (30s)';
         setInterval(fetchContent, 30000);
@@ -72,25 +83,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     var source = new EventSource('/api/live-stream');
-
-    source.addEventListener('open', function() {
-        setStatus('connected');
-    });
-
-    source.addEventListener('connected', function() {
-        setStatus('connected');
-    });
-
-    source.addEventListener('update', function(e) {
-        fetchContent();
-    });
-
+    source.addEventListener('open', function() { setStatus('connected'); });
+    source.addEventListener('connected', function() { setStatus('connected'); });
+    source.addEventListener('update', function() { fetchContent(); });
     source.addEventListener('error', function() {
-        if (source.readyState === EventSource.CONNECTING) {
-            setStatus('reconnecting');
-        } else {
-            setStatus('disconnected');
-        }
+        setStatus(source.readyState === EventSource.CONNECTING ? 'reconnecting' : 'disconnected');
     });
 });
 </script>
