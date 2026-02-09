@@ -3,77 +3,230 @@
 {% block title %}Dashboard - Tournament Allocator{% endblock %}
 
 {% block content %}
-<h1>Tournament Dashboard</h1>
 
+{# ── Tournament Identity Header ── #}
+<div class="dashboard-header">
+    {% include '_tournament_header.html' %}
+</div>
+
+{# ── Phase Indicator ── #}
+<div class="tournament-phase">
+    {% set phase_order = {'setup': 0, 'pool_play': 1, 'bracket': 2, 'complete': 3} %}
+    {% set current_idx = phase_order.get(phase, 0) %}
+    {% set phases = [('setup', 'Setup'), ('pool_play', 'Pool Play'), ('bracket', 'Bracket'), ('complete', 'Complete')] %}
+    {% for key, label in phases %}
+    <div class="phase-step {% if phase == key %}phase-active{% elif phase_order[key] < current_idx %}phase-done{% endif %}">
+        <span class="phase-dot">{% if phase_order[key] < current_idx %}✓{% endif %}</span>
+        <span class="phase-label">{{ label }}</span>
+    </div>
+    {% if not loop.last %}<div class="phase-connector {% if phase_order[key] < current_idx %}phase-connector-done{% endif %}"></div>{% endif %}
+    {% endfor %}
+</div>
+
+{# ── Champion Banners ── #}
+{% if bracket_data and bracket_data.champion %}
+<div class="champion-banner">🏆 Gold Champion: <strong>{{ bracket_data.champion }}</strong></div>
+{% endif %}
+{% if silver_bracket_data and silver_bracket_data.champion %}
+<div class="champion-banner silver-champion">🥈 Silver Champion: <strong>{{ silver_bracket_data.champion }}</strong></div>
+{% endif %}
+
+{# ── Stat Cards ── #}
 <div class="dashboard-grid">
     <div class="card">
         <h2>📋 Teams</h2>
         <div class="stat-number">{{ total_teams }}</div>
-        <p>teams in {{ pools|length }} pools</p>
-        <a href="{{ url_for('teams') }}" class="btn btn-primary">Manage Teams</a>
+        <p>teams in {{ pools|length }} pool{{ 's' if pools|length != 1 }}</p>
+        <a href="{{ url_for('teams') }}" class="btn btn-primary btn-sm">Manage</a>
     </div>
-    
+
     <div class="card">
         <h2>🏟️ Courts</h2>
         <div class="stat-number">{{ courts|length }}</div>
-        <p>courts available</p>
-        <a href="{{ url_for('courts') }}" class="btn btn-primary">Manage Courts</a>
+        <p>court{{ 's' if courts|length != 1 }} available</p>
+        <a href="{{ url_for('courts') }}" class="btn btn-primary btn-sm">Manage</a>
     </div>
-    
+
     <div class="card">
-        <h2>⚙️ Settings</h2>
-        <div class="stat-number">{{ constraints.days_number }}</div>
-        <p>day(s), {{ constraints.match_duration_minutes }} min matches</p>
-        <a href="{{ url_for('settings') }}" class="btn btn-primary">Edit Settings</a>
+        <h2>⚙️ Format</h2>
+        <div class="stat-number" style="font-size:1.2rem">{{ constraints.bracket_type|capitalize }}</div>
+        <p>{{ 'Best of 3' if constraints.scoring_format == 'best_of_3' else 'Single set' }}{% if constraints.silver_bracket_enabled %} + Silver{% endif %}</p>
+        <a href="{{ url_for('settings') }}" class="btn btn-primary btn-sm">Settings</a>
     </div>
-    
+
+    {% if schedule_stats %}
+    <div class="card">
+        <h2>📊 Progress</h2>
+        {% set total = schedule_stats.total_matches|default(0) %}
+        {% set done = pool_completed + bracket_completed %}
+        <div class="stat-number">{{ done }}/{{ total }}</div>
+        <p>matches completed</p>
+        {% if total > 0 %}
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" style="width: {{ (done / total * 100)|round }}%"></div>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
     <div class="card highlight">
-        <h2>📅 Generate Schedule</h2>
-        <p>Create the tournament schedule based on your configuration.</p>
-        <a href="{{ url_for('schedule') }}" class="btn btn-success">Generate Schedule</a>
+        <h2>📅 Schedule</h2>
+        <p>Generate the tournament schedule to get started.</p>
+        <a href="{{ url_for('schedule') }}" class="btn btn-success btn-sm">Generate</a>
     </div>
+    {% endif %}
+
+    {% if schedule_stats %}
+    <div class="card">
+        <h2>🏆 Bracket</h2>
+        {% if bracket_data and bracket_data.champion %}
+        <div class="stat-number" style="font-size:1rem;color:var(--success-color)">{{ bracket_data.champion }}</div>
+        <p>Champion!</p>
+        {% elif phase == 'bracket' %}
+        <div class="stat-number" style="font-size:1.2rem;color:var(--warning-color)">In Progress</div>
+        <p>{{ bracket_completed }} bracket match{{ 'es' if bracket_completed != 1 }} played</p>
+        {% else %}
+        <div class="stat-number" style="font-size:1.2rem;color:var(--text-muted)">Pending</div>
+        <p>Waiting for pool play</p>
+        {% endif %}
+        <a href="{{ url_for('bracket') }}" class="btn btn-primary btn-sm">View</a>
+    </div>
+
+    <div class="card">
+        <h2>🎯 Next Step</h2>
+        {% if phase == 'setup' %}
+        <p>Configure teams, courts, and settings, then generate the schedule.</p>
+        <a href="{{ url_for('schedule') }}" class="btn btn-success btn-sm">Generate Schedule</a>
+        {% elif phase == 'pool_play' %}
+        <p>Enter pool match scores to advance to the bracket phase.</p>
+        <a href="{{ url_for('tracking') }}" class="btn btn-success btn-sm">Enter Scores</a>
+        {% elif phase == 'bracket' %}
+        <p>Continue entering bracket match results.</p>
+        <a href="{{ url_for('bracket') }}" class="btn btn-success btn-sm">Go to Bracket</a>
+        {% elif phase == 'complete' %}
+        <p>Tournament is finished! View or print results.</p>
+        <a href="{{ url_for('print_view') }}" class="btn btn-primary btn-sm">Print Results</a>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 
+{# ── Pool Standings / Overview ── #}
 {% if pools %}
 <section class="section">
-    <h2>Pool Overview</h2>
+    <h2>Pool {% if standings %}Standings{% else %}Overview{% endif %}</h2>
     <div class="pools-overview">
         {% for pool_name, pool_data in pools.items() %}
         <div class="pool-card">
             <h3>{{ pool_name }}</h3>
+            {% if standings and pool_name in standings and standings[pool_name]|selectattr('matches_played', 'gt', 0)|list %}
+            {# Compact standings table #}
+            <table class="standings-compact">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Team</th>
+                        <th>W-L</th>
+                        <th>SD</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team_data in standings[pool_name] %}
+                    <tr class="{% if loop.index0 < team_data.advance_count %}advancing{% endif %}">
+                        <td>{{ loop.index }}</td>
+                        <td class="team-col">{{ team_data.team }}</td>
+                        <td>{{ team_data.wins }}-{{ team_data.losses }}</td>
+                        <td class="{% if team_data.set_diff > 0 %}positive{% elif team_data.set_diff < 0 %}negative{% endif %}">{{ '%+d'|format(team_data.set_diff) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            {# Simple team list when no results #}
             <ul>
                 {% for team in pool_data.teams %}
                 <li>{{ team }}</li>
                 {% endfor %}
             </ul>
-            <p class="pool-matches">{{ (pool_data.teams|length * (pool_data.teams|length - 1)) // 2 }} matches • Top {{ pool_data.advance }} advance</p>
+            {% endif %}
+            <p class="pool-matches">{{ (pool_data.teams|length * (pool_data.teams|length - 1)) // 2 }} matches &bull; Top {{ pool_data.advance }} advance</p>
         </div>
         {% endfor %}
     </div>
 </section>
 {% endif %}
 
+{# ── Court Timeline ── #}
 {% if courts %}
 <section class="section">
-    <h2>Court Schedule</h2>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Court</th>
-                <th>Opens</th>
-                <th>Closes</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for court in courts %}
-            <tr>
-                <td>{{ court.name }}</td>
-                <td>{{ court.start_time }}</td>
-                <td>{{ court.end_time }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <h2>Courts</h2>
+    <div class="court-timeline">
+        {% for court in courts %}
+        <div class="timeline-row">
+            <span class="timeline-court-name">{{ court.name }}</span>
+            <div class="timeline-bar-track">
+                <div class="timeline-bar" title="{{ court.start_time }} – {{ court.end_time }}">
+                    <span class="timeline-time-label">{{ court.start_time }}</span>
+                    <span class="timeline-time-label">{{ court.end_time }}</span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </section>
 {% endif %}
+
+{# ── Aggregate Match Stats ── #}
+{% if match_stats %}
+<section class="section">
+    <h2>Tournament Statistics</h2>
+    <div class="match-stats-grid">
+        <div class="mini-stat-card">
+            <div class="mini-stat-value">{{ match_stats.matches_completed }}</div>
+            <div class="mini-stat-label">Matches Played</div>
+        </div>
+        <div class="mini-stat-card">
+            <div class="mini-stat-value">{{ match_stats.total_points }}</div>
+            <div class="mini-stat-label">Total Points</div>
+        </div>
+        <div class="mini-stat-card">
+            <div class="mini-stat-value">{{ match_stats.average_margin }}</div>
+            <div class="mini-stat-label">Avg Margin</div>
+        </div>
+        <div class="mini-stat-card closest">
+            <div class="mini-stat-label">Closest Match</div>
+            <div class="mini-stat-detail">{{ match_stats.closest_match.winner }} vs {{ match_stats.closest_match.loser }}</div>
+            <div class="mini-stat-score">{{ match_stats.closest_match.score }} ({{ match_stats.closest_match.margin }} pts)</div>
+        </div>
+        <div class="mini-stat-card biggest">
+            <div class="mini-stat-label">Biggest Margin</div>
+            <div class="mini-stat-detail">{{ match_stats.biggest_blowout.winner }} vs {{ match_stats.biggest_blowout.loser }}</div>
+            <div class="mini-stat-score">{{ match_stats.biggest_blowout.score }} ({{ match_stats.biggest_blowout.margin }} pts)</div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+{# ── Export / Quick Actions ── #}
+<section class="section">
+    <h2>Quick Actions</h2>
+    <div class="export-bar">
+        <a href="{{ url_for('print_view') }}" class="btn btn-secondary btn-sm">🖨️ Print View</a>
+        {% if schedule_stats %}
+        <a href="{{ url_for('api_export_schedule_csv') }}" class="btn btn-secondary btn-sm">📥 Download CSV</a>
+        {% endif %}
+        <button onclick="copyLiveLink()" class="btn btn-secondary btn-sm">📡 Copy Live Link</button>
+    </div>
+</section>
+
+<script>
+function copyLiveLink() {
+    const url = window.location.origin + '{{ url_for("live") }}';
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = event.target;
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => btn.textContent = orig, 2000);
+    });
+}
+</script>
 {% endblock %}

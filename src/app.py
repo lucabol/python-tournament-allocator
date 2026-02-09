@@ -555,6 +555,115 @@ def calculate_pool_standings(pools, results):
     return standings
 
 
+def determine_tournament_phase(schedule_data, results, bracket_data):
+    """Determine the current phase of the tournament.
+
+    Args:
+        schedule_data: The schedule dict or None.
+        results: The results dict with 'pool_play' and 'bracket' keys.
+        bracket_data: The bracket data dict or None.
+
+    Returns:
+        One of: 'setup', 'pool_play', 'bracket', 'complete'.
+    """
+    if not schedule_data:
+        return 'setup'
+
+    # Check if champion is determined
+    if bracket_data and bracket_data.get('champion'):
+        return 'complete'
+
+    # Check if any bracket results exist
+    bracket_results = results.get('bracket', {})
+    if any(r.get('completed') for r in bracket_results.values()):
+        return 'bracket'
+
+    # Check pool play completion
+    pool_results = results.get('pool_play', {})
+    completed_pool = sum(1 for r in pool_results.values() if r.get('completed'))
+    if completed_pool > 0:
+        # Count total pool matches from schedule
+        total_pool = 0
+        for day, day_data in schedule_data.items():
+            if day == '_time_slots' or day == 'Bracket Phase':
+                continue
+            for court_name, court_data in day_data.items():
+                if court_name == '_time_slots':
+                    continue
+                for match in court_data.get('matches', []):
+                    if not match.get('is_bracket', False):
+                        total_pool += 1
+        if total_pool > 0 and completed_pool >= total_pool:
+            return 'bracket'
+        return 'pool_play'
+
+    return 'pool_play'
+
+
+def calculate_match_stats(results):
+    """Calculate aggregate statistics across all completed matches.
+
+    Args:
+        results: The results dict with 'pool_play' and 'bracket' keys.
+
+    Returns:
+        Dict with total_points, closest_match, biggest_blowout, matches_completed,
+        average_margin, or None if no completed matches.
+    """
+    all_matches = []
+
+    for section in ('pool_play', 'bracket'):
+        for match_key, result in results.get(section, {}).items():
+            if not result.get('completed'):
+                continue
+            sets = result.get('sets', [])
+            if not sets:
+                continue
+            total_t1 = sum(s[0] for s in sets if len(s) >= 2 and s[0] is not None)
+            total_t2 = sum(s[1] for s in sets if len(s) >= 2 and s[1] is not None)
+            margin = abs(total_t1 - total_t2)
+            winner = result.get('winner', '?')
+            loser_name = result.get('loser', '')
+            if not loser_name:
+                t1 = result.get('team1', '?')
+                t2 = result.get('team2', '?')
+                loser_name = t2 if winner == t1 else t1
+            score_line = ' / '.join(f'{s[0]}-{s[1]}' for s in sets if len(s) >= 2)
+            all_matches.append({
+                'winner': winner,
+                'loser': loser_name,
+                'margin': margin,
+                'total_points': total_t1 + total_t2,
+                'score_line': score_line,
+            })
+
+    if not all_matches:
+        return None
+
+    closest = min(all_matches, key=lambda m: m['margin'])
+    biggest = max(all_matches, key=lambda m: m['margin'])
+    total_pts = sum(m['total_points'] for m in all_matches)
+    avg_margin = sum(m['margin'] for m in all_matches) / len(all_matches)
+
+    return {
+        'total_points': total_pts,
+        'matches_completed': len(all_matches),
+        'average_margin': round(avg_margin, 1),
+        'closest_match': {
+            'winner': closest['winner'],
+            'loser': closest['loser'],
+            'score': closest['score_line'],
+            'margin': closest['margin'],
+        },
+        'biggest_blowout': {
+            'winner': biggest['winner'],
+            'loser': biggest['loser'],
+            'score': biggest['score_line'],
+            'margin': biggest['margin'],
+        },
+    }
+
+
 def get_default_constraints():
     """Return default constraints."""
     return {
@@ -589,15 +698,58 @@ def index():
     pools = load_teams()
     courts = load_courts()
     constraints = load_constraints()
-    
+    results = load_results()
+    schedule_data, schedule_stats = load_schedule()
+
     # Count teams
     total_teams = sum(len(pool_data['teams']) for pool_data in pools.values()) if pools else 0
-    
-    return render_template('index.html', 
+
+    # Calculate standings
+    standings = calculate_pool_standings(pools, results) if pools else {}
+
+    # Load bracket data for champion / status
+    bracket_data = None
+    silver_bracket_data = None
+    if pools:
+        bracket_type = constraints.get('bracket_type', 'double')
+        bracket_results = results.get('bracket', {})
+        try:
+            if bracket_type == 'double':
+                from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
+                bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+                if constraints.get('silver_bracket_enabled'):
+                    silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
+            else:
+                from core.elimination import generate_bracket_with_results, generate_silver_bracket_with_results
+                bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
+                if constraints.get('silver_bracket_enabled'):
+                    silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
+        except Exception:
+            pass  # Bracket data is optional for dashboard
+
+    # Determine tournament phase
+    phase = determine_tournament_phase(schedule_data, results, bracket_data)
+
+    # Match progress
+    pool_completed = sum(1 for r in results.get('pool_play', {}).values() if r.get('completed'))
+    bracket_completed = sum(1 for r in results.get('bracket', {}).values() if r.get('completed'))
+
+    # Aggregate match stats
+    match_stats = calculate_match_stats(results)
+
+    return render_template('index.html',
                          pools=pools,
                          courts=courts,
                          constraints=constraints,
-                         total_teams=total_teams)
+                         total_teams=total_teams,
+                         standings=standings,
+                         schedule_stats=schedule_stats,
+                         bracket_data=bracket_data,
+                         silver_bracket_data=silver_bracket_data,
+                         phase=phase,
+                         pool_completed=pool_completed,
+                         bracket_completed=bracket_completed,
+                         match_stats=match_stats)
 
 
 @app.route('/teams', methods=['GET', 'POST'])
@@ -1937,6 +2089,49 @@ def api_upload_logo():
     logo_path = LOGO_FILE_PREFIX + ext
     file.save(logo_path)
     return jsonify({'success': True})
+
+
+@app.route('/api/export/schedule-csv')
+def api_export_schedule_csv():
+    """Export the current schedule as a downloadable CSV file."""
+    import io
+
+    schedule_data, stats = load_schedule()
+    if not schedule_data:
+        return jsonify({'success': False, 'error': 'No schedule found'}), 404
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Day', 'Time', 'Court', 'Team 1', 'Team 2', 'Pool / Phase', 'Match Code'])
+
+    for day, day_data in schedule_data.items():
+        if day == '_time_slots':
+            continue
+        for court_name, court_data in day_data.items():
+            if court_name == '_time_slots':
+                continue
+            for match in court_data.get('matches', []):
+                teams = match.get('teams', [])
+                t1 = teams[0] if len(teams) > 0 else ''
+                t2 = teams[1] if len(teams) > 1 else ''
+                writer.writerow([
+                    day,
+                    match.get('start_time', ''),
+                    court_name,
+                    t1,
+                    t2,
+                    match.get('pool', ''),
+                    match.get('match_code', ''),
+                ])
+
+    csv_content = output.getvalue()
+    output.close()
+
+    return Response(
+        csv_content,
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=schedule.csv'},
+    )
 
 
 @app.route('/api/results/pool', methods=['POST'])

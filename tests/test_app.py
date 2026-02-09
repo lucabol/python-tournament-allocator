@@ -9,7 +9,7 @@ import yaml
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from app import app, load_teams, save_teams, load_constraints, get_default_constraints
+from app import app, load_teams, save_teams, load_constraints, get_default_constraints, determine_tournament_phase, calculate_match_stats
 
 
 @pytest.fixture
@@ -549,3 +549,249 @@ class TestLiveSSE:
         response = client.get('/api/live-stream')
         assert response.status_code == 200
         assert 'text/event-stream' in response.content_type
+
+
+class TestDetermineTournamentPhase:
+    """Tests for determine_tournament_phase helper function."""
+
+    def test_setup_when_no_schedule(self):
+        """Test returns 'setup' when no schedule exists."""
+        results = {'pool_play': {}, 'bracket': {}}
+        assert determine_tournament_phase(None, results, None) == 'setup'
+
+    def test_pool_play_when_schedule_exists_but_no_results(self):
+        """Test returns 'pool_play' when schedule exists but no results."""
+        schedule = {
+            'Day 1': {
+                '_time_slots': ['09:00'],
+                'Court 1': {'matches': [{'teams': ['A', 'B'], 'is_bracket': False}], 'time_to_match': {}}
+            }
+        }
+        results = {'pool_play': {}, 'bracket': {}}
+        assert determine_tournament_phase(schedule, results, None) == 'pool_play'
+
+    def test_pool_play_when_some_results(self):
+        """Test returns 'pool_play' when some pool results exist."""
+        schedule = {
+            'Day 1': {
+                '_time_slots': ['09:00', '10:00'],
+                'Court 1': {
+                    'matches': [
+                        {'teams': ['A', 'B'], 'is_bracket': False},
+                        {'teams': ['C', 'D'], 'is_bracket': False},
+                    ],
+                    'time_to_match': {}
+                }
+            }
+        }
+        results = {
+            'pool_play': {'A_vs_B_Pool 1': {'completed': True}},
+            'bracket': {}
+        }
+        assert determine_tournament_phase(schedule, results, None) == 'pool_play'
+
+    def test_bracket_when_all_pool_results_in(self):
+        """Test returns 'bracket' when all pool matches completed."""
+        schedule = {
+            'Day 1': {
+                '_time_slots': ['09:00'],
+                'Court 1': {
+                    'matches': [{'teams': ['A', 'B'], 'is_bracket': False}],
+                    'time_to_match': {}
+                }
+            }
+        }
+        results = {
+            'pool_play': {'A_vs_B_Pool 1': {'completed': True}},
+            'bracket': {}
+        }
+        assert determine_tournament_phase(schedule, results, None) == 'bracket'
+
+    def test_bracket_when_bracket_results_exist(self):
+        """Test returns 'bracket' when bracket results exist."""
+        schedule = {'Day 1': {'_time_slots': [], 'Court 1': {'matches': [], 'time_to_match': {}}}}
+        results = {
+            'pool_play': {},
+            'bracket': {'winners_QF_1': {'completed': True}}
+        }
+        assert determine_tournament_phase(schedule, results, None) == 'bracket'
+
+    def test_complete_when_champion_determined(self):
+        """Test returns 'complete' when bracket has a champion."""
+        schedule = {'Day 1': {'_time_slots': [], 'Court 1': {'matches': [], 'time_to_match': {}}}}
+        results = {'pool_play': {}, 'bracket': {}}
+        bracket_data = {'champion': 'Team A'}
+        assert determine_tournament_phase(schedule, results, bracket_data) == 'complete'
+
+
+class TestCalculateMatchStats:
+    """Tests for calculate_match_stats helper function."""
+
+    def test_no_completed_matches_returns_none(self):
+        """Test returns None when no completed matches exist."""
+        results = {'pool_play': {}, 'bracket': {}}
+        assert calculate_match_stats(results) is None
+
+    def test_single_completed_match(self):
+        """Test stats from a single completed match."""
+        results = {
+            'pool_play': {
+                'A_vs_B_Pool 1': {
+                    'completed': True,
+                    'sets': [[21, 15]],
+                    'winner': 'A',
+                    'team1': 'A',
+                    'team2': 'B',
+                }
+            },
+            'bracket': {}
+        }
+        stats = calculate_match_stats(results)
+        assert stats is not None
+        assert stats['matches_completed'] == 1
+        assert stats['total_points'] == 36
+        assert stats['closest_match']['winner'] == 'A'
+        assert stats['biggest_blowout']['winner'] == 'A'
+        assert stats['average_margin'] == 6.0
+
+    def test_multiple_matches_finds_extremes(self):
+        """Test that closest and biggest are found correctly."""
+        results = {
+            'pool_play': {
+                'A_vs_B': {
+                    'completed': True,
+                    'sets': [[21, 19]],  # margin 2
+                    'winner': 'A', 'team1': 'A', 'team2': 'B',
+                },
+                'C_vs_D': {
+                    'completed': True,
+                    'sets': [[21, 5]],  # margin 16
+                    'winner': 'C', 'team1': 'C', 'team2': 'D',
+                },
+            },
+            'bracket': {}
+        }
+        stats = calculate_match_stats(results)
+        assert stats['closest_match']['margin'] == 2
+        assert stats['biggest_blowout']['margin'] == 16
+
+
+class TestEnhancedDashboard:
+    """Tests for the enhanced dashboard route."""
+
+    def test_dashboard_loads_with_no_data(self, client, temp_data_dir):
+        """Test dashboard returns 200 with no data files."""
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'Setup' in response.data  # Phase indicator
+
+    def test_dashboard_shows_phase_indicator(self, client, temp_data_dir):
+        """Test dashboard shows the phase indicator."""
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'phase-step' in response.data
+        assert b'Pool Play' in response.data
+        assert b'Bracket' in response.data
+
+    def test_dashboard_shows_tournament_header(self, client, temp_data_dir):
+        """Test dashboard shows tournament identity header."""
+        import app as app_module
+
+        constraints_file = temp_data_dir / "constraints.yaml"
+        constraints_file.write_text(yaml.dump({
+            'club_name': 'Test Club',
+            'tournament_name': 'Test Tournament',
+            'tournament_date': 'Feb 2026',
+        }))
+
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'Test Club' in response.data
+        assert b'Test Tournament' in response.data
+
+    def test_dashboard_shows_standings_when_results_exist(self, client, temp_data_dir):
+        """Test dashboard shows compact standings when pool results exist."""
+        import app as app_module
+
+        teams_file = temp_data_dir / "teams.yaml"
+        teams_file.write_text(yaml.dump({
+            'Pool A': {
+                'teams': ['Team X', 'Team Y'],
+                'advance': 1,
+            }
+        }))
+
+        results_file = temp_data_dir / "results.yaml"
+        monkeypatch_results = str(results_file)
+        app_module.RESULTS_FILE = monkeypatch_results
+        results_file.write_text(yaml.dump({
+            'pool_play': {
+                'Team X_vs_Team Y_Pool A': {
+                    'completed': True,
+                    'sets': [[21, 15]],
+                    'winner': 'Team X',
+                    'team1': 'Team X',
+                    'team2': 'Team Y',
+                }
+            },
+            'bracket': {},
+        }))
+
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'Team X' in response.data
+        assert b'1-0' in response.data  # Win-Loss record
+
+    def test_dashboard_shows_export_bar(self, client, temp_data_dir):
+        """Test dashboard shows quick action buttons."""
+        response = client.get('/')
+        assert response.status_code == 200
+        assert b'Quick Actions' in response.data
+        assert b'Print View' in response.data
+        assert b'Copy Live Link' in response.data
+
+
+class TestExportScheduleCSV:
+    """Tests for the CSV export API endpoint."""
+
+    def test_csv_export_no_schedule(self, client, temp_data_dir):
+        """Test CSV export returns 404 when no schedule exists."""
+        import app as app_module
+        app_module.SCHEDULE_FILE = str(temp_data_dir / "nonexistent_schedule.yaml")
+
+        response = client.get('/api/export/schedule-csv')
+        assert response.status_code == 404
+
+    def test_csv_export_returns_csv(self, client, temp_data_dir):
+        """Test CSV export returns valid CSV content."""
+        import app as app_module
+
+        schedule_file = temp_data_dir / "schedule.yaml"
+        app_module.SCHEDULE_FILE = str(schedule_file)
+        schedule_data = {
+            'schedule': {
+                'Day 1': {
+                    '_time_slots': ['09:00'],
+                    'Court 1': {
+                        'matches': [{
+                            'teams': ['Team A', 'Team B'],
+                            'start_time': '09:00',
+                            'end_time': '09:30',
+                            'pool': 'Pool X',
+                            'match_code': '',
+                        }],
+                        'time_to_match': {}
+                    }
+                }
+            },
+            'stats': {'total_matches': 1, 'scheduled_matches': 1, 'unscheduled_matches': 0}
+        }
+        schedule_file.write_text(yaml.dump(schedule_data))
+
+        response = client.get('/api/export/schedule-csv')
+        assert response.status_code == 200
+        assert 'text/csv' in response.content_type
+        content = response.data.decode('utf-8')
+        assert 'Team A' in content
+        assert 'Team B' in content
+        assert 'Court 1' in content
