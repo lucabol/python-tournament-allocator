@@ -10,9 +10,10 @@
 <body>
     <nav class="navbar">
         <div class="nav-brand">
-            <a href="{{ url_for('index') }}">🏆 Tournament Allocator</a>
+            <a href="{{ url_for('index') }}">🏆 {% if tournament_name %}{{ tournament_name }}{% else %}Tournament Allocator{% endif %}</a>
         </div>
         <ul class="nav-links">
+            <li><a href="{{ url_for('tournaments') }}" {% if request.endpoint == 'tournaments' %}class="active"{% endif %}>Tournaments</a></li>
             <li><a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Dashboard</a></li>
             <li><a href="{{ url_for('teams') }}" {% if request.endpoint == 'teams' %}class="active"{% endif %}>Teams</a></li>
             <li><a href="{{ url_for('courts') }}" {% if request.endpoint == 'courts' %}class="active"{% endif %}>Courts</a></li>

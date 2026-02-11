@@ -51,6 +51,13 @@ def temp_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, 'PRINT_SETTINGS_FILE', str(print_settings_file))
     monkeypatch.setattr(app_module, 'LOGO_FILE_PREFIX', logo_prefix)
 
+    # Multi-tournament paths — create a stub registry so migration is skipped.
+    # This lets existing tests keep their flat-file layout in tmp_path.
+    tournaments_file = tmp_path / "tournaments.yaml"
+    tournaments_file.write_text(yaml.dump({'active': None, 'tournaments': []}, default_flow_style=False))
+    monkeypatch.setattr(app_module, 'TOURNAMENTS_FILE', str(tournaments_file))
+    monkeypatch.setattr(app_module, 'TOURNAMENTS_DIR', str(tmp_path / "tournaments"))
+
     # Rebuild derived constants so export/import uses temp paths
     exportable = {
         'teams.yaml': str(teams_file),

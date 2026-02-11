@@ -1,0 +1,8 @@
+active: summer-tournament
+tournaments:
+- created: '2026-02-11T21:50:33.568288'
+  name: Default Tournament
+  slug: default
+- created: '2026-02-11T22:06:00.542282'
+  name: Summer Tournament
+  slug: summer-tournament
