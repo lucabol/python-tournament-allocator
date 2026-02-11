@@ -95,7 +95,9 @@ def main():
     allocation_manager._generate_pool_play_matches = lambda: matches
 
     # Allocate matches to courts
-    allocation_manager.allocate_teams_to_courts()    # Get and print schedule
+    _schedule, warnings = allocation_manager.allocate_teams_to_courts()    # Get and print schedule
+    for warning in warnings:
+        print(f"WARNING: {warning}")
     schedule_output = allocation_manager.get_schedule_output()
     
     if schedule_output:

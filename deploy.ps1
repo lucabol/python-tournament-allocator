@@ -157,6 +157,9 @@ az webapp config appsettings set `
     --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true DISABLE_COLLECTSTATIC=true `
     --output none
 
+# Set SECRET_KEY for Flask session security
+az webapp config appsettings set --name $appName --resource-group $resourceGroup --settings SECRET_KEY="$(New-Guid)" --output none
+
 # Create deployment package
 Write-Host "Creating deployment package..." -ForegroundColor Yellow
 $zipFile = Join-Path $env:TEMP "deploy.zip"

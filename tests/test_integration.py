@@ -197,7 +197,7 @@ class TestEdgeCases:
         manager = AllocationManager([], sample_courts, basic_constraints)
         manager._generate_pool_play_matches = lambda: []
         
-        schedule = manager.allocate_teams_to_courts()
+        schedule, _warnings = manager.allocate_teams_to_courts()
         
         # Should return empty schedule without errors
         total_matches = sum(len(court_matches) for court_matches in schedule.values())

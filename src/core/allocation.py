@@ -190,11 +190,12 @@ class AllocationManager:
         - Objective: Minimize total schedule duration (makespan)
         """
         print("Starting CP-SAT allocation process...")
+        self.warnings = []
         
         matches_to_schedule = self._generate_pool_play_matches()
         if not matches_to_schedule:
             print("No matches generated. Check tournament settings.")
-            return self.schedule
+            return self.schedule, self.warnings
 
         # Extract configuration
         match_duration_minutes = self.constraints.get('match_duration_minutes', 60)
@@ -497,12 +498,18 @@ class AllocationManager:
                 self.schedule[court_name].sort(key=lambda x: (x[0], x[1]))
         else:
             print("No solution found! Falling back to greedy algorithm...")
+            self.warnings.append("CP-SAT solver could not find a solution. Using greedy fallback algorithm.")
             self._allocate_greedy(matches_to_schedule, match_duration_minutes, time_slot_minutes,
                                   days_number, day_start_time, day_end_time, base_date)
         
+        scheduled_count = sum(len(matches) for matches in self.schedule.values())
+        total_count = len(matches_to_schedule)
+        if scheduled_count < total_count:
+            self.warnings.append(f"{total_count - scheduled_count} of {total_count} matches could not be scheduled. Consider adding more courts, days, or relaxing constraints.")
+        
         print("Allocation process finished.")
         self._post_allocation_checks(matches_to_schedule)
-        return self.schedule
+        return self.schedule, self.warnings
 
     def _allocate_greedy(self, matches_to_schedule, match_duration_minutes, time_slot_minutes,
                          days_number, day_start_time, day_end_time, base_date):
