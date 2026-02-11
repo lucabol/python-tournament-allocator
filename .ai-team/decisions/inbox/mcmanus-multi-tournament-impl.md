@@ -1,0 +1,4 @@
+### 2026-02-11: Multi-tournament backend implemented — test fixture pattern established
+**By:** McManus
+**What:** Implemented multi-tournament infrastructure in `src/app.py`: `_file_path()` helper, `_tournament_dir()`, `ensure_tournament_structure()` migration, `@app.before_request` hook setting `g.data_dir`, tournament CRUD routes, and `@app.context_processor` for template context. Updated `tests/test_app.py` fixture to create a stub `tournaments.yaml` preventing migration from interfering with flat-file test layout. Fixed `tests/test_tournaments.py` to use `TOURNAMENTS_FILE` (not `TOURNAMENTS_REGISTRY`).
+**Why:** The `temp_data_dir` test fixture must pre-create `tournaments.yaml` with `{'active': None, 'tournaments': []}` so `ensure_tournament_structure()` (called in `before_request`) skips migration. Without this, the migration moves test data files into `tournaments/default/`, breaking tests that expect flat-file layout. All 191 tests pass.

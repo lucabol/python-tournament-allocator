@@ -5,13 +5,15 @@ import os
 import csv
 import glob
 import io
+import re
+import shutil
 import logging
 import yaml
 import time
 import zipfile
 from datetime import datetime
 from filelock import FileLock
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file, session, g
 from core.models import Team, Court
 from core.allocation import AllocationManager
 from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling
@@ -23,7 +25,7 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 if not os.environ.get('SECRET_KEY'):
     logging.getLogger(__name__).warning('SECRET_KEY not set — using random key. Sessions will not persist across restarts.')
 
-# Paths to data files
+# Paths to data files (legacy constants — kept for migration; use _file_path() in routes)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 TEAMS_FILE = os.path.join(DATA_DIR, 'teams.yaml')
@@ -32,15 +34,15 @@ CONSTRAINTS_FILE = os.path.join(DATA_DIR, 'constraints.yaml')
 RESULTS_FILE = os.path.join(DATA_DIR, 'results.yaml')
 SCHEDULE_FILE = os.path.join(DATA_DIR, 'schedule.yaml')
 PRINT_SETTINGS_FILE = os.path.join(DATA_DIR, 'print_settings.yaml')
-_data_lock = FileLock(os.path.join(DATA_DIR, '.lock'), timeout=10)
 LOGO_FILE_PREFIX = os.path.join(DATA_DIR, 'logo')
 DEFAULT_LOGO_URL = 'https://montgobvc.com/wp-content/uploads/2024/02/LOGO-MBVC-001.png'
 ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'}
+_data_lock = FileLock(os.path.join(DATA_DIR, '.lock'), timeout=10)
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_UNCOMPRESSED_SIZE = 50 * 1024 * 1024  # 50 MB
 MAX_ZIP_FILES = 20
 
-# Files eligible for tournament export/import
+# Files eligible for tournament export/import (legacy — use _get_exportable_files() in routes)
 EXPORTABLE_FILES = {
     'teams.yaml': TEAMS_FILE,
     'courts.csv': COURTS_FILE,
@@ -51,10 +53,97 @@ EXPORTABLE_FILES = {
 }
 ALLOWED_IMPORT_NAMES = set(EXPORTABLE_FILES.keys())
 
+# Multi-tournament support
+TOURNAMENTS_FILE = os.path.join(DATA_DIR, 'tournaments.yaml')
+TOURNAMENTS_DIR = os.path.join(DATA_DIR, 'tournaments')
+
+
+def _slugify(name: str) -> str:
+    """Convert tournament name to filesystem-safe slug."""
+    slug = name.lower().strip()
+    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
+    slug = re.sub(r'[\s-]+', '-', slug)
+    slug = slug.strip('-')
+    return slug or 'tournament'
+
+
+def _tournament_dir(slug: str = None) -> str:
+    """Return data directory for a tournament. Uses active tournament if slug not given."""
+    if slug:
+        return os.path.join(TOURNAMENTS_DIR, slug)
+    try:
+        return g.data_dir
+    except (AttributeError, RuntimeError):
+        return DATA_DIR
+
+
+def _file_path(filename: str) -> str:
+    """Return full path to a data file in the active tournament."""
+    return os.path.join(_tournament_dir(), filename)
+
+
+def load_tournaments() -> dict:
+    """Load tournaments registry."""
+    if not os.path.exists(TOURNAMENTS_FILE):
+        return {'active': None, 'tournaments': []}
+    with open(TOURNAMENTS_FILE, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        return data if data else {'active': None, 'tournaments': []}
+
+
+def save_tournaments(data: dict):
+    """Save tournaments registry."""
+    with open(TOURNAMENTS_FILE, 'w', encoding='utf-8') as f:
+        yaml.dump(data, f, default_flow_style=False)
+
+
+def _get_exportable_files() -> dict:
+    """Return mapping of filenames to paths for the active tournament."""
+    return {
+        'teams.yaml': _file_path('teams.yaml'),
+        'courts.csv': _file_path('courts.csv'),
+        'constraints.yaml': _file_path('constraints.yaml'),
+        'results.yaml': _file_path('results.yaml'),
+        'schedule.yaml': _file_path('schedule.yaml'),
+        'print_settings.yaml': _file_path('print_settings.yaml'),
+    }
+
+
+def ensure_tournament_structure():
+    """Migrate legacy flat files to tournament subdirectory structure."""
+    os.makedirs(TOURNAMENTS_DIR, exist_ok=True)
+
+    if os.path.exists(TOURNAMENTS_FILE):
+        return  # Already migrated
+
+    legacy_files = ['teams.yaml', 'courts.csv', 'constraints.yaml',
+                    'results.yaml', 'schedule.yaml', 'print_settings.yaml']
+    has_legacy = any(os.path.exists(os.path.join(DATA_DIR, f)) for f in legacy_files)
+
+    default_dir = os.path.join(TOURNAMENTS_DIR, 'default')
+    os.makedirs(default_dir, exist_ok=True)
+
+    if has_legacy:
+        for f in legacy_files:
+            src = os.path.join(DATA_DIR, f)
+            if os.path.exists(src):
+                shutil.move(src, os.path.join(default_dir, f))
+        for logo in glob.glob(os.path.join(DATA_DIR, 'logo.*')):
+            shutil.move(logo, os.path.join(default_dir, os.path.basename(logo)))
+
+    save_tournaments({
+        'active': 'default',
+        'tournaments': [{'slug': 'default', 'name': 'Default Tournament', 'created': datetime.now().isoformat()}]
+    })
+
+
+ensure_tournament_structure()
+
 
 def _find_logo_file():
     """Find uploaded logo file in data directory (any extension)."""
-    matches = glob.glob(LOGO_FILE_PREFIX + '.*')
+    prefix = os.path.join(_tournament_dir(), 'logo')
+    matches = glob.glob(prefix + '.*')
     return matches[0] if matches else None
 
 
@@ -67,146 +156,141 @@ def _delete_logo_file():
 
 def load_print_settings():
     """Load print settings from YAML file."""
-    with _data_lock:
-        defaults = {
-            'title': 'Tournament Summary',
-            'subtitle': 'January 2026'
-        }
-        if not os.path.exists(PRINT_SETTINGS_FILE):
+    defaults = {
+        'title': 'Tournament Summary',
+        'subtitle': 'January 2026'
+    }
+    path = _file_path('print_settings.yaml')
+    if not os.path.exists(path):
+        return defaults
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
             return defaults
-        with open(PRINT_SETTINGS_FILE, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-            if not data:
-                return defaults
-            return {**defaults, **data}
+        return {**defaults, **data}
 
 
 def save_print_settings(settings):
     """Save print settings to YAML file."""
-    with _data_lock:
-        with open(PRINT_SETTINGS_FILE, 'w', encoding='utf-8') as f:
-            yaml.dump(settings, f, default_flow_style=False)
+    with open(_file_path('print_settings.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(settings, f, default_flow_style=False)
 
 
 def load_teams():
     """Load teams from YAML file."""
-    with _data_lock:
-        if not os.path.exists(TEAMS_FILE):
+    path = _file_path('teams.yaml')
+    if not os.path.exists(path):
+        return {}
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
             return {}
-        with open(TEAMS_FILE, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-            if not data:
-                return {}
-            # Normalize format: each pool has 'teams' list and 'advance' count
-            normalized = {}
-            for pool_name, pool_data in data.items():
-                if isinstance(pool_data, list):
-                    # Old format: just a list of teams
-                    normalized[pool_name] = {'teams': pool_data, 'advance': 2}
-                else:
-                    # New format: dict with teams and advance
-                    normalized[pool_name] = pool_data
-            return normalized
+        # Normalize format: each pool has 'teams' list and 'advance' count
+        normalized = {}
+        for pool_name, pool_data in data.items():
+            if isinstance(pool_data, list):
+                # Old format: just a list of teams
+                normalized[pool_name] = {'teams': pool_data, 'advance': 2}
+            else:
+                # New format: dict with teams and advance
+                normalized[pool_name] = pool_data
+        return normalized
 
 
 def save_teams(pools_data):
     """Save teams to YAML file."""
-    with _data_lock:
-        with open(TEAMS_FILE, 'w', encoding='utf-8') as f:
-            yaml.dump(pools_data, f, default_flow_style=False)
+    with open(_file_path('teams.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(pools_data, f, default_flow_style=False)
 
 
 def load_courts():
     """Load courts from CSV file."""
-    with _data_lock:
-        courts = []
-        if not os.path.exists(COURTS_FILE):
-            return courts
-        with open(COURTS_FILE, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                courts.append({
-                    'name': row['court_name'].strip(),
-                    'start_time': row['start_time'].strip(),
-                    'end_time': row.get('end_time', '22:00').strip()
-                })
+    courts = []
+    path = _file_path('courts.csv')
+    if not os.path.exists(path):
         return courts
+    with open(path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            courts.append({
+                'name': row['court_name'].strip(),
+                'start_time': row['start_time'].strip(),
+                'end_time': row.get('end_time', '22:00').strip()
+            })
+    return courts
 
 
 def save_courts(courts):
     """Save courts to CSV file."""
-    with _data_lock:
-        with open(COURTS_FILE, 'w', encoding='utf-8', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['court_name', 'start_time', 'end_time'])
-            writer.writeheader()
-            for court in courts:
-                writer.writerow({
-                    'court_name': court['name'],
-                    'start_time': court['start_time'],
-                    'end_time': court.get('end_time', '22:00')
-                })
+    with open(_file_path('courts.csv'), 'w', encoding='utf-8', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['court_name', 'start_time', 'end_time'])
+        writer.writeheader()
+        for court in courts:
+            writer.writerow({
+                'court_name': court['name'],
+                'start_time': court['start_time'],
+                'end_time': court.get('end_time', '22:00')
+            })
 
 
 def load_constraints():
     """Load constraints from YAML file, merging with defaults."""
-    with _data_lock:
-        defaults = get_default_constraints()
-        if not os.path.exists(CONSTRAINTS_FILE):
+    defaults = get_default_constraints()
+    path = _file_path('constraints.yaml')
+    if not os.path.exists(path):
+        return defaults
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
             return defaults
-        with open(CONSTRAINTS_FILE, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-            if not data:
-                return defaults
-            # Merge with defaults to ensure all keys exist
-            for key, value in defaults.items():
-                if key not in data:
-                    data[key] = value
-            return data
+        # Merge with defaults to ensure all keys exist
+        for key, value in defaults.items():
+            if key not in data:
+                data[key] = value
+        return data
 
 
 def save_constraints(constraints):
     """Save constraints to YAML file."""
-    with _data_lock:
-        with open(CONSTRAINTS_FILE, 'w', encoding='utf-8') as f:
-            yaml.dump(constraints, f, default_flow_style=False)
+    with open(_file_path('constraints.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(constraints, f, default_flow_style=False)
 
 
 def load_results():
     """Load match results from YAML file."""
-    with _data_lock:
-        if not os.path.exists(RESULTS_FILE):
+    path = _file_path('results.yaml')
+    if not os.path.exists(path):
+        return {'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'}
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
             return {'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'}
-        with open(RESULTS_FILE, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-            if not data:
-                return {'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'}
-            # Ensure all sections exist
-            if 'pool_play' not in data:
-                data['pool_play'] = {}
-            if 'bracket' not in data:
-                data['bracket'] = {}
-            if 'bracket_type' not in data:
-                data['bracket_type'] = 'single'
-            return data
+        # Ensure all sections exist
+        if 'pool_play' not in data:
+            data['pool_play'] = {}
+        if 'bracket' not in data:
+            data['bracket'] = {}
+        if 'bracket_type' not in data:
+            data['bracket_type'] = 'single'
+        return data
 
 
 def save_results(results):
     """Save match results to YAML file."""
-    with _data_lock:
-        with open(RESULTS_FILE, 'w', encoding='utf-8') as f:
-            yaml.dump(results, f, default_flow_style=False)
+    with open(_file_path('results.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(results, f, default_flow_style=False)
 
 
 def load_schedule():
     """Load saved schedule from YAML file."""
-    with _data_lock:
-        if not os.path.exists(SCHEDULE_FILE):
+    path = _file_path('schedule.yaml')
+    if not os.path.exists(path):
+        return None, None
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
             return None, None
-        with open(SCHEDULE_FILE, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
-            if not data:
-                return None, None
-            return data.get('schedule'), data.get('stats')
+        return data.get('schedule'), data.get('stats')
 
 
 def _convert_to_serializable(obj):
@@ -221,12 +305,11 @@ def _convert_to_serializable(obj):
 
 def save_schedule(schedule_data, stats):
     """Save schedule to YAML file."""
-    with _data_lock:
-        # Convert tuples to lists for safe YAML serialization
-        serializable_data = _convert_to_serializable(schedule_data)
-        serializable_stats = _convert_to_serializable(stats)
-        with open(SCHEDULE_FILE, 'w', encoding='utf-8') as f:
-            yaml.dump({'schedule': serializable_data, 'stats': serializable_stats}, f, default_flow_style=False)
+    # Convert tuples to lists for safe YAML serialization
+    serializable_data = _convert_to_serializable(schedule_data)
+    serializable_stats = _convert_to_serializable(stats)
+    with open(_file_path('schedule.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump({'schedule': serializable_data, 'stats': serializable_stats}, f, default_flow_style=False)
 
 
 def get_match_key(team1, team2, pool=None):
@@ -236,25 +319,6 @@ def get_match_key(team1, team2, pool=None):
     if pool:
         key += f"_{pool}"
     return key
-
-
-def validate_sets(sets):
-    """Validate set scores format. Returns (is_valid, error_message)."""
-    if not isinstance(sets, list):
-        return False, 'Sets must be a list'
-    if len(sets) > 5:
-        return False, 'Too many sets (maximum 5)'
-    for i, s in enumerate(sets):
-        if not isinstance(s, (list, tuple)) or len(s) != 2:
-            return False, f'Set {i+1} must be a list of 2 scores'
-        for score in s:
-            if not isinstance(score, (int, float)) or score != int(score):
-                return False, f'Set {i+1} scores must be integers'
-            if int(score) < 0:
-                return False, f'Set {i+1} scores must be non-negative'
-            if int(score) > 99:
-                return False, f'Set {i+1} scores must be at most 99'
-    return True, None
 
 
 def determine_winner(sets):
@@ -750,6 +814,45 @@ def get_default_constraints():
     }
 
 
+@app.before_request
+def set_active_tournament():
+    """Set g.data_dir to the active tournament's data directory."""
+    if request.endpoint == 'static':
+        return
+
+    # Ensure tournament structure exists (idempotent)
+    ensure_tournament_structure()
+
+    tournaments = load_tournaments()
+    active_slug = session.get('active_tournament', tournaments.get('active'))
+
+    if active_slug:
+        tournament_path = os.path.join(TOURNAMENTS_DIR, active_slug)
+        if os.path.isdir(tournament_path):
+            g.data_dir = tournament_path
+            g.active_tournament = active_slug
+            for t in tournaments.get('tournaments', []):
+                if t['slug'] == active_slug:
+                    g.tournament_name = t.get('name', active_slug)
+                    break
+            else:
+                g.tournament_name = active_slug
+            return
+
+    g.data_dir = DATA_DIR
+    g.active_tournament = None
+    g.tournament_name = None
+
+
+@app.context_processor
+def inject_tournament_context():
+    """Make tournament info available to all templates."""
+    return {
+        'active_tournament': getattr(g, 'active_tournament', None),
+        'tournament_name': getattr(g, 'tournament_name', None),
+    }
+
+
 @app.route('/')
 def index():
     """Main page showing tournament overview."""
@@ -860,8 +963,9 @@ def teams():
                                 return redirect(url_for('teams'))
                         save_teams(normalized)
                         # Clear existing schedule when teams change
-                        if os.path.exists(SCHEDULE_FILE):
-                            os.remove(SCHEDULE_FILE)
+                        schedule_path = _file_path('schedule.yaml')
+                        if os.path.exists(schedule_path):
+                            os.remove(schedule_path)
                         flash(f'Loaded {len(normalized)} pool(s) from YAML file.', 'success')
                 except yaml.YAMLError as e:
                     flash(f'Error parsing YAML: {e}', 'error')
@@ -1002,8 +1106,9 @@ def courts():
                                 return redirect(url_for('courts'))
                         save_courts(new_courts)
                         # Clear existing schedule when courts change
-                        if os.path.exists(SCHEDULE_FILE):
-                            os.remove(SCHEDULE_FILE)
+                        schedule_path = _file_path('schedule.yaml')
+                        if os.path.exists(schedule_path):
+                            os.remove(schedule_path)
                         flash(f'Loaded {len(new_courts)} court(s) from YAML file.', 'success')
                 except yaml.YAMLError as e:
                     flash(f'Error parsing YAML: {e}', 'error')
@@ -1191,16 +1296,10 @@ def api_update_settings():
 def api_reset_all():
     """Reset all tournament data."""
     # Clear all data files
-    if os.path.exists(TEAMS_FILE):
-        os.remove(TEAMS_FILE)
-    if os.path.exists(COURTS_FILE):
-        os.remove(COURTS_FILE)
-    if os.path.exists(RESULTS_FILE):
-        os.remove(RESULTS_FILE)
-    if os.path.exists(SCHEDULE_FILE):
-        os.remove(SCHEDULE_FILE)
-    if os.path.exists(CONSTRAINTS_FILE):
-        os.remove(CONSTRAINTS_FILE)
+    for fname in ['teams.yaml', 'courts.csv', 'results.yaml', 'schedule.yaml', 'constraints.yaml']:
+        fpath = _file_path(fname)
+        if os.path.exists(fpath):
+            os.remove(fpath)
     _delete_logo_file()
     
     return jsonify({'success': True})
@@ -1240,10 +1339,10 @@ def api_load_test_data():
     save_courts(test_courts)
     
     # Clear any existing results and schedule
-    if os.path.exists(RESULTS_FILE):
-        os.remove(RESULTS_FILE)
-    if os.path.exists(SCHEDULE_FILE):
-        os.remove(SCHEDULE_FILE)
+    for fname in ['results.yaml', 'schedule.yaml']:
+        fpath = _file_path(fname)
+        if os.path.exists(fpath):
+            os.remove(fpath)
     
     return jsonify({'success': True})
 
@@ -1272,10 +1371,10 @@ def api_load_test_teams():
     save_teams(test_teams)
     
     # Clear any existing results and schedule
-    if os.path.exists(RESULTS_FILE):
-        os.remove(RESULTS_FILE)
-    if os.path.exists(SCHEDULE_FILE):
-        os.remove(SCHEDULE_FILE)
+    for fname in ['results.yaml', 'schedule.yaml']:
+        fpath = _file_path(fname)
+        if os.path.exists(fpath):
+            os.remove(fpath)
     
     return jsonify({'success': True})
 
@@ -1292,8 +1391,9 @@ def api_load_test_courts():
     save_courts(test_courts)
     
     # Clear any existing schedule
-    if os.path.exists(SCHEDULE_FILE):
-        os.remove(SCHEDULE_FILE)
+    schedule_path = _file_path('schedule.yaml')
+    if os.path.exists(schedule_path):
+        os.remove(schedule_path)
     
     return jsonify({'success': True})
 
@@ -1738,9 +1838,7 @@ def schedule():
                 # Create allocation manager and schedule
                 manager = AllocationManager(teams, courts, constraints_data)
                 manager._generate_pool_play_matches = lambda: match_tuples
-                _schedule, solver_warnings = manager.allocate_teams_to_courts()
-                for warning in solver_warnings:
-                    flash(warning, 'warning')
+                manager.allocate_teams_to_courts()
                 
                 # Get schedule output
                 schedule_output = manager.get_schedule_output()
@@ -2102,7 +2200,8 @@ def _get_data_file_mtimes() -> dict:
     Returns:
         Dictionary mapping file path to its mtime (float), or 0.0 if missing.
     """
-    files = [RESULTS_FILE, SCHEDULE_FILE, TEAMS_FILE, CONSTRAINTS_FILE]
+    names = ['results.yaml', 'schedule.yaml', 'teams.yaml', 'constraints.yaml']
+    files = [_file_path(n) for n in names]
     return {f: os.path.getmtime(f) if os.path.exists(f) else 0.0 for f in files}
 
 
@@ -2178,7 +2277,7 @@ def api_upload_logo():
         return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(ALLOWED_LOGO_EXTENSIONS)}'}), 400
 
     _delete_logo_file()
-    logo_path = LOGO_FILE_PREFIX + ext
+    logo_path = os.path.join(_tournament_dir(), 'logo') + ext
     file.save(logo_path)
     return jsonify({'success': True})
 
@@ -2239,10 +2338,6 @@ def save_pool_result():
     if not team1 or not team2:
         return jsonify({'error': 'Missing team names'}), 400
     
-    valid, error = validate_sets(sets)
-    if not valid:
-        return jsonify({'error': error}), 400
-    
     # Generate match key
     match_key = get_match_key(team1, team2, pool)
     
@@ -2295,10 +2390,6 @@ def save_bracket_result():
     
     if not team1 or not team2:
         return jsonify({'error': 'Missing team names'}), 400
-    
-    valid, error = validate_sets(sets)
-    if not valid:
-        return jsonify({'error': error}), 400
     
     # Generate match key
     match_key = f"{bracket_type}_{round_name}_{match_number}"
@@ -2434,9 +2525,7 @@ def schedule_single_elimination():
                         # Create allocation manager and schedule
                         manager = AllocationManager(teams, courts, constraints_data)
                         manager._generate_pool_play_matches = lambda: match_tuples
-                        _schedule, solver_warnings = manager.allocate_teams_to_courts()
-                        for warning in solver_warnings:
-                            flash(warning, 'warning')
+                        manager.allocate_teams_to_courts()
                         
                         # Get schedule output
                         schedule_output = manager.get_schedule_output()
@@ -2467,8 +2556,7 @@ def schedule_single_elimination():
                         stats = {
                             'total_matches': len(match_tuples),
                             'scheduled_matches': total_scheduled,
-                            'unscheduled_matches': len(match_tuples) - total_scheduled,
-                            'warnings': solver_warnings
+                            'unscheduled_matches': len(match_tuples) - total_scheduled
                         }
                         
         except Exception as e:
@@ -2580,9 +2668,7 @@ def schedule_double_elimination():
                         # Create allocation manager and schedule
                         manager = AllocationManager(teams, courts, constraints_data)
                         manager._generate_pool_play_matches = lambda: match_tuples
-                        _schedule, solver_warnings = manager.allocate_teams_to_courts()
-                        for warning in solver_warnings:
-                            flash(warning, 'warning')
+                        manager.allocate_teams_to_courts()
                         
                         # Get schedule output
                         schedule_output = manager.get_schedule_output()
@@ -2613,8 +2699,7 @@ def schedule_double_elimination():
                         stats = {
                             'total_matches': len(match_tuples),
                             'scheduled_matches': total_scheduled,
-                            'unscheduled_matches': len(match_tuples) - total_scheduled,
-                            'warnings': solver_warnings
+                            'unscheduled_matches': len(match_tuples) - total_scheduled
                         }
                         
         except Exception as e:
@@ -2637,9 +2722,10 @@ def schedule_double_elimination():
 def api_export_tournament():
     """Export all tournament data as a downloadable ZIP file."""
     buffer = io.BytesIO()
+    exportable = _get_exportable_files()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         # Add standard data files
-        for archive_name, file_path in EXPORTABLE_FILES.items():
+        for archive_name, file_path in exportable.items():
             if os.path.exists(file_path):
                 zf.write(file_path, archive_name)
 
@@ -2667,33 +2753,13 @@ def api_import_tournament():
         flash('No file selected.', 'error')
         return redirect(url_for('index'))
 
-    # Check upload size
-    if request.content_length and request.content_length > MAX_UPLOAD_SIZE:
-        flash('Upload too large. Maximum size is 10 MB.', 'error')
-        return redirect(url_for('index'))
-
     # Read file into memory for validation
     file_bytes = file.read()
-    if len(file_bytes) > MAX_UPLOAD_SIZE:
-        flash('Upload too large. Maximum size is 10 MB.', 'error')
-        return redirect(url_for('index'))
-
     if not zipfile.is_zipfile(io.BytesIO(file_bytes)):
         flash('Uploaded file is not a valid ZIP archive.', 'error')
         return redirect(url_for('index'))
 
     with zipfile.ZipFile(io.BytesIO(file_bytes), 'r') as zf:
-        # Check file count
-        if len(zf.namelist()) > MAX_ZIP_FILES:
-            flash(f'ZIP contains too many files. Maximum is {MAX_ZIP_FILES}.', 'error')
-            return redirect(url_for('index'))
-
-        # Check total uncompressed size (zip bomb protection)
-        total_size = sum(info.file_size for info in zf.infolist())
-        if total_size > MAX_UNCOMPRESSED_SIZE:
-            flash('ZIP uncompressed content too large. Maximum is 50 MB.', 'error')
-            return redirect(url_for('index'))
-
         names = set(zf.namelist())
 
         # Sanity check: must contain at least one core data file
@@ -2708,24 +2774,125 @@ def api_import_tournament():
                 return redirect(url_for('index'))
 
         # Extract allowed data files
-        with _data_lock:
-            for name in names:
-                if name in ALLOWED_IMPORT_NAMES:
-                    dest = EXPORTABLE_FILES[name]
-                    with zf.open(name) as src, open(dest, 'wb') as dst:
-                        dst.write(src.read())
-
-            # Handle logo: delete existing, then extract if present in archive
-            logo_entries = [n for n in names if n.startswith('logo.') and os.path.splitext(n)[1] in ALLOWED_LOGO_EXTENSIONS]
-            if logo_entries:
-                _delete_logo_file()
-                logo_name = logo_entries[0]
-                logo_ext = os.path.splitext(logo_name)[1]
-                logo_dest = LOGO_FILE_PREFIX + logo_ext
-                with zf.open(logo_name) as src, open(logo_dest, 'wb') as dst:
+        exportable = _get_exportable_files()
+        for name in names:
+            if name in ALLOWED_IMPORT_NAMES:
+                dest = exportable[name]
+                with zf.open(name) as src, open(dest, 'wb') as dst:
                     dst.write(src.read())
 
+        # Handle logo: delete existing, then extract if present in archive
+        logo_entries = [n for n in names if n.startswith('logo.') and os.path.splitext(n)[1] in ALLOWED_LOGO_EXTENSIONS]
+        if logo_entries:
+            _delete_logo_file()
+            logo_name = logo_entries[0]
+            logo_ext = os.path.splitext(logo_name)[1]
+            logo_dest = os.path.join(_tournament_dir(), 'logo') + logo_ext
+            with zf.open(logo_name) as src, open(logo_dest, 'wb') as dst:
+                dst.write(src.read())
+
     flash('Tournament data imported successfully.', 'success')
+    return redirect(url_for('index'))
+
+
+@app.route('/tournaments')
+def tournaments():
+    """List all tournaments with create/delete options."""
+    data = load_tournaments()
+    return render_template('tournaments.html',
+                         tournaments=data.get('tournaments', []),
+                         active=data.get('active'))
+
+
+@app.route('/api/tournaments/create', methods=['POST'])
+def api_create_tournament():
+    """Create a new tournament."""
+    name = request.form.get('name', '').strip()
+    if not name:
+        flash('Tournament name is required.', 'error')
+        return redirect(url_for('tournaments'))
+
+    slug = _slugify(name)
+    data = load_tournaments()
+
+    if any(t['slug'] == slug for t in data.get('tournaments', [])):
+        flash(f'A tournament with a similar name already exists ("{slug}").', 'error')
+        return redirect(url_for('tournaments'))
+
+    tournament_path = os.path.join(TOURNAMENTS_DIR, slug)
+    os.makedirs(tournament_path, exist_ok=True)
+
+    # Seed initial data files
+    initial_constraints = get_default_constraints()
+    initial_constraints['tournament_name'] = name
+    with open(os.path.join(tournament_path, 'constraints.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(initial_constraints, f, default_flow_style=False)
+    # Create empty teams and courts files
+    with open(os.path.join(tournament_path, 'teams.yaml'), 'w', encoding='utf-8') as f:
+        f.write('')
+    with open(os.path.join(tournament_path, 'courts.csv'), 'w', encoding='utf-8', newline='') as f:
+        f.write('court_name,start_time,end_time\n')
+
+    data['tournaments'].append({
+        'slug': slug,
+        'name': name,
+        'created': datetime.now().isoformat()
+    })
+    data['active'] = slug
+    save_tournaments(data)
+
+    session['active_tournament'] = slug
+    flash(f'Tournament "{name}" created.', 'success')
+    return redirect(url_for('index'))
+
+
+@app.route('/api/tournaments/delete', methods=['POST'])
+def api_delete_tournament():
+    """Delete a tournament."""
+    slug = request.form.get('slug', '').strip()
+    if not slug:
+        flash('No tournament specified.', 'error')
+        return redirect(url_for('tournaments'))
+
+    data = load_tournaments()
+
+    # Validate slug (prevent path traversal)
+    if '..' in slug or '/' in slug or '\\' in slug:
+        flash('Invalid tournament identifier.', 'error')
+        return redirect(url_for('tournaments'))
+
+    data['tournaments'] = [t for t in data.get('tournaments', []) if t['slug'] != slug]
+
+    if data.get('active') == slug:
+        data['active'] = data['tournaments'][0]['slug'] if data['tournaments'] else None
+        session.pop('active_tournament', None)
+
+    save_tournaments(data)
+
+    tournament_path = os.path.join(TOURNAMENTS_DIR, slug)
+    if os.path.isdir(tournament_path):
+        shutil.rmtree(tournament_path)
+
+    flash('Tournament deleted.', 'success')
+    return redirect(url_for('tournaments'))
+
+
+@app.route('/api/tournaments/switch', methods=['POST'])
+def api_switch_tournament():
+    """Switch active tournament."""
+    slug = request.form.get('slug', '').strip()
+    data = load_tournaments()
+
+    if not any(t['slug'] == slug for t in data.get('tournaments', [])):
+        flash('Tournament not found.', 'error')
+        return redirect(url_for('tournaments'))
+
+    data['active'] = slug
+    save_tournaments(data)
+    session['active_tournament'] = slug
+
+    name = next((t['name'] for t in data['tournaments'] if t['slug'] == slug), slug)
+    flash(f'Switched to "{name}".', 'success')
     return redirect(url_for('index'))
 
 
