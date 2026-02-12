@@ -11,7 +11,8 @@ import logging
 import yaml
 import time
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
+from functools import wraps
 from filelock import FileLock
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file, session, g
 from core.models import Team, Court
@@ -21,9 +22,26 @@ from core.double_elimination import get_double_elimination_bracket_display, gene
 from generate_matches import generate_pool_play_matches, generate_elimination_matches
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
-if not os.environ.get('SECRET_KEY'):
-    logging.getLogger(__name__).warning('SECRET_KEY not set — using random key. Sessions will not persist across restarts.')
+
+
+def _get_or_create_secret_key() -> bytes:
+    """Get SECRET_KEY from env, or generate and persist to file."""
+    env_key = os.environ.get('SECRET_KEY')
+    if env_key:
+        return env_key.encode() if isinstance(env_key, str) else env_key
+    key_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', '.secret_key')
+    if os.path.exists(key_file):
+        with open(key_file, 'rb') as f:
+            return f.read()
+    key = os.urandom(24)
+    os.makedirs(os.path.dirname(key_file), exist_ok=True)
+    with open(key_file, 'wb') as f:
+        f.write(key)
+    return key
+
+
+app.secret_key = _get_or_create_secret_key()
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=3650)
 
 # Paths to data files (legacy constants — kept for migration; use _file_path() in routes)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -56,6 +74,67 @@ ALLOWED_IMPORT_NAMES = set(EXPORTABLE_FILES.keys())
 # Multi-tournament support
 TOURNAMENTS_FILE = os.path.join(DATA_DIR, 'tournaments.yaml')
 TOURNAMENTS_DIR = os.path.join(DATA_DIR, 'tournaments')
+USERS_FILE = os.path.join(DATA_DIR, 'users.yaml')
+USERS_DIR = os.path.join(DATA_DIR, 'users')
+
+
+def load_users() -> list:
+    """Load user registry from YAML."""
+    if not os.path.exists(USERS_FILE):
+        return []
+    with open(USERS_FILE, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+    return data.get('users', []) if data else []
+
+
+def save_users(users: list):
+    """Save user registry to YAML."""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(USERS_FILE, 'w', encoding='utf-8') as f:
+        yaml.dump({'users': users}, f, default_flow_style=False)
+
+
+def create_user(username: str, password: str) -> tuple:
+    """Create a new user. Returns (success, message)."""
+    from werkzeug.security import generate_password_hash
+    username = username.lower().strip()
+    if not re.match(r'^[a-z0-9][a-z0-9-]*$', username) or len(username) < 2:
+        return False, 'Username must be at least 2 characters: letters, numbers, hyphens.'
+    if len(password) < 4:
+        return False, 'Password must be at least 4 characters.'
+    with _data_lock:
+        users = load_users()
+        if any(u['username'] == username for u in users):
+            return False, 'Username already taken.'
+        users.append({
+            'username': username,
+            'password_hash': generate_password_hash(password),
+            'created': datetime.now().isoformat()
+        })
+        save_users(users)
+    user_dir = os.path.join(USERS_DIR, username, 'tournaments')
+    os.makedirs(user_dir, exist_ok=True)
+    return True, 'Account created successfully.'
+
+
+def authenticate_user(username: str, password: str) -> bool:
+    """Check username/password. Returns True if valid."""
+    from werkzeug.security import check_password_hash
+    users = load_users()
+    for u in users:
+        if u['username'] == username.lower().strip():
+            return check_password_hash(u['password_hash'], password)
+    return False
+
+
+def login_required(f):
+    """Redirect to login page if user not authenticated."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session:
+            return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 def _slugify(name: str) -> str:
@@ -70,7 +149,8 @@ def _slugify(name: str) -> str:
 def _tournament_dir(slug: str = None) -> str:
     """Return data directory for a tournament. Uses active tournament if slug not given."""
     if slug:
-        return os.path.join(TOURNAMENTS_DIR, slug)
+        tournaments_dir = getattr(g, 'user_tournaments_dir', TOURNAMENTS_DIR)
+        return os.path.join(tournaments_dir, slug)
     try:
         return g.data_dir
     except (AttributeError, RuntimeError):
@@ -83,17 +163,20 @@ def _file_path(filename: str) -> str:
 
 
 def load_tournaments() -> dict:
-    """Load tournaments registry."""
-    if not os.path.exists(TOURNAMENTS_FILE):
+    """Load tournaments registry for the current user."""
+    tournaments_file = getattr(g, 'user_tournaments_file', TOURNAMENTS_FILE)
+    if not os.path.exists(tournaments_file):
         return {'active': None, 'tournaments': []}
-    with open(TOURNAMENTS_FILE, 'r', encoding='utf-8') as f:
+    with open(tournaments_file, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f)
         return data if data else {'active': None, 'tournaments': []}
 
 
 def save_tournaments(data: dict):
-    """Save tournaments registry."""
-    with open(TOURNAMENTS_FILE, 'w', encoding='utf-8') as f:
+    """Save tournaments registry for the current user."""
+    tournaments_file = getattr(g, 'user_tournaments_file', TOURNAMENTS_FILE)
+    os.makedirs(os.path.dirname(tournaments_file), exist_ok=True)
+    with open(tournaments_file, 'w', encoding='utf-8') as f:
         yaml.dump(data, f, default_flow_style=False)
 
 
@@ -110,31 +193,80 @@ def _get_exportable_files() -> dict:
 
 
 def ensure_tournament_structure():
-    """Migrate legacy flat files to tournament subdirectory structure."""
+    """Migrate to user-scoped tournament structure.
+
+    Handles three cases:
+    1. Already migrated (users.yaml exists) → no-op
+    2. Multi-tournament exists (tournaments.yaml) but no auth → migrate to admin user
+    3. Legacy flat files (no tournaments.yaml) → migrate flat→tournaments→admin
+    4. Fresh install → create empty users.yaml
+    """
     os.makedirs(TOURNAMENTS_DIR, exist_ok=True)
 
-    if os.path.exists(TOURNAMENTS_FILE):
-        return  # Already migrated
+    # Already auth-migrated
+    if os.path.exists(USERS_FILE):
+        return
 
+    # Case 2: Multi-tournament structure exists — migrate to admin user
+    if os.path.exists(TOURNAMENTS_FILE):
+        _migrate_to_admin_user()
+        return
+
+    # Case 3: Legacy flat files (pre-multi-tournament era)
     legacy_files = ['teams.yaml', 'courts.csv', 'constraints.yaml',
                     'results.yaml', 'schedule.yaml', 'print_settings.yaml']
     has_legacy = any(os.path.exists(os.path.join(DATA_DIR, f)) for f in legacy_files)
 
-    default_dir = os.path.join(TOURNAMENTS_DIR, 'default')
-    os.makedirs(default_dir, exist_ok=True)
-
     if has_legacy:
+        # First: flat files → tournaments/default
+        default_dir = os.path.join(TOURNAMENTS_DIR, 'default')
+        os.makedirs(default_dir, exist_ok=True)
         for f in legacy_files:
             src = os.path.join(DATA_DIR, f)
             if os.path.exists(src):
-                shutil.move(src, os.path.join(default_dir, f))
+                shutil.copy2(src, os.path.join(default_dir, f))
         for logo in glob.glob(os.path.join(DATA_DIR, 'logo.*')):
-            shutil.move(logo, os.path.join(default_dir, os.path.basename(logo)))
+            shutil.copy2(logo, os.path.join(default_dir, os.path.basename(logo)))
+        save_tournaments({
+            'active': 'default',
+            'tournaments': [{'slug': 'default', 'name': 'Default Tournament',
+                             'created': datetime.now().isoformat()}]
+        })
+        # Then: tournaments → admin user
+        _migrate_to_admin_user()
+        return
 
-    save_tournaments({
-        'active': 'default',
-        'tournaments': [{'slug': 'default', 'name': 'Default Tournament', 'created': datetime.now().isoformat()}]
-    })
+    # Case 4: Fresh install
+    save_users([])
+
+
+def _migrate_to_admin_user():
+    """Migrate existing multi-tournament structure to an admin user."""
+    from werkzeug.security import generate_password_hash
+    admin_dir = os.path.join(USERS_DIR, 'admin')
+    admin_tournaments_dir = os.path.join(admin_dir, 'tournaments')
+    os.makedirs(admin_tournaments_dir, exist_ok=True)
+
+    # Copy tournament registry
+    shutil.copy2(TOURNAMENTS_FILE, os.path.join(admin_dir, 'tournaments.yaml'))
+
+    # Copy tournament data dirs
+    if os.path.isdir(TOURNAMENTS_DIR):
+        for item in os.listdir(TOURNAMENTS_DIR):
+            src_path = os.path.join(TOURNAMENTS_DIR, item)
+            if os.path.isdir(src_path):
+                dest_path = os.path.join(admin_tournaments_dir, item)
+                if not os.path.exists(dest_path):
+                    shutil.copytree(src_path, dest_path)
+
+    # Create admin user
+    save_users([{
+        'username': 'admin',
+        'password_hash': generate_password_hash('admin'),
+        'created': datetime.now().isoformat()
+    }])
+    logging.getLogger(__name__).info(
+        'Migrated existing tournaments to admin user. Default password: admin')
 
 
 ensure_tournament_structure()
@@ -817,17 +949,33 @@ def get_default_constraints():
 @app.before_request
 def set_active_tournament():
     """Set g.data_dir to the active tournament's data directory."""
-    if request.endpoint == 'static':
+    # Skip auth for static files, login, register
+    if request.endpoint in ('static', 'login_page', 'register_page', None):
         return
 
     # Ensure tournament structure exists (idempotent)
     ensure_tournament_structure()
 
+    # Require login for all other endpoints except logout
+    if 'user' not in session:
+        if request.endpoint != 'logout':
+            return redirect(url_for('login_page'))
+        return
+
+    username = session['user']
+    user_dir = os.path.join(USERS_DIR, username)
+    g.user_dir = user_dir
+    g.user_tournaments_file = os.path.join(user_dir, 'tournaments.yaml')
+    g.user_tournaments_dir = os.path.join(user_dir, 'tournaments')
+
+    # Ensure user directory exists
+    os.makedirs(g.user_tournaments_dir, exist_ok=True)
+
     tournaments = load_tournaments()
     active_slug = session.get('active_tournament', tournaments.get('active'))
 
     if active_slug:
-        tournament_path = os.path.join(TOURNAMENTS_DIR, active_slug)
+        tournament_path = os.path.join(g.user_tournaments_dir, active_slug)
         if os.path.isdir(tournament_path):
             g.data_dir = tournament_path
             g.active_tournament = active_slug
@@ -839,18 +987,65 @@ def set_active_tournament():
                 g.tournament_name = active_slug
             return
 
-    g.data_dir = DATA_DIR
+    g.data_dir = user_dir
     g.active_tournament = None
     g.tournament_name = None
 
 
 @app.context_processor
 def inject_tournament_context():
-    """Make tournament info available to all templates."""
+    """Make tournament and user info available to all templates."""
     return {
         'active_tournament': getattr(g, 'active_tournament', None),
         'tournament_name': getattr(g, 'tournament_name', None),
+        'current_user': session.get('user'),
     }
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login_page():
+    """Login form and authentication."""
+    if 'user' in session:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        if authenticate_user(username, password):
+            session['user'] = username.lower().strip()
+            session.permanent = True
+            return redirect(url_for('index'))
+        flash('Invalid username or password.', 'error')
+    return render_template('login.html')
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register_page():
+    """Registration form and user creation."""
+    if 'user' in session:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+        confirm = request.form.get('confirm_password', '')
+        if password != confirm:
+            flash('Passwords do not match.', 'error')
+        else:
+            ok, msg = create_user(username, password)
+            if ok:
+                session['user'] = username.lower().strip()
+                session.permanent = True
+                flash(msg, 'success')
+                return redirect(url_for('index'))
+            flash(msg, 'error')
+    return render_template('register.html')
+
+
+@app.route('/logout')
+def logout():
+    """Clear session and redirect to login."""
+    session.clear()
+    flash('Logged out.', 'success')
+    return redirect(url_for('login_page'))
 
 
 @app.route('/')
@@ -2819,7 +3014,7 @@ def api_create_tournament():
         flash(f'A tournament with a similar name already exists ("{slug}").', 'error')
         return redirect(url_for('tournaments'))
 
-    tournament_path = os.path.join(TOURNAMENTS_DIR, slug)
+    tournament_path = os.path.join(g.user_tournaments_dir, slug)
     os.makedirs(tournament_path, exist_ok=True)
 
     # Seed initial data files
@@ -2869,7 +3064,7 @@ def api_delete_tournament():
 
     save_tournaments(data)
 
-    tournament_path = os.path.join(TOURNAMENTS_DIR, slug)
+    tournament_path = os.path.join(g.user_tournaments_dir, slug)
     if os.path.isdir(tournament_path):
         shutil.rmtree(tournament_path)
 

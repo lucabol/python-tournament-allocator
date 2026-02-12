@@ -28,52 +28,72 @@ TOURNAMENT_DATA_FILES = ['teams.yaml', 'courts.csv', 'constraints.yaml']
 
 @pytest.fixture
 def client():
-    """Create a test client for the Flask app."""
+    """Create an authenticated test client."""
     app.config['TESTING'] = True
     with app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess['user'] = 'testuser'
         yield client
 
 
 @pytest.fixture
 def tournament_dir(tmp_path, monkeypatch):
-    """Set up a temporary data directory wired for multi-tournament support.
+    """Set up a temporary data directory wired for multi-tournament support with auth.
 
-    Creates:
+    Creates user-scoped structure:
         tmp_path/
-            tournaments.yaml          (registry)
-            tournaments/
-                default/
-                    teams.yaml
-                    courts.csv
-                    constraints.yaml
+            users.yaml
+            users/
+                testuser/
+                    tournaments.yaml          (registry)
+                    tournaments/
+                        default/
+                            teams.yaml
+                            courts.csv
+                            constraints.yaml
+    Returns the testuser directory so test assertions like
+    ``tournament_dir / 'tournaments' / slug`` resolve correctly.
     """
     import app as app_module
 
-    data_dir = tmp_path
-    tournaments_dir = data_dir / 'tournaments'
-    tournaments_dir.mkdir()
-    registry_file = data_dir / 'tournaments.yaml'
+    # Build user-scoped directory structure
+    users_dir = tmp_path / 'users'
+    testuser_dir = users_dir / 'testuser'
+    tournaments_dir = testuser_dir / 'tournaments'
 
     # Seed a "default" tournament
     default_dir = tournaments_dir / 'default'
-    default_dir.mkdir()
+    default_dir.mkdir(parents=True)
     (default_dir / 'teams.yaml').write_text('')
     (default_dir / 'courts.csv').write_text('court_name,start_time,end_time\n')
     (default_dir / 'constraints.yaml').write_text('')
 
+    # User's tournament registry
     registry = {
         'tournaments': [{'name': 'Default', 'slug': 'default'}],
         'active': 'default',
     }
-    registry_file.write_text(yaml.dump(registry, default_flow_style=False))
+    (testuser_dir / 'tournaments.yaml').write_text(
+        yaml.dump(registry, default_flow_style=False))
+
+    # Auth: create users.yaml so ensure_tournament_structure() skips migration
+    users_file = tmp_path / 'users.yaml'
+    users_file.write_text(yaml.dump({'users': [
+        {'username': 'testuser', 'password_hash': 'unused', 'created': '2026-01-01'}
+    ]}, default_flow_style=False))
+
+    # Global registry stub
+    global_reg = tmp_path / 'tournaments.yaml'
+    global_reg.write_text(yaml.dump({'active': None, 'tournaments': []}, default_flow_style=False))
 
     # Patch module-level paths
-    monkeypatch.setattr(app_module, 'DATA_DIR', str(data_dir))
+    monkeypatch.setattr(app_module, 'DATA_DIR', str(default_dir))
     monkeypatch.setattr(app_module, 'TOURNAMENTS_DIR', str(tournaments_dir))
-    monkeypatch.setattr(app_module, 'TOURNAMENTS_FILE', str(registry_file))
+    monkeypatch.setattr(app_module, 'TOURNAMENTS_FILE', str(global_reg))
+    monkeypatch.setattr(app_module, 'USERS_FILE', str(users_file))
+    monkeypatch.setattr(app_module, 'USERS_DIR', str(users_dir))
 
-    # Point per-request file paths into the default tournament dir so that
-    # any code that still reads the module-level constants gets safe defaults.
+    # Point per-request file paths into the default tournament dir
     monkeypatch.setattr(app_module, 'TEAMS_FILE', str(default_dir / 'teams.yaml'))
     monkeypatch.setattr(app_module, 'COURTS_FILE', str(default_dir / 'courts.csv'))
     monkeypatch.setattr(app_module, 'CONSTRAINTS_FILE', str(default_dir / 'constraints.yaml'))
@@ -93,7 +113,7 @@ def tournament_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, 'EXPORTABLE_FILES', exportable)
     monkeypatch.setattr(app_module, 'ALLOWED_IMPORT_NAMES', set(exportable.keys()))
 
-    return data_dir
+    return testuser_dir
 
 
 def _read_registry(data_dir):
@@ -316,46 +336,50 @@ class TestTournamentSwitch:
 # ---------------------------------------------------------------------------
 
 class TestTournamentMigration:
-    """Tests for automatic migration of legacy flat-file data."""
+    """Tests for automatic migration to user-scoped tournament structure."""
 
     def test_legacy_migration(self, tmp_path, monkeypatch, client):
-        """Flat files in data/ get moved into data/tournaments/default/."""
+        """Flat files in data/ get migrated through to admin user's tournaments."""
         import app as app_module
 
         data_dir = tmp_path
         tournaments_dir = data_dir / 'tournaments'
         registry_file = data_dir / 'tournaments.yaml'
+        users_file = data_dir / 'users.yaml'
+        users_dir = data_dir / 'users'
 
         # Simulate legacy layout: data files sitting directly in data/
         (data_dir / 'teams.yaml').write_text('Pool A:\n  teams: [Alpha]\n  advance: 2\n')
         (data_dir / 'courts.csv').write_text('court_name,start_time,end_time\nCourt 1,08:00,22:00\n')
         (data_dir / 'constraints.yaml').write_text('match_duration_minutes: 30\n')
 
-        # No tournaments directory or registry yet
+        # No tournaments directory, no registry, no users
         assert not tournaments_dir.exists()
         assert not registry_file.exists()
+        assert not users_file.exists()
 
         monkeypatch.setattr(app_module, 'DATA_DIR', str(data_dir))
         monkeypatch.setattr(app_module, 'TOURNAMENTS_DIR', str(tournaments_dir))
         monkeypatch.setattr(app_module, 'TOURNAMENTS_FILE', str(registry_file))
+        monkeypatch.setattr(app_module, 'USERS_FILE', str(users_file))
+        monkeypatch.setattr(app_module, 'USERS_DIR', str(users_dir))
 
-        # Trigger migration — expected to happen on first request or via a
-        # startup function.  Try hitting the tournaments page which should
-        # trigger the before_request hook.
+        # Trigger migration via before_request
         app_module.app.config['TESTING'] = True
         with app_module.app.test_client() as c:
             c.get('/tournaments')
 
-        # Files should now live under tournaments/default/
-        default_dir = tournaments_dir / 'default'
-        assert default_dir.is_dir()
-        assert (default_dir / 'teams.yaml').exists()
-        assert 'Alpha' in (default_dir / 'teams.yaml').read_text()
+        # Files should be migrated to admin user's tournament dir
+        admin_default = users_dir / 'admin' / 'tournaments' / 'default'
+        assert admin_default.is_dir()
+        assert (admin_default / 'teams.yaml').exists()
+        assert 'Alpha' in (admin_default / 'teams.yaml').read_text()
 
-        # Registry should list the default tournament
-        reg = _read_registry(data_dir)
-        assert any(t['slug'] == 'default' for t in reg.get('tournaments', []))
-        assert reg['active'] == 'default'
+        # users.yaml should exist with admin user
+        assert users_file.exists()
+        import yaml as _yaml
+        users_data = _yaml.safe_load(users_file.read_text())
+        assert any(u['username'] == 'admin' for u in users_data.get('users', []))
 
     def test_migration_idempotent(self, tmp_path, monkeypatch, client):
         """Running migration again when already migrated does nothing."""
@@ -365,64 +389,81 @@ class TestTournamentMigration:
         tournaments_dir = data_dir / 'tournaments'
         tournaments_dir.mkdir()
         registry_file = data_dir / 'tournaments.yaml'
+        users_file = data_dir / 'users.yaml'
+        users_dir = data_dir / 'users'
 
-        # Already-migrated state
-        default_dir = tournaments_dir / 'default'
-        default_dir.mkdir()
+        # Already-migrated state: users.yaml exists
+        users_file.write_text(yaml.dump({'users': [
+            {'username': 'admin', 'password_hash': 'hashed', 'created': '2026-01-01'}
+        ]}, default_flow_style=False))
+
+        # Admin user's tournament dir
+        admin_dir = users_dir / 'admin' / 'tournaments' / 'default'
+        admin_dir.mkdir(parents=True)
         teams_content = 'Pool X:\n  teams: [Beta]\n  advance: 1\n'
-        (default_dir / 'teams.yaml').write_text(teams_content)
-        (default_dir / 'courts.csv').write_text('court_name,start_time,end_time\n')
-        (default_dir / 'constraints.yaml').write_text('')
+        (admin_dir / 'teams.yaml').write_text(teams_content)
+        (admin_dir / 'courts.csv').write_text('court_name,start_time,end_time\n')
+        (admin_dir / 'constraints.yaml').write_text('')
 
-        registry = {
+        (users_dir / 'admin' / 'tournaments.yaml').write_text(yaml.dump({
             'tournaments': [{'name': 'Default', 'slug': 'default'}],
             'active': 'default',
-        }
-        registry_file.write_text(yaml.dump(registry, default_flow_style=False))
+        }, default_flow_style=False))
+
+        registry_file.write_text(yaml.dump({
+            'tournaments': [{'name': 'Default', 'slug': 'default'}],
+            'active': 'default',
+        }, default_flow_style=False))
 
         monkeypatch.setattr(app_module, 'DATA_DIR', str(data_dir))
         monkeypatch.setattr(app_module, 'TOURNAMENTS_DIR', str(tournaments_dir))
         monkeypatch.setattr(app_module, 'TOURNAMENTS_FILE', str(registry_file))
-        monkeypatch.setattr(app_module, 'TEAMS_FILE', str(default_dir / 'teams.yaml'))
-        monkeypatch.setattr(app_module, 'COURTS_FILE', str(default_dir / 'courts.csv'))
-        monkeypatch.setattr(app_module, 'CONSTRAINTS_FILE', str(default_dir / 'constraints.yaml'))
-        monkeypatch.setattr(app_module, 'RESULTS_FILE', str(default_dir / 'results.yaml'))
-        monkeypatch.setattr(app_module, 'SCHEDULE_FILE', str(default_dir / 'schedule.yaml'))
-        monkeypatch.setattr(app_module, 'PRINT_SETTINGS_FILE', str(default_dir / 'print_settings.yaml'))
-        monkeypatch.setattr(app_module, 'LOGO_FILE_PREFIX', str(default_dir / 'logo'))
+        monkeypatch.setattr(app_module, 'USERS_FILE', str(users_file))
+        monkeypatch.setattr(app_module, 'USERS_DIR', str(users_dir))
+
+        monkeypatch.setattr(app_module, 'TEAMS_FILE', str(admin_dir / 'teams.yaml'))
+        monkeypatch.setattr(app_module, 'COURTS_FILE', str(admin_dir / 'courts.csv'))
+        monkeypatch.setattr(app_module, 'CONSTRAINTS_FILE', str(admin_dir / 'constraints.yaml'))
+        monkeypatch.setattr(app_module, 'RESULTS_FILE', str(admin_dir / 'results.yaml'))
+        monkeypatch.setattr(app_module, 'SCHEDULE_FILE', str(admin_dir / 'schedule.yaml'))
+        monkeypatch.setattr(app_module, 'PRINT_SETTINGS_FILE', str(admin_dir / 'print_settings.yaml'))
+        monkeypatch.setattr(app_module, 'LOGO_FILE_PREFIX', str(admin_dir / 'logo'))
 
         app_module.app.config['TESTING'] = True
         with app_module.app.test_client() as c:
+            with c.session_transaction() as sess:
+                sess['user'] = 'admin'
             c.get('/tournaments')
 
         # Data should be untouched
-        assert (default_dir / 'teams.yaml').read_text() == teams_content
-        # Still exactly one tournament in registry
-        reg = _read_registry(data_dir)
-        assert len(reg['tournaments']) == 1
+        assert (admin_dir / 'teams.yaml').read_text() == teams_content
 
     def test_fresh_install(self, tmp_path, monkeypatch, client):
-        """Empty data directory creates a default tournament structure."""
+        """Empty data directory creates users.yaml for fresh install."""
         import app as app_module
 
         data_dir = tmp_path
         tournaments_dir = data_dir / 'tournaments'
         registry_file = data_dir / 'tournaments.yaml'
+        users_file = data_dir / 'users.yaml'
+        users_dir = data_dir / 'users'
 
-        # Completely empty — no legacy files, no tournaments dir
+        # Completely empty — no legacy files, no tournaments, no users
         monkeypatch.setattr(app_module, 'DATA_DIR', str(data_dir))
         monkeypatch.setattr(app_module, 'TOURNAMENTS_DIR', str(tournaments_dir))
         monkeypatch.setattr(app_module, 'TOURNAMENTS_FILE', str(registry_file))
+        monkeypatch.setattr(app_module, 'USERS_FILE', str(users_file))
+        monkeypatch.setattr(app_module, 'USERS_DIR', str(users_dir))
 
         app_module.app.config['TESTING'] = True
         with app_module.app.test_client() as c:
             c.get('/tournaments')
 
-        # A default tournament directory should have been bootstrapped
-        default_dir = tournaments_dir / 'default'
-        assert default_dir.is_dir()
-        reg = _read_registry(data_dir)
-        assert reg['active'] == 'default'
+        # users.yaml should be created (fresh install — no admin, just empty)
+        assert users_file.exists()
+        import yaml as _yaml
+        users_data = _yaml.safe_load(users_file.read_text())
+        assert users_data == {'users': []}
 
 
 # ---------------------------------------------------------------------------

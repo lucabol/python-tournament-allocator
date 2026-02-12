@@ -16,33 +16,58 @@ from app import app, load_teams, save_teams, load_constraints, get_default_const
 
 @pytest.fixture
 def client():
-    """Create a test client for the Flask app."""
+    """Create an authenticated test client."""
     app.config['TESTING'] = True
     with app.test_client() as client:
+        with client.session_transaction() as sess:
+            sess['user'] = 'testuser'
         yield client
 
 
 @pytest.fixture
 def temp_data_dir(tmp_path, monkeypatch):
-    """Set up temporary data directory for tests."""
+    """Set up temporary data directory with user-scoped tournament structure."""
     import app as app_module
-    
-    # Create temp files
-    teams_file = tmp_path / "teams.yaml"
-    courts_file = tmp_path / "courts.csv"
-    constraints_file = tmp_path / "constraints.yaml"
-    results_file = tmp_path / "results.yaml"
-    schedule_file = tmp_path / "schedule.yaml"
-    print_settings_file = tmp_path / "print_settings.yaml"
-    logo_prefix = str(tmp_path / "logo")
-    
-    # Initialize with test data
+
+    # Build user-scoped directory structure
+    users_dir = tmp_path / "users"
+    testuser_dir = users_dir / "testuser"
+    testuser_tournaments_dir = testuser_dir / "tournaments"
+    tournament_data = testuser_tournaments_dir / "default"
+    tournament_data.mkdir(parents=True)
+
+    # Create test data files inside the default tournament
+    teams_file = tournament_data / "teams.yaml"
+    courts_file = tournament_data / "courts.csv"
+    constraints_file = tournament_data / "constraints.yaml"
+    results_file = tournament_data / "results.yaml"
+    schedule_file = tournament_data / "schedule.yaml"
+    print_settings_file = tournament_data / "print_settings.yaml"
+    logo_prefix = str(tournament_data / "logo")
+
     teams_file.write_text("")
     courts_file.write_text("court_name,start_time,end_time\n")
     constraints_file.write_text("")
-    
-    # Monkeypatch the file paths
-    monkeypatch.setattr(app_module, 'DATA_DIR', str(tmp_path))
+
+    # Auth: create users.yaml so ensure_tournament_structure() skips migration
+    users_file = tmp_path / "users.yaml"
+    users_file.write_text(yaml.dump({'users': [
+        {'username': 'testuser', 'password_hash': 'unused', 'created': '2026-01-01'}
+    ]}, default_flow_style=False))
+
+    # User's tournament registry with an active default tournament
+    user_reg = testuser_dir / "tournaments.yaml"
+    user_reg.write_text(yaml.dump({
+        'active': 'default',
+        'tournaments': [{'slug': 'default', 'name': 'Default'}]
+    }, default_flow_style=False))
+
+    # Global registry stub
+    global_reg = tmp_path / "tournaments.yaml"
+    global_reg.write_text(yaml.dump({'active': None, 'tournaments': []}, default_flow_style=False))
+
+    # Monkeypatch — DATA_DIR points to tournament dir so fallback reads match
+    monkeypatch.setattr(app_module, 'DATA_DIR', str(tournament_data))
     monkeypatch.setattr(app_module, 'TEAMS_FILE', str(teams_file))
     monkeypatch.setattr(app_module, 'COURTS_FILE', str(courts_file))
     monkeypatch.setattr(app_module, 'CONSTRAINTS_FILE', str(constraints_file))
@@ -50,13 +75,10 @@ def temp_data_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, 'SCHEDULE_FILE', str(schedule_file))
     monkeypatch.setattr(app_module, 'PRINT_SETTINGS_FILE', str(print_settings_file))
     monkeypatch.setattr(app_module, 'LOGO_FILE_PREFIX', logo_prefix)
-
-    # Multi-tournament paths — create a stub registry so migration is skipped.
-    # This lets existing tests keep their flat-file layout in tmp_path.
-    tournaments_file = tmp_path / "tournaments.yaml"
-    tournaments_file.write_text(yaml.dump({'active': None, 'tournaments': []}, default_flow_style=False))
-    monkeypatch.setattr(app_module, 'TOURNAMENTS_FILE', str(tournaments_file))
-    monkeypatch.setattr(app_module, 'TOURNAMENTS_DIR', str(tmp_path / "tournaments"))
+    monkeypatch.setattr(app_module, 'USERS_FILE', str(users_file))
+    monkeypatch.setattr(app_module, 'USERS_DIR', str(users_dir))
+    monkeypatch.setattr(app_module, 'TOURNAMENTS_FILE', str(global_reg))
+    monkeypatch.setattr(app_module, 'TOURNAMENTS_DIR', str(testuser_tournaments_dir))
 
     # Rebuild derived constants so export/import uses temp paths
     exportable = {
@@ -69,8 +91,8 @@ def temp_data_dir(tmp_path, monkeypatch):
     }
     monkeypatch.setattr(app_module, 'EXPORTABLE_FILES', exportable)
     monkeypatch.setattr(app_module, 'ALLOWED_IMPORT_NAMES', set(exportable.keys()))
-    
-    return tmp_path
+
+    return tournament_data
 
 
 class TestLoadTeams:
