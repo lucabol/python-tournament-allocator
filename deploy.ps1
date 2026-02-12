@@ -224,8 +224,15 @@ az webapp config appsettings set `
     --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true DISABLE_COLLECTSTATIC=true TOURNAMENT_DATA_DIR=/home/data `
     --output none
 
-# Set SECRET_KEY for Flask session security
-az webapp config appsettings set --name $appName --resource-group $resourceGroup --settings SECRET_KEY="$(New-Guid)" --output none
+# Set SECRET_KEY for Flask session security — only on first deploy.
+# Regenerating it invalidates all user session cookies (logs everyone out).
+$existingKey = az webapp config appsettings list --name $appName --resource-group $resourceGroup --query "[?name=='SECRET_KEY'].value" -o tsv
+if (-not $existingKey) {
+    Write-Host "Setting SECRET_KEY (first deploy)..." -ForegroundColor Yellow
+    az webapp config appsettings set --name $appName --resource-group $resourceGroup --settings SECRET_KEY="$(New-Guid)" --output none
+} else {
+    Write-Host "SECRET_KEY already set, skipping (preserves user sessions)." -ForegroundColor DarkGray
+}
 
 # Wait for config changes to propagate (config changes trigger async container restarts)
 Write-Host "Waiting for config changes to propagate..." -ForegroundColor Yellow
