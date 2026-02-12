@@ -29,7 +29,7 @@ def _get_or_create_secret_key() -> bytes:
     env_key = os.environ.get('SECRET_KEY')
     if env_key:
         return env_key.encode() if isinstance(env_key, str) else env_key
-    key_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', '.secret_key')
+    key_file = os.path.join(DATA_DIR, '.secret_key')
     if os.path.exists(key_file):
         with open(key_file, 'rb') as f:
             return f.read()
@@ -40,12 +40,13 @@ def _get_or_create_secret_key() -> bytes:
     return key
 
 
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+DATA_DIR = os.environ.get('TOURNAMENT_DATA_DIR', os.path.join(BASE_DIR, 'data'))
+
 app.secret_key = _get_or_create_secret_key()
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=3650)
 
 # Paths to data files (legacy constants — kept for migration; use _file_path() in routes)
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-DATA_DIR = os.path.join(BASE_DIR, 'data')
 TEAMS_FILE = os.path.join(DATA_DIR, 'teams.yaml')
 COURTS_FILE = os.path.join(DATA_DIR, 'courts.csv')
 CONSTRAINTS_FILE = os.path.join(DATA_DIR, 'constraints.yaml')

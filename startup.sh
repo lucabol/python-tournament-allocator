@@ -13,5 +13,6 @@ if [ -d "$APP_ROOT/antenv/bin" ]; then
     source "$APP_ROOT/antenv/bin/activate"
 fi
 
+mkdir -p "${TOURNAMENT_DATA_DIR:-/home/data}"
 cd "$APP_ROOT/src"
 exec gunicorn --bind=0.0.0.0:8000 --timeout 600 --threads 4 app:app

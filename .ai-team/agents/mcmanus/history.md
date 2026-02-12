@@ -16,3 +16,16 @@
 - **Testing pattern**: `temp_data_dir` fixture must create a stub `tournaments.yaml` to prevent migration from moving test files. Monkeypatch `TOURNAMENTS_FILE` and `TOURNAMENTS_DIR` alongside the legacy constants.
 - **Key files**: `src/app.py` (all routes + infrastructure), `src/templates/tournaments.html` (CRUD UI), `src/templates/base.html` (nav includes tournament link + name).
 - **CRUD routes**: `/tournaments` (list), `/api/tournaments/create|delete|switch` (POST). New tournaments get seeded with `constraints.yaml`, empty `teams.yaml`, and header-only `courts.csv`.
+
+### 2026-02-11: Fixed first-deploy race condition in deploy.ps1
+- **Problem**: `az webapp config set` and `az webapp config appsettings set` each trigger a container restart. When these ran BEFORE `az webapp deploy`, the container would boot mid-Oryx-build, find no artifacts, and crash. Second boot ~5 min later succeeded because the build had finished.
+- **Fix**: Moved all three config blocks (startup command, app settings, SECRET_KEY) to AFTER the zip deploy retry loop. Removed the pre-deploy propagation sleep and added a post-deploy one instead. Updated retry loop comment to remove stale reference to config-triggered restarts.
+- **Files changed**: `deploy.ps1`
+
+### 2026-02-11: Separated config data from runtime data for Azure deploys
+- **Problem**: Deploying the app to Azure overwrote user tournament data because `data/` was bundled in the zip package and lived under `/home/site/wwwroot/data`.
+- **Fix**: Three surgical changes:
+  1. `src/app.py`: `DATA_DIR` now reads from `TOURNAMENT_DATA_DIR` env var (falls back to `../data` for local dev). Moved `BASE_DIR`/`DATA_DIR` definitions above `_get_or_create_secret_key()` call so the function can use `DATA_DIR` for `.secret_key` path.
+  2. `deploy.ps1`: Added `TOURNAMENT_DATA_DIR=/home/data` to Azure app settings. Removed the line that copied `data/` into the deploy zip.
+  3. `startup.sh`: Added `mkdir -p` for the data dir before app startup.
+- **Effect**: On Azure, runtime data lives in `/home/data` (persistent across deploys). Locally, behavior is unchanged — `DATA_DIR` defaults to `../data`.

@@ -141,25 +141,6 @@ if (-not $appExists) {
     Write-Host "Web App already exists." -ForegroundColor DarkGray
 }
 
-# Configure startup command for Flask
-Write-Host "Configuring startup command..." -ForegroundColor Yellow
-az webapp config set `
-    --name $appName `
-    --resource-group $resourceGroup `
-    --startup-file "startup.sh" `
-    --output none
-
-# Enable Oryx build (to install requirements.txt)
-Write-Host "Enabling Oryx build..." -ForegroundColor Yellow
-az webapp config appsettings set `
-    --name $appName `
-    --resource-group $resourceGroup `
-    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true DISABLE_COLLECTSTATIC=true `
-    --output none
-
-# Set SECRET_KEY for Flask session security
-az webapp config appsettings set --name $appName --resource-group $resourceGroup --settings SECRET_KEY="$(New-Guid)" --output none
-
 # Create deployment package
 Write-Host "Creating deployment package..." -ForegroundColor Yellow
 $zipFile = Join-Path $env:TEMP "deploy.zip"
@@ -169,7 +150,6 @@ $stagingDir = Join-Path $env:TEMP ("deploy-staging-" + [Guid]::NewGuid().ToStrin
 New-Item -ItemType Directory -Path $stagingDir | Out-Null
 
 Copy-Item -Path (Join-Path $PSScriptRoot "src") -Destination $stagingDir -Recurse
-Copy-Item -Path (Join-Path $PSScriptRoot "data") -Destination $stagingDir -Recurse
 Copy-Item -Path (Join-Path $PSScriptRoot "startup.sh") -Destination $stagingDir
 
 $requirementsPath = Join-Path $PSScriptRoot "requirements.txt"
@@ -183,11 +163,7 @@ $requirements | Set-Content $stagedRequirements
 
 Compress-Archive -Path (Join-Path $stagingDir "*") -DestinationPath $zipFile
 
-# Wait for config changes to propagate (config set/appsettings set trigger async Kudu restarts)
-Write-Host "Waiting for config changes to propagate..." -ForegroundColor Yellow
-Start-Sleep -Seconds 15
-
-# Deploy with retry logic — Kudu may still be restarting from config changes on first deploy
+# Deploy with retry logic — Kudu may be slow to respond on first deploy
 # NOTE: az webapp deploy returns exit code 0 even on 502, so we capture output to detect failures.
 Write-Host "Deploying application..." -ForegroundColor Yellow
 Write-Host "Uploading zip to Kudu and running remote build (this can take several minutes for numpy/pandas/ortools)..." -ForegroundColor DarkGray
@@ -227,6 +203,33 @@ while (-not $deploySuccess -and $deployAttempt -lt $deployMaxRetries) {
         }
     }
 }
+
+# Configure app AFTER deploy succeeds — each config change triggers a container restart,
+# and on first deploy the Oryx remote build needs to complete before the container can boot.
+# Setting config before deploy caused a race: container restarts before build artifacts exist.
+
+# Configure startup command for Flask
+Write-Host "Configuring startup command..." -ForegroundColor Yellow
+az webapp config set `
+    --name $appName `
+    --resource-group $resourceGroup `
+    --startup-file "startup.sh" `
+    --output none
+
+# Enable Oryx build and set app settings
+Write-Host "Setting app settings..." -ForegroundColor Yellow
+az webapp config appsettings set `
+    --name $appName `
+    --resource-group $resourceGroup `
+    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true DISABLE_COLLECTSTATIC=true TOURNAMENT_DATA_DIR=/home/data `
+    --output none
+
+# Set SECRET_KEY for Flask session security
+az webapp config appsettings set --name $appName --resource-group $resourceGroup --settings SECRET_KEY="$(New-Guid)" --output none
+
+# Wait for config changes to propagate (config changes trigger async container restarts)
+Write-Host "Waiting for config changes to propagate..." -ForegroundColor Yellow
+Start-Sleep -Seconds 15
 
 # Cleanup
 Remove-Item $zipFile -ErrorAction SilentlyContinue
