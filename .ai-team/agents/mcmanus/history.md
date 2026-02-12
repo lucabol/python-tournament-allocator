@@ -29,3 +29,9 @@
   2. `deploy.ps1`: Added `TOURNAMENT_DATA_DIR=/home/data` to Azure app settings. Removed the line that copied `data/` into the deploy zip.
   3. `startup.sh`: Added `mkdir -p` for the data dir before app startup.
 - **Effect**: On Azure, runtime data lives in `/home/data` (persistent across deploys). Locally, behavior is unchanged — `DATA_DIR` defaults to `../data`.
+
+### 2026-02-12: Tournament CRUD corner case fixes
+- **Fix 1 — No-tournament guard**: Added a guard in `set_active_tournament()` that redirects logged-in users with no tournaments (and no active tournament) to the `/tournaments` page. Whitelisted endpoints: `tournaments`, `api_create_tournament`, `api_delete_tournament`, `api_switch_tournament`, `logout`, `api_export_tournament`, `api_import_tournament`.
+- **Fix 2 — Session sync on delete**: When deleting the active tournament, the session's `active_tournament` is now set to the next available tournament instead of always being popped. Prevents stale session state when other tournaments exist.
+- **Fix 3 — YAML error handling**: Wrapped `yaml.safe_load()` in `load_tournaments()` and `load_users()` with try/except. Corrupt YAML files now log a warning and return safe defaults instead of crashing.
+- **Pattern**: Guard logic in `before_request` uses a set of whitelisted endpoint names — easy to extend when new tournament-management routes are added.

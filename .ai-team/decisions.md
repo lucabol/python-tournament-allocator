@@ -63,3 +63,12 @@
 **Date:** 2026-02-12
 **What:** Reordered `deploy.ps1` so that all `az webapp config set` / `az webapp config appsettings set` calls run after `az webapp deploy` succeeds, not before. Deploy order is now: create resources → zip package → upload & build → configure → propagation wait → cleanup.
 **Why:** Each config change triggers an async container restart on Azure App Service. On first deploy, the Oryx remote build takes several minutes. If config triggers a restart before the build completes, the container boots with no artifacts and crashes. Moving config after deploy ensures build artifacts exist when the first config-triggered restart happens.
+
+---
+
+## CRUD Corner Cases (2026-02-12)
+
+### Tournament CRUD corner case fixes
+**By:** McManus
+**What:** Three surgical fixes in `src/app.py`: (1) Guard in `set_active_tournament()` redirects users with no tournaments to `/tournaments` page, whitelisting only tournament-management and auth endpoints. (2) `api_delete_tournament()` now syncs the session to the next available tournament instead of always clearing it. (3) `load_tournaments()` and `load_users()` wrap `yaml.safe_load()` in try/except to handle corrupt YAML gracefully.
+**Why:** Without fix 1, users with no tournaments could navigate to any route and hit errors from missing `g.data_dir`. Without fix 2, deleting the active tournament when others exist left the session stale — the user appeared to have no active tournament until page refresh. Without fix 3, a single corrupt YAML file could crash the entire app on any request.
