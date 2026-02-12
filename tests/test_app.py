@@ -4,6 +4,7 @@ Unit tests for Flask web application.
 import pytest
 import sys
 import os
+import pathlib
 import tempfile
 import yaml
 import zipfile
@@ -949,6 +950,130 @@ class TestImportTournament:
         )
         assert response.status_code == 200
         assert b'not a valid ZIP' in response.data
+
+
+class TestTournamentCRUDCornerCases:
+    """Tests for tournament CRUD corner cases: no-tournament guard, session sync, YAML errors."""
+
+    def _delete_all_tournaments(self, client, temp_data_dir):
+        """Helper: delete every tournament via the API so the registry is empty."""
+        user_dir = temp_data_dir.parent.parent  # e.g. …/users/testuser
+        reg_file = user_dir / "tournaments.yaml"
+        data = yaml.safe_load(reg_file.read_text()) or {'active': None, 'tournaments': []}
+        for t in list(data.get('tournaments', [])):
+            client.post('/api/tournaments/delete', data={'slug': t['slug']})
+
+    def _create_tournament(self, client, name):
+        """Helper: create a tournament via the API and return the response."""
+        return client.post('/api/tournaments/create', data={'name': name}, follow_redirects=True)
+
+    # ---- 1. Guard: no-tournament routes redirect ----
+
+    def test_no_tournaments_redirects_to_tournaments_page(self, client, temp_data_dir):
+        """When no tournaments exist, accessing /teams should redirect to /tournaments."""
+        self._delete_all_tournaments(client, temp_data_dir)
+
+        response = client.get('/teams')
+        assert response.status_code == 302
+        assert '/tournaments' in response.headers.get('Location', '')
+
+    # ---- 2. Guard: tournament management routes still work ----
+
+    def test_no_tournaments_allows_tournament_routes(self, client, temp_data_dir):
+        """When no tournaments exist, /tournaments should return 200."""
+        self._delete_all_tournaments(client, temp_data_dir)
+
+        response = client.get('/tournaments')
+        assert response.status_code == 200
+
+    # ---- 3. Guard: can still create when empty ----
+
+    def test_no_tournaments_allows_create_tournament(self, client, temp_data_dir):
+        """When no tournaments exist, creating a new tournament should succeed."""
+        self._delete_all_tournaments(client, temp_data_dir)
+
+        response = client.post('/api/tournaments/create',
+                               data={'name': 'Fresh Start'},
+                               follow_redirects=True)
+        assert response.status_code == 200
+
+        # Verify the new tournament exists in the registry
+        user_dir = temp_data_dir.parent.parent
+        reg_file = user_dir / "tournaments.yaml"
+        data = yaml.safe_load(reg_file.read_text())
+        slugs = [t['slug'] for t in data.get('tournaments', [])]
+        assert 'fresh-start' in slugs
+
+    # ---- 4. Delete active → session switches to remaining ----
+
+    def test_delete_active_tournament_switches_to_next(self, client, temp_data_dir):
+        """Deleting the active tournament should set the remaining one as active in session."""
+        # Create a second tournament (fixture already has 'default')
+        self._create_tournament(client, 'Second')
+
+        # The session should currently point to 'second' (just created)
+        with client.session_transaction() as sess:
+            assert sess.get('active_tournament') == 'second'
+
+        # Delete the active tournament ('second')
+        client.post('/api/tournaments/delete', data={'slug': 'second'})
+
+        # After fix: session should fall back to 'default' (the remaining tournament)
+        with client.session_transaction() as sess:
+            active = sess.get('active_tournament')
+            assert active == 'default'
+
+    # ---- 5. Delete last → session cleared ----
+
+    def test_delete_last_tournament_clears_session(self, client, temp_data_dir):
+        """Deleting the very last tournament should clear active_tournament from session."""
+        self._delete_all_tournaments(client, temp_data_dir)
+
+        with client.session_transaction() as sess:
+            # active_tournament should be absent or None
+            assert sess.get('active_tournament') is None
+
+    # ---- 6. Corrupted tournaments YAML ----
+
+    def test_corrupted_tournaments_yaml_returns_default(self, client, temp_data_dir):
+        """load_tournaments() should return default dict when YAML is corrupt."""
+        from app import load_tournaments as _load_tournaments
+
+        user_dir = temp_data_dir.parent.parent
+        reg_file = user_dir / "tournaments.yaml"
+        reg_file.write_text("{{{{invalid yaml: [unterminated")
+        with app.test_request_context():
+            from flask import g as _g
+            _g.user_tournaments_file = str(reg_file)
+            result = _load_tournaments()
+
+        assert result == {'active': None, 'tournaments': []}
+
+    # ---- 7. Corrupted users YAML ----
+
+    def test_corrupted_users_yaml_returns_empty(self, client, temp_data_dir):
+        """load_users() should return [] when YAML is corrupt."""
+        import app as app_module
+        from app import load_users as _load_users
+
+        users_file = pathlib.Path(app_module.USERS_FILE)
+        users_file.write_text("{{{{invalid yaml: [unterminated")
+
+        result = _load_users()
+        assert result == []
+
+
+class TestImportTournamentEdgeCases:
+    """Additional import edge case tests (originally in TestImportTournament)."""
+
+    def _make_zip(self, files: dict) -> io.BytesIO:
+        """Helper: create an in-memory ZIP from a dict of {name: bytes}."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            for name, data in files.items():
+                zf.writestr(name, data)
+        buf.seek(0)
+        return buf
 
     def test_import_rejects_unknown_zip(self, client, temp_data_dir):
         """Test that a ZIP without any recognised tournament files is rejected."""

@@ -83,9 +83,13 @@ def load_users() -> list:
     """Load user registry from YAML."""
     if not os.path.exists(USERS_FILE):
         return []
-    with open(USERS_FILE, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-    return data.get('users', []) if data else []
+    try:
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        return data.get('users', []) if data else []
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {USERS_FILE}: {e}')
+        return []
 
 
 def save_users(users: list):
@@ -188,9 +192,13 @@ def load_tournaments() -> dict:
     tournaments_file = getattr(g, 'user_tournaments_file', TOURNAMENTS_FILE)
     if not os.path.exists(tournaments_file):
         return {'active': None, 'tournaments': []}
-    with open(tournaments_file, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        return data if data else {'active': None, 'tournaments': []}
+    try:
+        with open(tournaments_file, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data if data else {'active': None, 'tournaments': []}
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {tournaments_file}: {e}')
+        return {'active': None, 'tournaments': []}
 
 
 def save_tournaments(data: dict):
@@ -1011,6 +1019,14 @@ def set_active_tournament():
     g.data_dir = user_dir
     g.active_tournament = None
     g.tournament_name = None
+
+    # Guard: redirect to tournaments page if user has no tournaments
+    tournament_endpoints = {'tournaments', 'api_create_tournament', 'api_delete_tournament',
+                            'api_switch_tournament', 'logout', 'api_export_tournament',
+                            'api_import_tournament'}
+    if request.endpoint not in tournament_endpoints:
+        flash('Please create a tournament first.', 'info')
+        return redirect(url_for('tournaments'))
 
 
 @app.context_processor
@@ -3080,8 +3096,12 @@ def api_delete_tournament():
     data['tournaments'] = [t for t in data.get('tournaments', []) if t['slug'] != slug]
 
     if data.get('active') == slug:
-        data['active'] = data['tournaments'][0]['slug'] if data['tournaments'] else None
-        session.pop('active_tournament', None)
+        new_active = data['tournaments'][0]['slug'] if data['tournaments'] else None
+        data['active'] = new_active
+        if new_active:
+            session['active_tournament'] = new_active
+        else:
+            session.pop('active_tournament', None)
 
     save_tournaments(data)
 
