@@ -188,6 +188,7 @@ Write-Host "Waiting for config changes to propagate..." -ForegroundColor Yellow
 Start-Sleep -Seconds 15
 
 # Deploy with retry logic — Kudu may still be restarting from config changes on first deploy
+# NOTE: az webapp deploy returns exit code 0 even on 502, so we capture output to detect failures.
 Write-Host "Deploying application..." -ForegroundColor Yellow
 Write-Host "Uploading zip to Kudu and running remote build (this can take several minutes for numpy/pandas/ortools)..." -ForegroundColor DarkGray
 $deployMaxRetries = 3
@@ -197,23 +198,30 @@ while (-not $deploySuccess -and $deployAttempt -lt $deployMaxRetries) {
     $deployAttempt++
     $deployStart = Get-Date
     try {
-        az webapp deploy `
+        $deployOutput = az webapp deploy `
             --name $appName `
             --resource-group $resourceGroup `
             --src-path $zipFile `
             --type zip `
             --clean true `
             --track-status false `
-            --timeout 600000 `
-            --output none
-        $deploySuccess = $true
+            --timeout 600000 2>&1
         $deployDuration = [math]::Round(((Get-Date) - $deployStart).TotalSeconds)
+        $outputText = $deployOutput | Out-String
+
+        # az webapp deploy returns exit code 0 even on 502 — check output text
+        if ($outputText -match "Status Code: 50[0-9]" -or $outputText -match "Bad Gateway") {
+            throw "Kudu returned an error: $outputText"
+        }
+
+        $deploySuccess = $true
         Write-Host "Deployment succeeded in $deployDuration seconds (attempt $deployAttempt/$deployMaxRetries)." -ForegroundColor DarkGray
     } catch {
         $deployDuration = [math]::Round(((Get-Date) - $deployStart).TotalSeconds)
         if ($deployAttempt -lt $deployMaxRetries) {
-            Write-Host "  Deployment attempt $deployAttempt failed after ${deployDuration}s (likely Kudu still restarting). Retrying in 30s..." -ForegroundColor Yellow
-            Start-Sleep -Seconds 30
+            $backoff = 30 * $deployAttempt
+            Write-Host "  Deployment attempt $deployAttempt failed after ${deployDuration}s. Retrying in ${backoff}s..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $backoff
         } else {
             Write-Error "Deployment failed after $deployMaxRetries attempts. Last error: $_"
         }
