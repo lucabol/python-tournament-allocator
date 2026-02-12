@@ -112,8 +112,28 @@ def create_user(username: str, password: str) -> tuple:
             'created': datetime.now().isoformat()
         })
         save_users(users)
-    user_dir = os.path.join(USERS_DIR, username, 'tournaments')
-    os.makedirs(user_dir, exist_ok=True)
+    # Create user data directory with a default tournament
+    user_dir = os.path.join(USERS_DIR, username)
+    user_tournaments_dir = os.path.join(user_dir, 'tournaments')
+    default_dir = os.path.join(user_tournaments_dir, 'default')
+    os.makedirs(default_dir, exist_ok=True)
+    # Seed default tournament files
+    default_constraints = get_default_constraints()
+    default_constraints['tournament_name'] = 'Default Tournament'
+    with open(os.path.join(default_dir, 'constraints.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(default_constraints, f, default_flow_style=False)
+    with open(os.path.join(default_dir, 'teams.yaml'), 'w', encoding='utf-8') as f:
+        f.write('')
+    with open(os.path.join(default_dir, 'courts.csv'), 'w', encoding='utf-8', newline='') as f:
+        f.write('court_name,start_time,end_time\n')
+    # Create user's tournament registry
+    user_reg = os.path.join(user_dir, 'tournaments.yaml')
+    with open(user_reg, 'w', encoding='utf-8') as f:
+        yaml.dump({
+            'active': 'default',
+            'tournaments': [{'slug': 'default', 'name': 'Default Tournament',
+                             'created': datetime.now().isoformat()}]
+        }, f, default_flow_style=False)
     return True, 'Account created successfully.'
 
 

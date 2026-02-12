@@ -85,6 +85,21 @@ class TestUserCreation:
         user_dir = auth_dir / 'users' / 'bob' / 'tournaments'
         assert user_dir.is_dir()
 
+    def test_create_user_seeds_default_tournament(self, auth_dir):
+        """New user gets a default tournament with data files."""
+        create_user('bob', 'pass1234')
+        default_dir = auth_dir / 'users' / 'bob' / 'tournaments' / 'default'
+        assert default_dir.is_dir()
+        assert (default_dir / 'constraints.yaml').exists()
+        assert (default_dir / 'teams.yaml').exists()
+        assert (default_dir / 'courts.csv').exists()
+        # Tournament registry should list the default tournament
+        import yaml as _yaml
+        reg = _yaml.safe_load(
+            (auth_dir / 'users' / 'bob' / 'tournaments.yaml').read_text())
+        assert reg['active'] == 'default'
+        assert any(t['slug'] == 'default' for t in reg['tournaments'])
+
 
 class TestAuthentication:
     """Tests for login authentication."""
