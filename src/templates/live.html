@@ -35,6 +35,14 @@
     </footer>
 
 <script>
+{% if public_mode %}
+var liveHtmlUrl = '/api/live-html/{{ public_username }}/{{ public_slug }}';
+var liveStreamUrl = '/api/live-stream/{{ public_username }}/{{ public_slug }}';
+{% else %}
+var liveHtmlUrl = '/api/live-html';
+var liveStreamUrl = '/api/live-stream';
+{% endif %}
+
 document.addEventListener('DOMContentLoaded', function() {
     var contentEl = document.getElementById('live-content');
     var dotEl = document.getElementById('sse-dot');
@@ -69,7 +77,7 @@ document.addEventListener('DOMContentLoaded', function() {
     filterInput.addEventListener('input', applyFilter);
 
     function fetchContent() {
-        fetch('/api/live-html')
+        fetch(liveHtmlUrl)
             .then(function(r) { return r.text(); })
             .then(function(html) { contentEl.innerHTML = html; applyFilter(); })
             .catch(function(err) { console.error('Failed to fetch live content:', err); });
@@ -82,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    var source = new EventSource('/api/live-stream');
+    var source = new EventSource(liveStreamUrl);
     source.addEventListener('open', function() { setStatus('connected'); });
     source.addEventListener('connected', function() { setStatus('connected'); });
     source.addEventListener('update', function() { fetchContent(); });

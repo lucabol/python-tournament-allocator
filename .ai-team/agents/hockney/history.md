@@ -22,3 +22,10 @@
   - Tests use existing `client` + `temp_data_dir` fixtures and follow the `_delete_all_tournaments` / `_create_tournament` helper pattern for setup.
   - Corrupted-YAML tests write literal invalid YAML and call `load_tournaments()` / `load_users()` directly, expecting graceful fallback to defaults.
   - These tests are written ahead of McManus's implementation; they will fail until the 3 fixes land.
+
+- **2026-02-12 — Public live page tests added (`tests/test_app.py :: TestPublicLive`)**
+  - 7 tests covering the public (no-auth) live tournament endpoints: `/live/<username>/<slug>`, `/api/live-html/<username>/<slug>`, `/api/live-stream/<username>/<slug>`.
+  - Tests use `app.test_client()` directly (not the `client` fixture) to verify anonymous access without login.
+  - Covers: 200 on valid paths (3 endpoints), 404 for nonexistent user, 404 for nonexistent tournament, path traversal rejection, public_mode flag in rendered output.
+  - Uses `temp_data_dir` fixture to set up monkeypatched `USERS_DIR` — the public URL `/live/testuser/default` maps to the fixture's `tmp_path/users/testuser/tournaments/default` directory.
+  - Written ahead of McManus's implementation; tests will fail until the routes are added.

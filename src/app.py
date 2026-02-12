@@ -14,7 +14,7 @@ import zipfile
 from datetime import datetime, timedelta
 from functools import wraps
 from filelock import FileLock
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file, session, g
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file, session, g, abort
 from core.models import Team, Court
 from core.allocation import AllocationManager
 from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling
@@ -979,7 +979,8 @@ def get_default_constraints():
 def set_active_tournament():
     """Set g.data_dir to the active tournament's data directory."""
     # Skip auth for static files, login, register
-    if request.endpoint in ('static', 'login_page', 'register_page', None):
+    if request.endpoint in ('static', 'login_page', 'register_page',
+                            'public_live', 'api_public_live_html', 'api_public_live_stream', None):
         return
 
     # Ensure tournament structure exists (idempotent)
@@ -2286,9 +2287,10 @@ def tracking():
         'remaining_matches': pool_scheduled - completed_matches
     }
     
+    share_url = url_for('public_live', username=session.get('user', ''), slug=getattr(g, 'active_tournament', ''), _external=True)
     return render_template('tracking.html', schedule=schedule_data, stats=tracking_stats,
                           results=results.get('pool_play', {}), standings=standings,
-                          scoring_format=scoring_format, pools=pools)
+                          scoring_format=scoring_format, pools=pools, share_url=share_url)
 
 
 @app.route('/print')
@@ -2417,7 +2419,7 @@ def _get_live_data() -> dict:
 @app.route('/live')
 def live():
     """Read-only live view of tournament standings and brackets for players."""
-    return render_template('live.html', **_get_live_data())
+    return render_template('live.html', **_get_live_data(), public_mode=False)
 
 
 @app.route('/api/live-html')
@@ -2470,6 +2472,75 @@ def api_live_stream():
             'Cache-Control': 'no-cache',
             'X-Accel-Buffering': 'no',
         },
+    )
+
+
+def _resolve_public_tournament_dir(username: str, slug: str):
+    """Validate username/slug and return the tournament data directory path.
+
+    Returns:
+        The absolute path if valid and exists, or None otherwise.
+    """
+    if not username or not slug:
+        return None
+    for part in (username, slug):
+        if '..' in part or '/' in part or '\\' in part:
+            return None
+    path = os.path.join(USERS_DIR, username, 'tournaments', slug)
+    if os.path.isdir(path):
+        return path
+    return None
+
+
+@app.route('/live/<username>/<slug>')
+def public_live(username, slug):
+    """Public read-only live view of a tournament."""
+    data_dir = _resolve_public_tournament_dir(username, slug)
+    if not data_dir:
+        abort(404)
+    g.data_dir = data_dir
+    return render_template('live.html', **_get_live_data(),
+                           public_mode=True, public_username=username, public_slug=slug)
+
+
+@app.route('/api/live-html/<username>/<slug>')
+def api_public_live_html(username, slug):
+    """Public partial HTML for live content area."""
+    data_dir = _resolve_public_tournament_dir(username, slug)
+    if not data_dir:
+        abort(404)
+    g.data_dir = data_dir
+    return render_template('live_content.html', **_get_live_data())
+
+
+@app.route('/api/live-stream/<username>/<slug>')
+def api_public_live_stream(username, slug):
+    """Public SSE stream for real-time updates."""
+    data_dir = _resolve_public_tournament_dir(username, slug)
+    if not data_dir:
+        abort(404)
+    names = ['results.yaml', 'schedule.yaml', 'teams.yaml', 'constraints.yaml']
+    watched_files = [os.path.join(data_dir, n) for n in names]
+
+    def generate():
+        yield "event: connected\ndata: ok\n\n"
+        last_mtimes = {f: os.path.getmtime(f) if os.path.exists(f) else 0.0 for f in watched_files}
+        heartbeat_counter = 0
+        while True:
+            time.sleep(3)
+            heartbeat_counter += 3
+            current_mtimes = {f: os.path.getmtime(f) if os.path.exists(f) else 0.0 for f in watched_files}
+            if current_mtimes != last_mtimes:
+                last_mtimes = current_mtimes
+                yield f"event: update\ndata: {time.time()}\n\n"
+            if heartbeat_counter >= 15:
+                heartbeat_counter = 0
+                yield ": heartbeat\n\n"
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
     )
 
 

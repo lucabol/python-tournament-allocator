@@ -35,3 +35,11 @@
 - **Fix 2 — Session sync on delete**: When deleting the active tournament, the session's `active_tournament` is now set to the next available tournament instead of always being popped. Prevents stale session state when other tournaments exist.
 - **Fix 3 — YAML error handling**: Wrapped `yaml.safe_load()` in `load_tournaments()` and `load_users()` with try/except. Corrupt YAML files now log a warning and return safe defaults instead of crashing.
 - **Pattern**: Guard logic in `before_request` uses a set of whitelisted endpoint names — easy to extend when new tournament-management routes are added.
+
+### 2026-02-12: Public live tournament routes added
+- **Routes**: Three new unauthenticated routes: `/live/<username>/<slug>`, `/api/live-html/<username>/<slug>`, `/api/live-stream/<username>/<slug>`. These allow spectators to view any tournament without logging in.
+- **Helper**: `_resolve_public_tournament_dir(username, slug)` validates path components (no `..`, `/`, `\`) and checks directory existence under `USERS_DIR/<username>/tournaments/<slug>`.
+- **Auth bypass**: Added `public_live`, `api_public_live_html`, `api_public_live_stream` to the `before_request` endpoint whitelist alongside `static`, `login_page`, `register_page`.
+- **SSE stream**: Public stream builds watched file paths directly from `data_dir` instead of using `_file_path()` (which requires `g.data_dir` set by the auth flow).
+- **Share URL**: The `/tracking` route now passes `share_url` to the template for organizers to copy/share.
+- **Template flag**: Existing `/live` route now passes `public_mode=False`; public route passes `public_mode=True`, `public_username`, `public_slug` so the template can adjust (e.g., hide nav, change SSE URL).

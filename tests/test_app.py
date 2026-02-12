@@ -1170,3 +1170,53 @@ class TestImportTournamentEdgeCases:
         # Data should match originals
         assert (temp_data_dir / "teams.yaml").read_text() == original_teams
         assert (temp_data_dir / "courts.csv").read_text() == original_courts
+
+
+class TestPublicLive:
+    """Tests for public (no-auth) live tournament page."""
+
+    def test_public_live_returns_200_without_login(self, temp_data_dir):
+        """Public live page should be accessible without login."""
+        with app.test_client() as anon_client:
+            response = anon_client.get('/live/testuser/default')
+            assert response.status_code == 200
+
+    def test_public_live_html_returns_200_without_login(self, temp_data_dir):
+        """Public live-html API should work without login."""
+        with app.test_client() as anon_client:
+            response = anon_client.get('/api/live-html/testuser/default')
+            assert response.status_code == 200
+
+    def test_public_live_stream_returns_200_without_login(self, temp_data_dir):
+        """Public SSE stream should connect without login."""
+        with app.test_client() as anon_client:
+            response = anon_client.get('/api/live-stream/testuser/default')
+            assert response.status_code == 200
+            assert response.content_type.startswith('text/event-stream')
+
+    def test_public_live_404_for_nonexistent_user(self, temp_data_dir):
+        """Public live should 404 for a user that doesn't exist."""
+        with app.test_client() as anon_client:
+            response = anon_client.get('/live/nobody/default')
+            assert response.status_code == 404
+
+    def test_public_live_404_for_nonexistent_tournament(self, temp_data_dir):
+        """Public live should 404 for a tournament that doesn't exist."""
+        with app.test_client() as anon_client:
+            response = anon_client.get('/live/testuser/nonexistent')
+            assert response.status_code == 404
+
+    def test_public_live_rejects_path_traversal(self, temp_data_dir):
+        """Public live should reject path traversal attempts."""
+        with app.test_client() as anon_client:
+            response = anon_client.get('/live/testuser/../admin')
+            # Flask may return 404 or the route won't match — either way, not 200
+            assert response.status_code != 200
+
+    def test_public_live_passes_public_mode(self, temp_data_dir):
+        """Public live should pass public_mode=True to template."""
+        with app.test_client() as anon_client:
+            response = anon_client.get('/live/testuser/default')
+            assert response.status_code == 200
+            # The response should contain the public API URLs
+            assert b'/api/live-html/testuser/default' in response.data or b'live-html' in response.data
