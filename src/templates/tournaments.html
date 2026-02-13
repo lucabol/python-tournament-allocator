@@ -45,17 +45,27 @@
                 </td>
                 <td>{{ t.created[:10] if t.created else '—' }}</td>
                 <td>
-                    {% if t.slug != active %}
-                    <form method="POST" action="{{ url_for('api_switch_tournament') }}" class="inline">
-                        <input type="hidden" name="slug" value="{{ t.slug }}">
-                        <button type="submit" class="btn btn-primary btn-sm">Switch</button>
-                    </form>
-                    {% endif %}
-                    <form method="POST" action="{{ url_for('api_delete_tournament') }}" class="inline"
-                          onsubmit="return confirm('Delete tournament &quot;{{ t.name }}&quot;? This cannot be undone.')">
-                        <input type="hidden" name="slug" value="{{ t.slug }}">
-                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                    </form>
+                    <div class="tournament-actions">
+                        <div class="tournament-action-slot">
+                            {% if t.slug != active %}
+                            <form method="POST" action="{{ url_for('api_switch_tournament') }}" class="inline">
+                                <input type="hidden" name="slug" value="{{ t.slug }}">
+                                <button type="submit" class="btn btn-success btn-sm">Switch</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        <form method="POST" action="{{ url_for('api_clone_tournament') }}" class="inline"
+                              onsubmit="return cloneTournament(this, '{{ t.name }}')">
+                            <input type="hidden" name="slug" value="{{ t.slug }}">
+                            <input type="hidden" name="name" value="">
+                            <button type="submit" class="btn btn-primary btn-sm">Clone</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('api_delete_tournament') }}" class="inline"
+                              onsubmit="return confirm('Delete tournament &quot;{{ t.name }}&quot;? This cannot be undone.')">
+                            <input type="hidden" name="slug" value="{{ t.slug }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -98,6 +108,13 @@
 {% endif %}
 
 <script>
+function cloneTournament(form, originalName) {
+    var newName = prompt('Enter a name for the cloned tournament:', originalName + ' (Copy)');
+    if (!newName || !newName.trim()) return false;
+    form.querySelector('input[name="name"]').value = newName.trim();
+    return true;
+}
+
 function confirmImport(input) {
     if (!input.files.length) return;
     if (confirm('This will import tournaments from the ZIP file. Existing tournaments with the same name will be overwritten. Continue?')) {

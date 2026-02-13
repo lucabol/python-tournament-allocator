@@ -113,3 +113,12 @@
 - **Pattern**: Follows `save_pool_result` / `save_bracket_result` — no `@login_required`, uses `load_results()` / `save_results()`, returns `jsonify`.
 - **Files changed**: `src/app.py`
 - **Tests**: All 268 existing tests pass.
+
+### 2026-02-13: Clone tournament route added
+- **Route**: `POST /api/tournaments/clone` accepts `slug` (source) and `name` (new name) form fields.
+- **Behavior**: Validates source exists, generates slug from new name, checks for duplicate slug, uses `shutil.copytree()` to copy all files from source tournament directory to new one, updates `tournament_name` in cloned `constraints.yaml`, appends to `tournaments.yaml`, sets as active.
+- **Whitelist**: `api_clone_tournament` added to `tournament_endpoints` guard set in `before_request`.
+- **Template**: Clone button added to `tournaments.html` next to Delete button, uses `prompt()` dialog to ask for new name (defaults to "Original Name (Copy)").
+- **Pattern**: Follows `api_create_tournament` and `api_delete_tournament` patterns — form POST, slug validation, flash messages, redirect.
+- **Files changed**: `src/app.py`, `src/templates/tournaments.html`
+- **Tests**: All 276 existing tests pass.

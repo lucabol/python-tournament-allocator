@@ -1246,6 +1246,17 @@ tr:hover .court-save-btn {
     font-size: 0.8125rem;
 }
 
+/* Tournament actions alignment */
+.tournament-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.tournament-action-slot {
+    min-width: 4rem;
+}
+
 /* Utilities */
 .inline {
     display: inline;

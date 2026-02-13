@@ -101,6 +101,13 @@
   - Added `TestInstaPage::test_insta_page_shows_bracket_data` — sets up 2 pools with 2 teams each (advance=1), hits `/insta`, verifies `Gold Bracket` text appears in response. This confirms bracket rendering works on the insta page when pools are configured.
   - All 268 tests pass. No print-route failures because McManus already removed the route and Fenster cleaned up the template references.
 
+- **2026-02-13 — Fast test subset via `@pytest.mark.slow` marker**
+  - Created `pytest.ini` at repo root with `slow` marker registration.
+  - Marked `TestLargeTournament` class (2 tests) in `tests/test_integration.py` — both hit OR-Tools CP-SAT 60s timeout.
+  - Fast subset: `pytest tests/ -m "not slow"` runs 274/276 tests in ~21s. Full suite: `pytest tests/` runs all 276 in ~137s.
+  - Usage documented in `tests/conftest.py` module docstring.
+  - Only genuinely slow tests (60s+ each) were marked. All tests under 1.1s remain unmarked.
+
 - **2026-02-13 — Hamburger menu, dark mode, and clear result tests added**
   - 8 tests across 3 new test classes in `tests/test_app.py`:
     - `TestHamburgerMenu` (2 tests): Verifies hamburger toggle element and `nav-links` class exist in rendered HTML. Lightweight — only checks HTML structure, not CSS/JS behavior.

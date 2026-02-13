@@ -1,5 +1,9 @@
 """
 Shared pytest fixtures for tournament allocator tests.
+
+Running tests:
+    pytest tests/                  - full suite (~2 min)
+    pytest tests/ -m "not slow"   - fast subset (~10s, for small changes)
 """
 import pytest
 import sys

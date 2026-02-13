@@ -121,8 +121,9 @@ class TestFullScheduling:
                         f"Team {team} has insufficient break: {actual_break} < {min_break}"
 
 
+@pytest.mark.slow
 class TestLargeTournament:
-    """Tests for larger tournament scenarios."""
+    """Tests for larger tournament scenarios (uses OR-Tools CP-SAT solver, ~60s each)."""
     
     def test_large_tournament_scheduling(self, large_tournament_teams, four_courts, basic_constraints):
         """Test scheduling a larger tournament with multiple pools."""

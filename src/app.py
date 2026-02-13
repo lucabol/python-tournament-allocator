@@ -1046,6 +1046,7 @@ def set_active_tournament():
 
     # Guard: redirect to tournaments page if user has no tournaments
     tournament_endpoints = {'tournaments', 'api_create_tournament', 'api_delete_tournament',
+                            'api_clone_tournament',
                             'api_switch_tournament', 'logout', 'api_export_tournament',
                             'api_import_tournament', 'api_export_user', 'api_import_user',
                             'api_export_site', 'api_import_site',
@@ -3543,6 +3544,65 @@ def api_delete_tournament():
         shutil.rmtree(tournament_path)
 
     flash('Tournament deleted.', 'success')
+    return redirect(url_for('tournaments'))
+
+
+@app.route('/api/tournaments/clone', methods=['POST'])
+def api_clone_tournament():
+    """Clone an existing tournament under a new name."""
+    source_slug = request.form.get('slug', '').strip()
+    new_name = request.form.get('name', '').strip()
+
+    if not source_slug or not new_name:
+        flash('Source tournament and new name are required.', 'error')
+        return redirect(url_for('tournaments'))
+
+    if '..' in source_slug or '/' in source_slug or '\\' in source_slug:
+        flash('Invalid tournament identifier.', 'error')
+        return redirect(url_for('tournaments'))
+
+    new_slug = _slugify(new_name)
+    data = load_tournaments()
+
+    if not any(t['slug'] == source_slug for t in data.get('tournaments', [])):
+        flash('Source tournament not found.', 'error')
+        return redirect(url_for('tournaments'))
+
+    if any(t['slug'] == new_slug for t in data.get('tournaments', [])):
+        flash(f'A tournament with a similar name already exists ("{new_slug}").', 'error')
+        return redirect(url_for('tournaments'))
+
+    source_path = os.path.join(g.user_tournaments_dir, source_slug)
+    dest_path = os.path.join(g.user_tournaments_dir, new_slug)
+
+    if not os.path.isdir(source_path):
+        flash('Source tournament data not found.', 'error')
+        return redirect(url_for('tournaments'))
+
+    shutil.copytree(source_path, dest_path)
+
+    # Update tournament_name in the cloned constraints
+    cloned_constraints_path = os.path.join(dest_path, 'constraints.yaml')
+    if os.path.exists(cloned_constraints_path):
+        try:
+            with open(cloned_constraints_path, 'r', encoding='utf-8') as f:
+                constraints = yaml.safe_load(f) or {}
+            constraints['tournament_name'] = new_name
+            with open(cloned_constraints_path, 'w', encoding='utf-8') as f:
+                yaml.dump(constraints, f, default_flow_style=False)
+        except Exception:
+            pass  # Non-critical — name can be fixed manually
+
+    data['tournaments'].append({
+        'slug': new_slug,
+        'name': new_name,
+        'created': datetime.now().isoformat()
+    })
+    data['active'] = new_slug
+    save_tournaments(data)
+
+    session['active_tournament'] = new_slug
+    flash(f'Tournament "{new_name}" cloned from "{source_slug}".', 'success')
     return redirect(url_for('tournaments'))
 
 
