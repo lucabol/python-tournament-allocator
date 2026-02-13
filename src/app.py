@@ -339,12 +339,6 @@ def load_print_settings():
         return {**defaults, **data}
 
 
-def save_print_settings(settings):
-    """Save print settings to YAML file."""
-    with open(_file_path('print_settings.yaml'), 'w', encoding='utf-8') as f:
-        yaml.dump(settings, f, default_flow_style=False)
-
-
 def load_teams():
     """Load teams from YAML file."""
     path = _file_path('teams.yaml')
@@ -2354,82 +2348,6 @@ def tracking():
 )
 
 
-@app.route('/print')
-def print_view():
-    """Display printable tournament summary."""
-    pools = load_teams()
-    courts = load_courts()
-    constraints = load_constraints()
-    schedule_data, stats = load_schedule()
-    results = load_results()
-    standings = calculate_pool_standings(pools, results)
-    
-    # Enrich schedule with live results (resolve placeholders to real team names)
-    if schedule_data:
-        schedule_data = enrich_schedule_with_results(schedule_data, results, pools, standings)
-        # Build sorted match list per day for print view
-        for day, day_data in schedule_data.items():
-            all_matches = []
-            for court_name, court_data in day_data.items():
-                if court_name == '_time_slots':
-                    continue
-                for match in court_data.get('matches', []):
-                    pool_name = match.get('pool', '')
-                    is_bracket = 1 if 'Bracket' in pool_name else 0
-                    all_matches.append({
-                        'match': match,
-                        'court': court_name,
-                        'is_bracket': is_bracket
-                    })
-            # Sort: pool matches first (is_bracket=0), then by start_time
-            all_matches.sort(key=lambda x: (x['is_bracket'], x['match'].get('start_time', '')))
-            day_data['_sorted_matches'] = all_matches
-        
-        # Sort days so non-bracket days come before bracket days
-        sorted_schedule = {}
-        non_bracket_days = [(k, v) for k, v in schedule_data.items() if 'Bracket' not in k]
-        bracket_days = [(k, v) for k, v in schedule_data.items() if 'Bracket' in k]
-        for k, v in non_bracket_days:
-            sorted_schedule[k] = v
-        for k, v in bracket_days:
-            sorted_schedule[k] = v
-        schedule_data = sorted_schedule
-    
-    # Get bracket data
-    bracket_data = None
-    silver_bracket_data = None
-    bracket_results = results.get('bracket', {})
-    
-    if pools:
-        bracket_type = constraints.get('bracket_type', 'single')
-        if bracket_type == 'double':
-            from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
-            bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
-            if constraints.get('silver_bracket_enabled'):
-                silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
-        else:
-            from core.elimination import generate_bracket_with_results, generate_silver_bracket_with_results
-            bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
-            if constraints.get('silver_bracket_enabled'):
-                silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
-    
-    print_settings = load_print_settings()
-    
-    from datetime import datetime
-    current_date = datetime.now().strftime('%d %B %Y')
-    
-    return render_template('print.html',
-                          pools=pools,
-                          courts=courts,
-                          constraints=constraints,
-                          schedule=schedule_data,
-                          standings=standings,
-                          bracket_data=bracket_data,
-                          silver_bracket_data=silver_bracket_data,
-                          print_settings=print_settings,
-                          now=current_date)
-
-
 @app.route('/awards')
 def awards():
     """Awards management page."""
@@ -2723,21 +2641,6 @@ def api_public_live_stream(username, slug):
         mimetype='text/event-stream',
         headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
     )
-
-
-@app.route('/api/print-settings', methods=['POST'])
-def update_print_settings():
-    """API endpoint to update print settings."""
-    data = request.get_json()
-    settings = load_print_settings()
-    
-    if 'title' in data:
-        settings['title'] = data['title']
-    if 'subtitle' in data:
-        settings['subtitle'] = data['subtitle']
-    
-    save_print_settings(settings)
-    return jsonify({'success': True})
 
 
 @app.route('/api/logo')

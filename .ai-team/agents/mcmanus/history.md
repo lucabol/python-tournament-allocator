@@ -98,3 +98,11 @@
 - **Test results**: All 267 tests pass.
 - **Commit**: 04da995 (pushed)
 - **Decisions merged**: Two inbox decisions consolidated into main `decisions.md` — route pattern and template design pattern documented for future reference.
+
+### 2026-02-13: Print page route and related code removed
+- **Removed**: `print_view()` route (`GET /print`), `update_print_settings()` API endpoint (`POST /api/print-settings`), and `save_print_settings()` helper function.
+- **Kept**: `load_print_settings()` — still used by `_get_live_data()` which feeds `/live`, `/insta`, and public live routes via the `_tournament_header.html` partial.
+- **Kept**: `print_settings.yaml` references in migration/export infrastructure (`LEGACY_FILE_MAP`, `ensure_tournament_structure()`, `_get_exportable_files()`) — removing these would break existing tournament data handling.
+- **No template changes needed**: `print_view` was not referenced in any current template; the `print.html` template still exists but is now unreachable (not removed per task scope — only `app.py` was in scope).
+- **Files changed**: `src/app.py`
+- **Tests**: All 268 tests pass.

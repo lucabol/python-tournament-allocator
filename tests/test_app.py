@@ -799,7 +799,6 @@ class TestEnhancedDashboard:
         response = client.get('/')
         assert response.status_code == 200
         assert b'Quick Actions' in response.data
-        assert b'Print View' in response.data
         assert b'Copy Live Link' in response.data
 
 
@@ -1905,6 +1904,19 @@ class TestInstaPage:
         assert response.status_code == 200
         assert b'Pool Alpha' in response.data
         assert b'Pool Beta' in response.data
+
+    def test_insta_page_shows_bracket_data(self, client, temp_data_dir):
+        """When pools are configured, bracket structure appears on the insta page."""
+        pools_data = {
+            'Pool A': {'teams': ['Team1', 'Team2'], 'advance': 1},
+            'Pool B': {'teams': ['Team3', 'Team4'], 'advance': 1},
+        }
+        teams_file = temp_data_dir / "teams.yaml"
+        teams_file.write_text(yaml.dump(pools_data, default_flow_style=False))
+
+        response = client.get('/insta')
+        assert response.status_code == 200
+        assert b'Gold Bracket' in response.data
 
     def test_insta_page_nav_link(self, client, temp_data_dir):
         """GET /insta, verify the response contains a reference to the insta page."""

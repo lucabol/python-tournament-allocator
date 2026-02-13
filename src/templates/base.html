@@ -22,7 +22,6 @@
             <li><a href="{{ url_for('schedule') }}" {% if request.endpoint == 'schedule' %}class="active"{% endif %}>Schedule</a></li>
             <li><a href="{{ url_for('tracking') }}" {% if request.endpoint == 'tracking' %}class="active"{% endif %}>Pools</a></li>
             <li><a href="{{ url_for('bracket') }}" {% if request.endpoint == 'bracket' or request.endpoint == 'sbracket' or request.endpoint == 'dbracket' or request.endpoint == 'schedule_single_elimination' or request.endpoint == 'schedule_double_elimination' %}class="active"{% endif %}>Bracket</a></li>
-            <li><a href="{{ url_for('print_view') }}" {% if request.endpoint == 'print_view' %}class="active"{% endif %}>Print</a></li>
             <li><a href="{{ url_for('awards') }}" {% if request.endpoint == 'awards' %}class="active"{% endif %}>Awards</a></li>
             <li><a href="{{ url_for('insta') }}" {% if request.endpoint == 'insta' %}class="active"{% endif %}>Insta</a></li>
             {% if active_tournament %}

@@ -94,3 +94,9 @@
    - All 267 tests pass.
    - Commit: 04da995 (pushed)
    - Test coverage confirms route accessibility, template rendering, and live data injection.
+
+- **2026-02-13 — Print page test references removed, insta bracket test added**
+  - Removed `assert b'Print View' in response.data` from `TestEnhancedDashboard::test_dashboard_shows_export_bar` — the print page is being removed by McManus/Fenster.
+  - No dedicated `TestPrint*` classes or print-route test methods existed to remove.
+  - Added `TestInstaPage::test_insta_page_shows_bracket_data` — sets up 2 pools with 2 teams each (advance=1), hits `/insta`, verifies `Gold Bracket` text appears in response. This confirms bracket rendering works on the insta page when pools are configured.
+  - All 268 tests pass. No print-route failures because McManus already removed the route and Fenster cleaned up the template references.

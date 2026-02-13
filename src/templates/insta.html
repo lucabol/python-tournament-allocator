@@ -61,6 +61,135 @@
         </div>
         {% endif %}
 
+        {# ---- BRACKET RESULTS ---- #}
+        {% if bracket_data %}
+        <div class="insta-section">
+            <div class="insta-section-title">🥇 Gold Bracket</div>
+
+            {# Winners Bracket #}
+            {% for round_name, matches in bracket_data.winners_bracket.items() %}
+            <div class="insta-bracket-round">{{ round_name }}</div>
+            {% for match in matches %}
+            {% if not match.is_bye %}
+            <div class="insta-bracket-match {% if match.get('winner') %}insta-match-done{% endif %}">
+                <span class="{% if match.winner == match.teams[0] %}insta-winner{% endif %}">{{ match.teams[0] }}</span>
+                <span class="insta-vs">v</span>
+                <span class="{% if match.winner == match.teams[1] %}insta-winner{% endif %}">{{ match.teams[1] }}</span>
+                {% if match.result and match.result.sets %}
+                <span class="insta-score">{{ match.result.sets | map('first') | join('-') }} / {{ match.result.sets | map('last') | join('-') }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+            {% endfor %}
+
+            {# Losers Bracket #}
+            {% if bracket_data.losers_bracket %}
+            <div class="insta-bracket-sub">Losers Bracket</div>
+            {% for round_name, matches in bracket_data.losers_bracket.items() %}
+            <div class="insta-bracket-round">{{ round_name }}</div>
+            {% for match in matches %}
+            <div class="insta-bracket-match {% if match.get('winner') %}insta-match-done{% endif %}">
+                <span class="{% if match.winner == match.teams[0] %}insta-winner{% endif %}">{{ match.teams[0] }}</span>
+                <span class="insta-vs">v</span>
+                <span class="{% if match.winner == match.teams[1] %}insta-winner{% endif %}">{{ match.teams[1] }}</span>
+                {% if match.result and match.result.sets %}
+                <span class="insta-score">{{ match.result.sets | map('first') | join('-') }} / {{ match.result.sets | map('last') | join('-') }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endfor %}
+            {% endif %}
+
+            {# Grand Final #}
+            {% if bracket_data.grand_final %}
+            <div class="insta-bracket-sub">Grand Final</div>
+            <div class="insta-bracket-match insta-grand-final {% if bracket_data.grand_final.get('winner') %}insta-match-done{% endif %}">
+                <span class="{% if bracket_data.grand_final.winner == bracket_data.grand_final.teams[0] %}insta-winner{% endif %}">{{ bracket_data.grand_final.teams[0] }}</span>
+                <span class="insta-vs">v</span>
+                <span class="{% if bracket_data.grand_final.winner == bracket_data.grand_final.teams[1] %}insta-winner{% endif %}">{{ bracket_data.grand_final.teams[1] }}</span>
+                {% if bracket_data.grand_final.result and bracket_data.grand_final.result.sets %}
+                <span class="insta-score">{{ bracket_data.grand_final.result.sets | map('first') | join('-') }} / {{ bracket_data.grand_final.result.sets | map('last') | join('-') }}</span>
+                {% endif %}
+            </div>
+            {% if bracket_data.bracket_reset and bracket_data.bracket_reset.get('needs_reset') %}
+            <div class="insta-bracket-round">Bracket Reset</div>
+            <div class="insta-bracket-match insta-grand-final {% if bracket_data.bracket_reset.get('winner') %}insta-match-done{% endif %}">
+                <span class="{% if bracket_data.bracket_reset.winner == bracket_data.bracket_reset.teams[0] %}insta-winner{% endif %}">{{ bracket_data.bracket_reset.teams[0] }}</span>
+                <span class="insta-vs">v</span>
+                <span class="{% if bracket_data.bracket_reset.winner == bracket_data.bracket_reset.teams[1] %}insta-winner{% endif %}">{{ bracket_data.bracket_reset.teams[1] }}</span>
+                {% if bracket_data.bracket_reset.result and bracket_data.bracket_reset.result.sets %}
+                <span class="insta-score">{{ bracket_data.bracket_reset.result.sets | map('first') | join('-') }} / {{ bracket_data.bracket_reset.result.sets | map('last') | join('-') }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# ---- SILVER BRACKET ---- #}
+        {% if silver_bracket_data %}
+        <div class="insta-section">
+            <div class="insta-section-title">🥈 Silver Bracket</div>
+
+            {% for round_name, matches in silver_bracket_data.winners_bracket.items() %}
+            <div class="insta-bracket-round">{{ round_name }}</div>
+            {% for match in matches %}
+            {% if not match.is_bye %}
+            <div class="insta-bracket-match {% if match.get('winner') %}insta-match-done{% endif %}">
+                <span class="{% if match.winner == match.teams[0] %}insta-winner{% endif %}">{{ match.teams[0] }}</span>
+                <span class="insta-vs">v</span>
+                <span class="{% if match.winner == match.teams[1] %}insta-winner{% endif %}">{{ match.teams[1] }}</span>
+                {% if match.result and match.result.sets %}
+                <span class="insta-score">{{ match.result.sets | map('first') | join('-') }} / {{ match.result.sets | map('last') | join('-') }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+            {% endfor %}
+
+            {% if silver_bracket_data.losers_bracket %}
+            <div class="insta-bracket-sub">Losers Bracket</div>
+            {% for round_name, matches in silver_bracket_data.losers_bracket.items() %}
+            <div class="insta-bracket-round">{{ round_name }}</div>
+            {% for match in matches %}
+            <div class="insta-bracket-match {% if match.get('winner') %}insta-match-done{% endif %}">
+                <span class="{% if match.winner == match.teams[0] %}insta-winner{% endif %}">{{ match.teams[0] }}</span>
+                <span class="insta-vs">v</span>
+                <span class="{% if match.winner == match.teams[1] %}insta-winner{% endif %}">{{ match.teams[1] }}</span>
+                {% if match.result and match.result.sets %}
+                <span class="insta-score">{{ match.result.sets | map('first') | join('-') }} / {{ match.result.sets | map('last') | join('-') }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endfor %}
+            {% endif %}
+
+            {% if silver_bracket_data.grand_final %}
+            <div class="insta-bracket-sub">Silver Grand Final</div>
+            <div class="insta-bracket-match insta-grand-final {% if silver_bracket_data.grand_final.get('winner') %}insta-match-done{% endif %}">
+                <span class="{% if silver_bracket_data.grand_final.winner == silver_bracket_data.grand_final.teams[0] %}insta-winner{% endif %}">{{ silver_bracket_data.grand_final.teams[0] }}</span>
+                <span class="insta-vs">v</span>
+                <span class="{% if silver_bracket_data.grand_final.winner == silver_bracket_data.grand_final.teams[1] %}insta-winner{% endif %}">{{ silver_bracket_data.grand_final.teams[1] }}</span>
+                {% if silver_bracket_data.grand_final.result and silver_bracket_data.grand_final.result.sets %}
+                <span class="insta-score">{{ silver_bracket_data.grand_final.result.sets | map('first') | join('-') }} / {{ silver_bracket_data.grand_final.result.sets | map('last') | join('-') }}</span>
+                {% endif %}
+            </div>
+            {% if silver_bracket_data.bracket_reset and silver_bracket_data.bracket_reset.get('needs_reset') %}
+            <div class="insta-bracket-round">Silver Bracket Reset</div>
+            <div class="insta-bracket-match insta-grand-final {% if silver_bracket_data.bracket_reset.get('winner') %}insta-match-done{% endif %}">
+                <span class="{% if silver_bracket_data.bracket_reset.winner == silver_bracket_data.bracket_reset.teams[0] %}insta-winner{% endif %}">{{ silver_bracket_data.bracket_reset.teams[0] }}</span>
+                <span class="insta-vs">v</span>
+                <span class="{% if silver_bracket_data.bracket_reset.winner == silver_bracket_data.bracket_reset.teams[1] %}insta-winner{% endif %}">{{ silver_bracket_data.bracket_reset.teams[1] }}</span>
+                {% if silver_bracket_data.bracket_reset.result and silver_bracket_data.bracket_reset.result.sets %}
+                <span class="insta-score">{{ silver_bracket_data.bracket_reset.result.sets | map('first') | join('-') }} / {{ silver_bracket_data.bracket_reset.result.sets | map('last') | join('-') }}</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% endif %}
+
         {# ---- AWARDS ---- #}
         {% if awards %}
         <div class="insta-section">
@@ -306,6 +435,63 @@
     font-size: 0.75rem;
     font-weight: 600;
     color: #e0d6ff;
+}
+
+/* ---- Bracket results ---- */
+.insta-bracket-round {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.4);
+    font-weight: 600;
+    margin: 0.5rem 0 0.25rem 0.25rem;
+}
+
+.insta-bracket-sub {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.55);
+    margin: 0.75rem 0 0.25rem 0.25rem;
+}
+
+.insta-bracket-match {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.55);
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    flex-wrap: wrap;
+}
+
+.insta-bracket-match.insta-match-done {
+    color: rgba(255,255,255,0.75);
+}
+
+.insta-bracket-match.insta-grand-final {
+    background: rgba(255,255,255,0.04);
+    border-radius: 0.5rem;
+    margin-top: 0.25rem;
+    border-bottom: none;
+}
+
+.insta-vs {
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.3);
+    font-style: italic;
+}
+
+.insta-winner {
+    color: #a5d6a7;
+    font-weight: 700;
+}
+
+.insta-score {
+    margin-left: auto;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.4);
+    font-variant-numeric: tabular-nums;
 }
 
 /* ---- Footer watermark ---- */

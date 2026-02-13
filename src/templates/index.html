@@ -118,7 +118,7 @@
         <a href="{{ url_for('bracket') }}" class="btn btn-success btn-sm">Go to Bracket</a>
         {% elif phase == 'complete' %}
         <p>Tournament is finished! View or print results.</p>
-        <a href="{{ url_for('print_view') }}" class="btn btn-primary btn-sm">Print Results</a>
+        <a href="{{ url_for('insta') }}" class="btn btn-primary btn-sm">View Results</a>
         {% endif %}
     </div>
     {% endif %}
@@ -224,7 +224,7 @@
 <section class="section">
     <h2>Quick Actions</h2>
     <div class="export-bar">
-        <a href="{{ url_for('print_view') }}" class="btn btn-secondary btn-sm">🖨️ Print View</a>
+        <a href="{{ url_for('insta') }}" class="btn btn-secondary btn-sm">📸 Insta View</a>
         {% if schedule_stats %}
         <a href="{{ url_for('api_export_schedule_csv') }}" class="btn btn-secondary btn-sm">📥 Download CSV</a>
         {% endif %}

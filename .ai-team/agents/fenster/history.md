@@ -56,3 +56,9 @@
 - **Test results**: All 267 tests pass.
 - **Commit**: 04da995 (pushed)
 - **Design pattern**: Inline styles + `insta-` prefixed classes follow the `print.html` precedent for self-contained pages. This pattern is now established for future single-page-layout features.
+
+### 2026-02-13: Bracket results added to insta.html + Print page removed
+- **What**: Added condensed bracket results section to `insta.html` between Pool Standings and Awards. Covers Gold Bracket (winners bracket, losers bracket, grand final, bracket reset) and Silver Bracket (same structure). Deleted `print.html` template, removed Print nav link from `base.html`, and replaced broken `print_view` references in `index.html` with links to the Insta page.
+- **Bracket display pattern**: Compact inline layout — each match is `Team A v Team B` with winner highlighted in green (`insta-winner` class). Scores shown as `X / Y` on the right. Byes are skipped. No match codes or playability indicators. Uses `insta-bracket-match`, `insta-bracket-round`, `insta-bracket-sub`, `insta-grand-final`, `insta-match-done`, `insta-winner`, `insta-vs`, `insta-score` CSS classes.
+- **Print page removal**: `print.html` was deleted, its nav link removed from `base.html`, and its `url_for('print_view')` references in `index.html` were updated to point to `url_for('insta')`. The `print_view` route had already been removed from `app.py` by another agent.
+- **Test results**: All 268 tests pass.
