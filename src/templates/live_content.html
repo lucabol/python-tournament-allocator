@@ -17,8 +17,8 @@
 {% endif %}
 
 {# ============ UP NEXT (one match per court) ============ #}
-{# For each court, show the first match (earliest time slot) that hasn't been completed #}
-{% if schedule %}
+{# Hide entirely when the tournament is finished (champion crowned) #}
+{% if schedule and not (bracket_data and bracket_data.champion) %}
 <div class="now-playing-hero">
     <div class="hero-title"><span class="live-dot"></span> Up Next</div>
 

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Hide "Up Next" section on Live page when tournament is finished (champion crowned)
+
 ### Added
 - Test button on Awards page to autofill 5 beach volleyball awards (MVP, Best Blocker, Best Defender, Best Server, Spirit Award)
 - Awards page — assign awards (MVP, Best Receiver, etc.) with player names and custom or sample icons; visible on the Live page for spectators
