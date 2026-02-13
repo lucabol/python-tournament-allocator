@@ -471,4 +471,30 @@
 </details>
 {% endif %}
 
+{# ============ AWARDS (collapsed) ============ #}
+{% if awards %}
+<details class="drill-down-section">
+    <summary>🏆 Awards</summary>
+    <div class="drill-down-content">
+        <div class="awards-grid">
+            {% for award in awards %}
+            <div class="award-card">
+                {% if award.image %}
+                    {% if award.image.startswith('custom-') %}
+                    <img src="{{ url_for('api_awards_image', filename=award.image) }}" alt="{{ award.name }}" class="award-card-img">
+                    {% else %}
+                    <img src="{{ url_for('static', filename='awards/' ~ award.image) }}" alt="{{ award.name }}" class="award-card-img">
+                    {% endif %}
+                {% endif %}
+                <div class="award-card-info">
+                    <strong>{{ award.name }}</strong>
+                    <span>{{ award.player }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</details>
+{% endif %}
+
 {% endif %}{# end pools #}

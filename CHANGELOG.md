@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Awards page — assign awards (MVP, Best Receiver, etc.) with player names and custom or sample icons; visible on the Live page for spectators
 - Show Test Buttons toggle in Settings — test buttons on Teams, Courts, Pools, and Bracket pages are hidden by default and can be enabled via a checkbox
 - Delete account with confirmation dialog and validation
 - Admin-only site-wide export/import for platform migration

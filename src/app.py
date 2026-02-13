@@ -225,6 +225,7 @@ def _get_exportable_files() -> dict:
         'results.yaml': _file_path('results.yaml'),
         'schedule.yaml': _file_path('schedule.yaml'),
         'print_settings.yaml': _file_path('print_settings.yaml'),
+        'awards.yaml': _file_path('awards.yaml'),
     }
 
 
@@ -447,6 +448,26 @@ def save_results(results):
     """Save match results to YAML file."""
     with open(_file_path('results.yaml'), 'w', encoding='utf-8') as f:
         yaml.dump(results, f, default_flow_style=False)
+
+
+def load_awards() -> dict:
+    """Load awards from YAML file."""
+    path = _file_path('awards.yaml')
+    if not os.path.exists(path):
+        return {'awards': []}
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
+            return {'awards': []}
+        if 'awards' not in data:
+            data['awards'] = []
+        return data
+
+
+def save_awards(data: dict):
+    """Save awards to YAML file."""
+    with open(_file_path('awards.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(data, f, default_flow_style=False)
 
 
 def load_schedule():
@@ -1034,7 +1055,7 @@ def set_active_tournament():
                             'api_switch_tournament', 'logout', 'api_export_tournament',
                             'api_import_tournament', 'api_export_user', 'api_import_user',
                             'api_export_site', 'api_import_site',
-                            'api_delete_account'}
+                            'api_delete_account', 'awards'}
     if request.endpoint not in tournament_endpoints:
         flash('Please create a tournament first.', 'info')
         return redirect(url_for('tournaments'))
@@ -2409,6 +2430,103 @@ def print_view():
                           now=current_date)
 
 
+@app.route('/awards')
+def awards():
+    """Awards management page."""
+    awards_data = load_awards()
+    return render_template('awards.html', awards=awards_data.get('awards', []))
+
+
+@app.route('/api/awards/add', methods=['POST'])
+def api_awards_add():
+    """Add a new award."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+
+    name = data.get('name', '').strip()
+    player = data.get('player', '').strip()
+    if not name or not player:
+        return jsonify({'success': False, 'error': 'Name and player are required'}), 400
+
+    new_award = {
+        'id': f"award-{int(time.time())}",
+        'name': name,
+        'player': player,
+        'image': data.get('image', 'trophy.svg'),
+    }
+
+    awards_data = load_awards()
+    awards_data['awards'].append(new_award)
+    save_awards(awards_data)
+    return jsonify({'success': True, 'award': new_award})
+
+
+@app.route('/api/awards/delete', methods=['POST'])
+def api_awards_delete():
+    """Delete an award by ID."""
+    data = request.get_json()
+    if not data or 'id' not in data:
+        return jsonify({'success': False, 'error': 'No ID provided'}), 400
+
+    award_id = data['id']
+    awards_data = load_awards()
+    award_to_delete = None
+    for a in awards_data['awards']:
+        if a.get('id') == award_id:
+            award_to_delete = a
+            break
+
+    if not award_to_delete:
+        return jsonify({'success': False, 'error': 'Award not found'}), 404
+
+    # Delete custom image file if applicable
+    image = award_to_delete.get('image', '')
+    if image.startswith('custom-'):
+        image_path = os.path.join(_tournament_dir(), image)
+        if os.path.exists(image_path):
+            os.remove(image_path)
+
+    awards_data['awards'] = [a for a in awards_data['awards'] if a.get('id') != award_id]
+    save_awards(awards_data)
+    return jsonify({'success': True})
+
+
+@app.route('/api/awards/upload-image', methods=['POST'])
+def api_awards_upload_image():
+    """Upload a custom award image."""
+    file = request.files.get('image')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_LOGO_EXTENSIONS:
+        return jsonify({'success': False, 'error': f'Invalid file type. Allowed: {", ".join(ALLOWED_LOGO_EXTENSIONS)}'}), 400
+
+    filename = f"custom-{int(time.time())}{ext}"
+    file.save(os.path.join(_tournament_dir(), filename))
+    return jsonify({'success': True, 'filename': filename})
+
+
+@app.route('/api/awards/image/<filename>')
+def api_awards_image(filename):
+    """Serve a custom award image from the tournament directory."""
+    image_path = os.path.join(_tournament_dir(), filename)
+    if not os.path.exists(image_path):
+        abort(404)
+    return send_file(image_path)
+
+
+@app.route('/api/awards/samples')
+def api_awards_samples():
+    """List available sample award images."""
+    awards_dir = os.path.join(os.path.dirname(__file__), 'static', 'awards')
+    if not os.path.isdir(awards_dir):
+        return jsonify({'success': True, 'samples': []})
+    filenames = sorted(f for f in os.listdir(awards_dir) if os.path.isfile(os.path.join(awards_dir, f)))
+    return jsonify({'success': True, 'samples': filenames})
+
+
 def _get_live_data() -> dict:
     """Build the template context dict for the live tournament view.
 
@@ -2453,6 +2571,7 @@ def _get_live_data() -> dict:
         silver_bracket_enabled=silver_bracket_enabled,
         print_settings=load_print_settings(),
         constraints=constraints,
+        awards=load_awards().get('awards', []),
     )
 
 

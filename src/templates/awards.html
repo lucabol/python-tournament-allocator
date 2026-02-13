@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Awards - Tournament Allocator{% endblock %}
+
+{% block content %}
+<h1>Awards</h1>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<section class="section">
+    <h2>Add Award</h2>
+    <div class="form-card">
+        <div class="award-form" id="award-form">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="award_name">Award Name</label>
+                    <input type="text" id="award_name" placeholder="e.g. MVP, Best Blocker" required>
+                </div>
+                <div class="form-group">
+                    <label for="player_name">Player Name</label>
+                    <input type="text" id="player_name" placeholder="e.g. John Smith" required>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 0.75rem;">
+                <label>Award Image</label>
+                <div class="image-picker" id="image-picker">
+                    <!-- Populated by JS -->
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+                    <label class="btn btn-secondary btn-sm" style="cursor: pointer; margin: 0; background: var(--border-color); color: var(--text-color);">
+                        Upload Custom
+                        <input type="file" id="custom_image_upload" accept="image/*" style="display: none;">
+                    </label>
+                    <img id="selected-preview" src="" alt="" style="height: 50px; width: auto; display: none; border: 1px solid var(--border-color); border-radius: 4px; padding: 4px;">
+                </div>
+                <input type="hidden" id="selected_image" value="">
+            </div>
+
+            <button type="button" class="btn btn-success" style="margin-top: 0.75rem;" onclick="addAward()">Add Award</button>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <h2>Current Awards</h2>
+    {% if awards %}
+    <div class="awards-grid">
+        {% for award in awards %}
+        <div class="award-card">
+            {% if award.image %}
+                {% if award.image.startswith('custom-') %}
+                <img src="{{ url_for('api_awards_image', filename=award.image) }}" alt="{{ award.name }}" class="award-card-img">
+                {% else %}
+                <img src="{{ url_for('static', filename='awards/' ~ award.image) }}" alt="{{ award.name }}" class="award-card-img">
+                {% endif %}
+            {% endif %}
+            <div class="award-card-info">
+                <strong>{{ award.name }}</strong>
+                <span>{{ award.player }}</span>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="deleteAward('{{ award.id }}')">Delete</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-message">No awards have been given yet.</p>
+    {% endif %}
+</section>
+
+<script>
+let selectedImage = '';
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSampleImages();
+
+    document.getElementById('custom_image_upload').addEventListener('change', function() {
+        if (!this.files || !this.files[0]) return;
+        const formData = new FormData();
+        formData.append('image', this.files[0]);
+
+        fetch('{{ url_for("api_awards_upload_image") }}', {
+            method: 'POST',
+            body: formData
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                selectImage(data.filename, '{{ url_for("api_awards_image", filename="__PLACEHOLDER__") }}'.replace('__PLACEHOLDER__', data.filename));
+            } else {
+                alert(data.error || 'Upload failed');
+            }
+        })
+        .catch(() => alert('Upload failed — please try again.'));
+    });
+});
+
+function loadSampleImages() {
+    fetch('{{ url_for("api_awards_samples") }}')
+    .then(r => r.json())
+    .then(data => {
+        const picker = document.getElementById('image-picker');
+        picker.innerHTML = '';
+        (data.samples || []).forEach(function(filename) {
+            const item = document.createElement('div');
+            item.className = 'image-picker-item';
+            item.dataset.filename = filename;
+            item.onclick = function() {
+                selectImage(filename, '{{ url_for("static", filename="awards/") }}' + filename);
+            };
+            const img = document.createElement('img');
+            img.src = '{{ url_for("static", filename="awards/") }}' + filename;
+            img.alt = filename.replace('.svg', '');
+            item.appendChild(img);
+            picker.appendChild(item);
+        });
+    });
+}
+
+function selectImage(filename, previewUrl) {
+    selectedImage = filename;
+    document.getElementById('selected_image').value = filename;
+
+    // Update preview
+    const preview = document.getElementById('selected-preview');
+    preview.src = previewUrl;
+    preview.style.display = 'block';
+
+    // Highlight selected
+    document.querySelectorAll('.image-picker-item').forEach(function(el) {
+        el.classList.toggle('selected', el.dataset.filename === filename);
+    });
+}
+
+function addAward() {
+    const name = document.getElementById('award_name').value.trim();
+    const player = document.getElementById('player_name').value.trim();
+    const image = document.getElementById('selected_image').value;
+
+    if (!name || !player) {
+        alert('Please enter both an award name and a player name.');
+        return;
+    }
+
+    fetch('{{ url_for("api_awards_add") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name, player: player, image: image})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to add award.');
+        }
+    })
+    .catch(() => alert('Failed to add award — please try again.'));
+}
+
+function deleteAward(id) {
+    if (!confirm('Delete this award?')) return;
+
+    fetch('{{ url_for("api_awards_delete") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({id: id})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to delete award.');
+        }
+    })
+    .catch(() => alert('Failed to delete award — please try again.'));
+}
+</script>
+
+{% endblock %}

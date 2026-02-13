@@ -1874,3 +1874,159 @@ class TestShowTestButtons:
         response = client.get('/teams')
         assert response.status_code == 200
         assert b'onclick="loadTestTeams()"' in response.data
+
+
+class TestAwards:
+    """Tests for Awards feature: CRUD, image upload/serve, and export integration."""
+
+    def test_awards_page_loads(self, client, temp_data_dir):
+        """GET /awards returns 200."""
+        response = client.get('/awards')
+        assert response.status_code == 200
+
+    def test_awards_default_empty(self, client, temp_data_dir):
+        """GET /awards has no awards by default (no award-specific content)."""
+        response = client.get('/awards')
+        assert response.status_code == 200
+        # No award entries should exist — the empty message is shown
+        assert b'No awards have been given yet' in response.data
+
+    def test_add_award(self, client, temp_data_dir):
+        """POST /api/awards/add with valid JSON creates an award visible on the page."""
+        response = client.post('/api/awards/add', json={
+            'name': 'MVP',
+            'player': 'John Smith',
+            'image': 'trophy.svg',
+        })
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert 'award' in data
+        assert data['award']['name'] == 'MVP'
+        assert data['award']['player'] == 'John Smith'
+        assert data['award']['image'] == 'trophy.svg'
+        assert 'id' in data['award']
+
+        # Verify award appears on the awards page
+        page = client.get('/awards')
+        assert b'MVP' in page.data
+        assert b'John Smith' in page.data
+
+    def test_add_award_missing_fields(self, client, temp_data_dir):
+        """POST /api/awards/add with missing name/player returns error."""
+        # Missing player
+        resp1 = client.post('/api/awards/add', json={
+            'name': 'MVP',
+            'image': 'trophy.svg',
+        })
+        assert resp1.status_code in (400, 422)
+        data1 = resp1.get_json()
+        assert data1.get('success') is not True
+
+        # Missing name
+        resp2 = client.post('/api/awards/add', json={
+            'player': 'John Smith',
+            'image': 'trophy.svg',
+        })
+        assert resp2.status_code in (400, 422)
+        data2 = resp2.get_json()
+        assert data2.get('success') is not True
+
+    def test_delete_award(self, client, temp_data_dir):
+        """Add an award, then delete it by ID, verify it's gone."""
+        # Add
+        add_resp = client.post('/api/awards/add', json={
+            'name': 'Best Defender',
+            'player': 'Jane Doe',
+            'image': 'trophy.svg',
+        })
+        assert add_resp.status_code == 200
+        award_id = add_resp.get_json()['award']['id']
+
+        # Delete
+        del_resp = client.post('/api/awards/delete', json={'id': award_id})
+        assert del_resp.status_code == 200
+        assert del_resp.get_json()['success'] is True
+
+        # Verify gone from page
+        page = client.get('/awards')
+        assert b'Best Defender' not in page.data
+
+    def test_upload_award_image(self, client, temp_data_dir):
+        """POST /api/awards/upload-image with a test PNG returns success and filename."""
+        # Minimal valid PNG: 1x1 pixel
+        png_header = (
+            b'\x89PNG\r\n\x1a\n'  # PNG signature
+            b'\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
+            b'\x08\x02\x00\x00\x00\x90wS\xde'
+            b'\x00\x00\x00\x0cIDATx'
+            b'\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N'
+            b'\x00\x00\x00\x00IEND\xaeB`\x82'
+        )
+        data = {
+            'image': (io.BytesIO(png_header), 'test_award.png'),
+        }
+        response = client.post(
+            '/api/awards/upload-image',
+            data=data,
+            content_type='multipart/form-data',
+        )
+        assert response.status_code == 200
+        result = response.get_json()
+        assert result['success'] is True
+        assert 'filename' in result
+        assert result['filename'].endswith('.png')
+
+    def test_serve_award_image(self, client, temp_data_dir):
+        """Upload an image, then GET /api/awards/image/<filename> serves it."""
+        png_data = (
+            b'\x89PNG\r\n\x1a\n'
+            b'\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
+            b'\x08\x02\x00\x00\x00\x90wS\xde'
+            b'\x00\x00\x00\x0cIDATx'
+            b'\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N'
+            b'\x00\x00\x00\x00IEND\xaeB`\x82'
+        )
+        upload_resp = client.post(
+            '/api/awards/upload-image',
+            data={'image': (io.BytesIO(png_data), 'serve_test.png')},
+            content_type='multipart/form-data',
+        )
+        assert upload_resp.status_code == 200
+        filename = upload_resp.get_json()['filename']
+
+        # Serve the uploaded image
+        serve_resp = client.get(f'/api/awards/image/{filename}')
+        assert serve_resp.status_code == 200
+        assert b'PNG' in serve_resp.data
+
+    def test_samples_endpoint(self, client, temp_data_dir):
+        """GET /api/awards/samples returns a list (may be empty in test env)."""
+        response = client.get('/api/awards/samples')
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert isinstance(data['samples'], list)
+
+    def test_awards_in_export(self, client, temp_data_dir):
+        """Add an award, export tournament, verify awards.yaml is in the ZIP."""
+        # Add an award first
+        client.post('/api/awards/add', json={
+            'name': 'Best Scorer',
+            'player': 'Alex Kim',
+            'image': 'trophy.svg',
+        })
+
+        # Export tournament
+        export_resp = client.get('/api/export/tournament')
+        assert export_resp.status_code == 200
+
+        zf = zipfile.ZipFile(io.BytesIO(export_resp.data))
+        names = zf.namelist()
+        assert 'awards.yaml' in names
+
+        # Verify the award data is inside
+        awards_content = yaml.safe_load(zf.read('awards.yaml'))
+        assert 'awards' in awards_content
+        award_names = [a['name'] for a in awards_content['awards']]
+        assert 'Best Scorer' in award_names
