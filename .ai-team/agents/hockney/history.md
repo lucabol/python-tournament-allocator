@@ -62,3 +62,21 @@
   - Tests 4-5 check `loadTestTeams` presence/absence in `/teams` response HTML, depending on the constraint value.
   - McManus added `show_test_buttons: False` to `get_default_constraints()` and `'show_test_buttons' in request.form` to the `update_general` handler.
   - Fenster needs to wrap test buttons in `{% if show_test_buttons %}` in `teams.html` — test 4 will fail until that's done.
+
+- **2026-02-13 — Awards feature tests added (`tests/test_app.py :: TestAwards`)**
+  - 9 proactive tests covering the Awards CRUD lifecycle, image upload/serving, sample images endpoint, and export integration.
+  - Tests: page loads (200), default empty (no `award-` ids in response), add award (JSON API + page verification), missing fields validation (400/422), delete by id, upload PNG via multipart form, serve uploaded image, samples list endpoint, awards.yaml in tournament ZIP export.
+  - Uses `io.BytesIO` with minimal PNG byte sequences for image upload tests — no filesystem temp files needed.
+  - Follows existing `client` + `temp_data_dir` fixture pattern; no new fixtures required.
+  - Data model assumption: `awards.yaml` stored in tournament directory with `{'awards': [{'id': ..., 'name': ..., 'player': ..., 'image': ...}]}` structure.
+  - API routes assumed: `GET /awards`, `POST /api/awards/add`, `POST /api/awards/delete`, `POST /api/awards/upload-image`, `GET /api/awards/image/<filename>`, `GET /api/awards/samples`.
+  - Export test expects `awards.yaml` to appear in the ZIP returned by `GET /api/export/tournament`.
+  - Written proactively before McManus implements the routes — tests will fail until endpoints are added.
+
+
+- **2026-02-13 — show_test_buttons constraint tests added** (	ests/test_app.py :: TestShowTestButtons)
+   - 5 tests covering the show_test_buttons boolean constraint: default False, toggle on via POST, toggle off (unchecked checkbox pattern), teams page hides test button by default, teams page shows test button when enabled.
+   - Tests 1-3 validate constraint persistence through load_constraints() after form POSTs to /constraints with action=update_general.
+   - Tests 4-5 check loadTestTeams presence/absence in /teams response HTML, depending on the constraint value.
+   - McManus added show_test_buttons: False to get_default_constraints() and 'show_test_buttons' in request.form to the update_general handler.
+   - Fenster needs to wrap test buttons in constraints.html.

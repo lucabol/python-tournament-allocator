@@ -71,3 +71,19 @@
 - **Data cleanup**: Uses `_data_lock` (FileLock) to atomically load/filter/save users list, then `shutil.rmtree` on `USERS_DIR/<username>`.
 - **Whitelist**: Added `api_delete_account` to `tournament_endpoints` set in `before_request` so the route works even without an active tournament.
 - **Files changed**: `src/app.py`
+
+### 2026-02-13: Awards feature backend added
+- **Routes**: `GET /awards` (page), `POST /api/awards/add`, `POST /api/awards/delete`, `POST /api/awards/upload-image`, `GET /api/awards/image/<filename>`, `GET /api/awards/samples`.
+- **Data functions**: `load_awards()` / `save_awards()` follow `load_results()` / `save_results()` pattern. Awards stored in `awards.yaml` in the tournament directory.
+- **Image handling**: Custom uploaded images saved as `custom-{timestamp}.{ext}` in tournament dir. Sample images served from `src/static/awards/`. Custom image cleanup on award deletion.
+- **Live page integration**: Awards added to `_get_live_data()` so `live()`, `public_live()`, and `api_public_live_html()` all pass `awards` to templates.
+- **Export**: `awards.yaml` added to `_get_exportable_files()` so it's included in tournament export/import.
+- **Whitelist**: `'awards'` added to `tournament_endpoints` set in `before_request`.
+- **Validation**: `api_awards_add` returns 400 if name or player is empty/missing.
+- **Files changed**: `src/app.py`
+
+### 2026-02-13: show_test_buttons constraint added
+- **Constraint**: `show_test_buttons: False` added to `get_default_constraints()`.
+- **Handler**: `update_general` in `/constraints` POST handler checks for `'show_test_buttons' in request.form` and saves to constraints.yaml.
+- **Context processor**: `show_test_buttons` injected globally so templates can use `{% if show_test_buttons %}` without explicit passes.
+- **Files changed**: `src/app.py`

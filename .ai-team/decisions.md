@@ -134,3 +134,57 @@
 **Why:** Users need a way to remove their accounts. Admin protection prevents accidental self-deletion via API. Typed-confirmation UX matches the site export/import pattern, forcing deliberate action for a destructive operation.
 **Test Coverage:** 5 tests in `TestDeleteAccount` class — success case, multi-tournament cleanup, admin blocked, login required, other users unaffected. All tests pass.
 **Impact:** User deletion is permanent and cascading (removes all tournaments). 249 tests pass.
+
+---
+
+## Changelog Tracking (2026-02-13)
+
+### Track all features in CHANGELOG.md
+**By:** Luca Bolognese (via Copilot directive)
+**Date:** 2026-02-13
+**What:** From now on, all features are tracked in `CHANGELOG.md` following semantic versioning conventions.
+**Why:** User request — centralized feature documentation for users and stakeholders.
+
+---
+
+## Show Test Buttons (2026-02-13)
+
+### Conditional test buttons via show_test_buttons constraint
+**By:** Fenster, Hockney
+**Date:** 2026-02-13
+**What:** Added `show_test_buttons: False` constraint (stored in `constraints.yaml`). Test buttons on 4 templates (`teams.html`, `courts.html`, `tracking.html`, `dbracket.html`) are now conditional on this setting. Settings page (`constraints.html`) has checkbox to toggle. Context processor injects `show_test_buttons` globally so templates don't need individual passes. Default is `False` — test buttons hidden unless explicitly enabled.
+**Why:** Tournament managers sometimes forget test buttons are visible and accidentally include them in production exports. Hiding by default reduces mistakes. The 5-test suite (`TestShowTestButtons`) validates the full lifecycle including toggle persistence and conditional rendering.
+**Impact:** All 249 tests pass. Test buttons remain discoverable for developers via Settings checkbox.
+
+---
+
+## Awards Feature (2026-02-13)
+
+### Awards backend: API endpoints and data persistence
+**By:** McManus
+**Date:** 2026-02-13
+**What:** Added awards feature backend in `src/app.py`:
+- `load_awards()` / `save_awards()` — YAML persistence following `load_results()` pattern
+- `GET /awards` — page route rendering `awards.html`
+- `POST /api/awards/add` — creates award with auto-generated `award-{timestamp}` ID
+- `POST /api/awards/delete` — removes award by ID and cleans up custom image files
+- `POST /api/awards/upload-image` — accepts multipart file upload, validates against `ALLOWED_LOGO_EXTENSIONS`
+- `GET /api/awards/image/<filename>` — serves custom images from tournament directory with path validation
+- `GET /api/awards/samples` — lists files in `src/static/awards/`
+- Awards data integrated into `_get_live_data()` for live/public-live routes
+- `awards.yaml` added to `_get_exportable_files()` for export/import
+- `'awards'` added to `tournament_endpoints` whitelist
+**Why:** New feature requested: tournament managers need to assign awards to players. Follows existing patterns for data persistence and image upload.
+
+### Awards frontend: UI and templates
+**By:** Fenster
+**Date:** 2026-02-13
+**What:** Created `awards.html` template with image picker UI, added 10 SVG award icons in `src/static/awards/`, integrated "Awards" nav link in `base.html`, added awards section in `live_content.html` for live tournament display, applied CSS styling. Frontend expects API contract: `GET /awards`, `POST /api/awards/add`, `POST /api/awards/delete`, `GET /api/awards/samples`, `POST /api/awards/upload-image`, `GET /api/awards/image/<filename>`.
+**Why:** Tournament managers need an intuitive interface to manage and assign awards. The live page should display current awards to spectators.
+**Affected files:** `src/templates/awards.html`, `src/templates/base.html`, `src/templates/live_content.html`, `src/static/style.css`, `src/static/awards/*.svg`
+
+### Awards tests comprehensive coverage (TestAwards)
+**By:** Hockney
+**Date:** 2026-02-13
+**What:** Wrote 9 proactive tests in `TestAwards` class covering default empty awards, award creation with validation, award deletion and image cleanup, image upload and serving, live data injection, sample list retrieval. All tests pass.
+**Why:** Awards feature is new and complex with file uploads and live integration. Test-first approach catches issues early. Tests serve as documentation of expected behavior.
