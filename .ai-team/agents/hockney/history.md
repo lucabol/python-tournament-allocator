@@ -55,3 +55,10 @@
   - Admin setup follows canonical `_login_as_admin()` pattern from `TestSiteExportImport`.
   - Directory navigation: `USERS_DIR / "testuser"` for user dir, `USERS_FILE` for users.yaml.
   - Written proactively before McManus implements the route — tests will fail until the endpoint is added.
+
+- **2026-02-13 — show_test_buttons constraint tests added (`tests/test_app.py :: TestShowTestButtons`)**
+  - 5 tests covering the `show_test_buttons` boolean constraint: default False, toggle on via POST, toggle off (unchecked checkbox pattern), teams page hides test button by default, teams page shows test button when enabled.
+  - Tests 1-3 validate constraint persistence through `load_constraints()` after form POSTs to `/constraints` with `action=update_general`.
+  - Tests 4-5 check `loadTestTeams` presence/absence in `/teams` response HTML, depending on the constraint value.
+  - McManus added `show_test_buttons: False` to `get_default_constraints()` and `'show_test_buttons' in request.form` to the `update_general` handler.
+  - Fenster needs to wrap test buttons in `{% if show_test_buttons %}` in `teams.html` — test 4 will fail until that's done.
