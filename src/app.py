@@ -3239,6 +3239,13 @@ def api_import_user():
 
         save_tournaments(existing_data)
 
+        # If no active tournament is set, activate the first available one
+        if not existing_data.get('active') and existing_data.get('tournaments'):
+            first_slug = existing_data['tournaments'][0]['slug']
+            existing_data['active'] = first_slug
+            save_tournaments(existing_data)
+            session['active_tournament'] = first_slug
+
     flash('User tournaments imported successfully.', 'success')
     return redirect(url_for('tournaments'))
 

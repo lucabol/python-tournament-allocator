@@ -1388,3 +1388,34 @@ class TestUserExportImport:
         assert (temp_data_dir / "teams.yaml").exists()
         existing = (temp_data_dir / "teams.yaml").read_text()
         assert 'Pool D' in existing
+
+    def test_import_after_delete_all_sets_active(self, client, temp_data_dir):
+        """After deleting all tournaments, importing sets an active tournament so navigation works."""
+        # Export current tournaments
+        export_resp = client.get('/api/export/user')
+        assert export_resp.status_code == 200
+        zip_data = export_resp.data
+
+        # Delete all tournaments
+        client.post('/api/tournaments/delete', data={'slug': 'default'})
+        # Verify no active tournament
+        user_reg = temp_data_dir.parent.parent / "tournaments.yaml"
+        reg = yaml.safe_load(user_reg.read_text())
+        assert not reg.get('tournaments') or len(reg['tournaments']) == 0
+
+        # Import the exported ZIP
+        buf = io.BytesIO(zip_data)
+        client.post(
+            '/api/import/user',
+            data={'file': (buf, 'backup.zip')},
+            content_type='multipart/form-data',
+        )
+
+        # Verify an active tournament is set in tournaments.yaml
+        reg = yaml.safe_load(user_reg.read_text())
+        assert reg.get('active') is not None
+        assert len(reg.get('tournaments', [])) > 0
+
+        # Verify navigating to a tab does NOT redirect to /tournaments
+        resp = client.get('/teams', follow_redirects=False)
+        assert resp.status_code == 200
