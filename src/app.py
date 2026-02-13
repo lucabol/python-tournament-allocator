@@ -1055,7 +1055,7 @@ def set_active_tournament():
                             'api_switch_tournament', 'logout', 'api_export_tournament',
                             'api_import_tournament', 'api_export_user', 'api_import_user',
                             'api_export_site', 'api_import_site',
-                            'api_delete_account', 'awards'}
+                            'api_delete_account', 'awards', 'insta'}
     if request.endpoint not in tournament_endpoints:
         flash('Please create a tournament first.', 'info')
         return redirect(url_for('tournaments'))
@@ -2595,6 +2595,12 @@ def _get_live_data() -> dict:
 def live():
     """Read-only live view of tournament standings and brackets for players."""
     return render_template('live.html', **_get_live_data(), public_mode=False)
+
+
+@app.route('/insta')
+def insta():
+    """Instagram-friendly tournament summary page."""
+    return render_template('insta.html', **_get_live_data())
 
 
 @app.route('/api/live-html')

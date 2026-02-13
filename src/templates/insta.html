@@ -1,0 +1,320 @@
+{% extends "base.html" %}
+
+{% block title %}{{ constraints.tournament_name | default('Tournament') }} — Insta{% endblock %}
+
+{% block content %}
+<div class="insta-wrapper">
+    <div class="insta-card" id="insta-card">
+
+        {# ---- HEADER ---- #}
+        <div class="insta-header">
+            <img src="/api/logo" alt="" class="insta-logo">
+            <div class="insta-header-text">
+                {% if constraints.club_name %}<div class="insta-club">{{ constraints.club_name }}</div>{% endif %}
+                <h1 class="insta-title">{{ constraints.tournament_name | default('Tournament') }}</h1>
+                {% if constraints.tournament_date %}<div class="insta-date">{{ constraints.tournament_date }}</div>{% endif %}
+            </div>
+        </div>
+
+        {# ---- CHAMPIONS ---- #}
+        {% if bracket_data and bracket_data.champion %}
+        <div class="insta-champion gold">
+            <span class="insta-champion-emoji">🏆</span>
+            <div class="insta-champion-label">Gold Champion</div>
+            <div class="insta-champion-name">{{ bracket_data.champion }}</div>
+        </div>
+        {% endif %}
+
+        {% if silver_bracket_data and silver_bracket_data.champion %}
+        <div class="insta-champion silver">
+            <span class="insta-champion-emoji">🥈</span>
+            <div class="insta-champion-label">Silver Champion</div>
+            <div class="insta-champion-name">{{ silver_bracket_data.champion }}</div>
+        </div>
+        {% endif %}
+
+        {# ---- POOL STANDINGS ---- #}
+        {% if standings %}
+        <div class="insta-section">
+            <div class="insta-section-title">Pool Standings</div>
+            {% for pool_name, team_list in standings.items() %}
+            <div class="insta-pool">
+                <div class="insta-pool-name">{{ pool_name }}</div>
+                <table class="insta-table">
+                    <thead>
+                        <tr><th>#</th><th>Team</th><th>W</th><th>L</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for team in team_list %}
+                        {% set advance_count = pools[pool_name].advance if pools and pool_name in pools else 2 %}
+                        <tr class="{% if loop.index <= advance_count and team.matches_played > 0 %}insta-advancing{% endif %}">
+                            <td>{{ loop.index }}</td>
+                            <td>{{ team.team }}</td>
+                            <td>{{ team.wins }}</td>
+                            <td>{{ team.losses }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {# ---- AWARDS ---- #}
+        {% if awards %}
+        <div class="insta-section">
+            <div class="insta-section-title">Awards</div>
+            <div class="insta-awards">
+                {% for award in awards %}
+                <div class="insta-award">
+                    {% if award.image %}
+                        {% if award.image.startswith('custom-') %}
+                        <img src="{{ url_for('api_awards_image', filename=award.image) }}" alt="" class="insta-award-img">
+                        {% else %}
+                        <img src="{{ url_for('static', filename='awards/' ~ award.image) }}" alt="" class="insta-award-img">
+                        {% endif %}
+                    {% endif %}
+                    <div class="insta-award-name">{{ award.name }}</div>
+                    <div class="insta-award-player">{{ award.player }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {# ---- FOOTER WATERMARK ---- #}
+        <div class="insta-footer">🏐 Tournament Allocator</div>
+
+    </div>{# /insta-card #}
+</div>{# /insta-wrapper #}
+
+<style>
+/* ===== Insta Story Card ===== */
+.insta-wrapper {
+    display: flex;
+    justify-content: center;
+    padding: 1.5rem 0.5rem;
+}
+
+.insta-card {
+    width: 100%;
+    max-width: 480px;
+    background: linear-gradient(135deg, #1e1040 0%, #0f2557 50%, #0a1628 100%);
+    border-radius: 1.25rem;
+    padding: 2rem 1.5rem;
+    color: #f0f0f5;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle sparkle overlay */
+.insta-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 20% 10%, rgba(255,255,255,0.06) 0%, transparent 50%),
+                radial-gradient(circle at 80% 90%, rgba(120,100,255,0.08) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+/* ---- Header ---- */
+.insta-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+}
+
+.insta-logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 0.75rem;
+    object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.2);
+}
+
+.insta-club {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: rgba(255,255,255,0.55);
+    font-weight: 600;
+}
+
+.insta-title {
+    font-size: 1.55rem;
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.15;
+    background: linear-gradient(90deg, #ffffff 0%, #c8bfff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.insta-date {
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.5);
+    margin-top: 0.15rem;
+}
+
+/* ---- Champions ---- */
+.insta-champion {
+    text-align: center;
+    padding: 1.25rem 1rem;
+    border-radius: 1rem;
+    margin-bottom: 1rem;
+    position: relative;
+}
+
+.insta-champion.gold {
+    background: linear-gradient(135deg, rgba(255,193,7,0.2) 0%, rgba(255,152,0,0.15) 100%);
+    border: 1px solid rgba(255,193,7,0.35);
+}
+
+.insta-champion.silver {
+    background: linear-gradient(135deg, rgba(189,189,189,0.15) 0%, rgba(158,158,158,0.1) 100%);
+    border: 1px solid rgba(189,189,189,0.3);
+}
+
+.insta-champion-emoji {
+    font-size: 2.5rem;
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.insta-champion-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgba(255,255,255,0.6);
+    font-weight: 600;
+}
+
+.insta-champion.gold .insta-champion-name {
+    font-size: 1.6rem;
+    font-weight: 800;
+    background: linear-gradient(90deg, #ffd54f, #ffab00);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-top: 0.25rem;
+}
+
+.insta-champion.silver .insta-champion-name {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #cfd8dc;
+    margin-top: 0.25rem;
+}
+
+/* ---- Sections ---- */
+.insta-section {
+    margin-bottom: 1.25rem;
+}
+
+.insta-section-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgba(255,255,255,0.45);
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    padding-left: 0.25rem;
+}
+
+/* ---- Pool tables ---- */
+.insta-pool {
+    margin-bottom: 0.75rem;
+}
+
+.insta-pool-name {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 0.35rem;
+    padding-left: 0.25rem;
+}
+
+.insta-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+
+.insta-table th {
+    text-align: left;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.35);
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-weight: 600;
+}
+
+.insta-table td {
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.8);
+}
+
+.insta-table tr.insta-advancing td {
+    color: #a5d6a7;
+    font-weight: 600;
+}
+
+.insta-table tr.insta-advancing td:first-child::before {
+    content: '▸ ';
+    color: #66bb6a;
+}
+
+/* ---- Awards ---- */
+.insta-awards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+}
+
+.insta-award {
+    background: rgba(255,255,255,0.06);
+    border-radius: 0.75rem;
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+.insta-award-img {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 0.4rem;
+    opacity: 0.85;
+}
+
+.insta-award-name {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: rgba(255,255,255,0.75);
+    margin-bottom: 0.15rem;
+}
+
+.insta-award-player {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #e0d6ff;
+}
+
+/* ---- Footer watermark ---- */
+.insta-footer {
+    text-align: center;
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.2);
+    margin-top: 1.5rem;
+    letter-spacing: 0.1em;
+}
+</style>
+{% endblock %}

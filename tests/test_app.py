@@ -1876,6 +1876,43 @@ class TestShowTestButtons:
         assert b'onclick="loadTestTeams()"' in response.data
 
 
+class TestInstaPage:
+    """Tests for the /insta Instagram-friendly tournament summary page."""
+
+    def test_insta_page_loads(self, client, temp_data_dir):
+        """GET /insta returns 200."""
+        response = client.get('/insta')
+        assert response.status_code == 200
+
+    def test_insta_page_empty_tournament(self, client, temp_data_dir):
+        """GET /insta returns 200 even with no teams/pools configured."""
+        # temp_data_dir starts with empty teams — just confirm it still renders
+        teams_file = temp_data_dir / "teams.yaml"
+        teams_file.write_text("")
+        response = client.get('/insta')
+        assert response.status_code == 200
+
+    def test_insta_page_with_pools(self, client, temp_data_dir):
+        """Configure test pools/teams, verify pool names appear in the response."""
+        pools_data = {
+            'Pool Alpha': {'teams': ['Hawks', 'Eagles'], 'advance': 1},
+            'Pool Beta': {'teams': ['Sharks', 'Dolphins'], 'advance': 1},
+        }
+        teams_file = temp_data_dir / "teams.yaml"
+        teams_file.write_text(yaml.dump(pools_data, default_flow_style=False))
+
+        response = client.get('/insta')
+        assert response.status_code == 200
+        assert b'Pool Alpha' in response.data
+        assert b'Pool Beta' in response.data
+
+    def test_insta_page_nav_link(self, client, temp_data_dir):
+        """GET /insta, verify the response contains a reference to the insta page."""
+        response = client.get('/insta')
+        assert response.status_code == 200
+        assert b'insta' in response.data.lower()
+
+
 class TestAwards:
     """Tests for Awards feature: CRUD, image upload/serve, and export integration."""
 

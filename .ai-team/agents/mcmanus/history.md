@@ -87,3 +87,8 @@
 - **Handler**: `update_general` in `/constraints` POST handler checks for `'show_test_buttons' in request.form` and saves to constraints.yaml.
 - **Context processor**: `show_test_buttons` injected globally so templates can use `{% if show_test_buttons %}` without explicit passes.
 - **Files changed**: `src/app.py`
+
+### 2026-02-13: Instagram-friendly route added
+- **Route**: `GET /insta` renders `insta.html` template using `_get_live_data()` helper, same data as `/live` route.
+- **Whitelist**: `'insta'` added to `tournament_endpoints` set so it works even without an active tournament.
+- **Files changed**: `src/app.py`

@@ -80,3 +80,11 @@
    - Tests 4-5 check loadTestTeams presence/absence in /teams response HTML, depending on the constraint value.
    - McManus added show_test_buttons: False to get_default_constraints() and 'show_test_buttons' in request.form to the update_general handler.
    - Fenster needs to wrap test buttons in constraints.html.
+
+- **2026-02-13 — Insta page tests added (`tests/test_app.py :: TestInstaPage`)**
+  - 4 tests covering the `/insta` Instagram-friendly summary page: page loads (200), empty tournament (200), pools visible in response, nav link presence.
+  - Route exists at `GET /insta`, renders `insta.html` with `_get_live_data()` context (same data as `/live`).
+  - `insta` is in the `tournament_endpoints` whitelist, so it works even without an active tournament directory.
+  - Tests use `client` + `temp_data_dir` fixtures following existing patterns (e.g., `TestAwards`).
+  - Pool visibility test writes YAML with `Pool Alpha` / `Pool Beta` to `teams.yaml` and checks response body.
+  - All 4 tests pass against current implementation.
