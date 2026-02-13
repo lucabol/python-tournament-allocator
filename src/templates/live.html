@@ -30,6 +30,33 @@
 {% include 'live_content.html' %}
     </main>
 
+    <div style="display:flex;justify-content:center;padding:1.5rem 0;">
+        <div id="qr-share" style="display:inline-flex;flex-direction:column;align-items:center;gap:0.4rem;background:rgba(255,255,255,0.1);padding:0.75rem 1rem;border-radius:10px;cursor:pointer;" onclick="copyShareLink()" title="Click to copy link">
+            <div id="qr-share-container" style="background:#fff;padding:4px;border-radius:6px;line-height:0;"></div>
+            <span id="qr-share-label" style="font-size:0.8rem;color:var(--text-muted,#888);">Share this page</span>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script>
+    (function() {
+        var qr = qrcode(0, 'M');
+        qr.addData(window.location.href);
+        qr.make();
+        var container = document.getElementById('qr-share-container');
+        if (container) {
+            container.innerHTML = qr.createSvgTag(2, 0);
+            var svg = container.querySelector('svg');
+            if (svg) { svg.style.width = '80px'; svg.style.height = '80px'; }
+        }
+    })();
+    function copyShareLink() {
+        var label = document.getElementById('qr-share-label');
+        navigator.clipboard.writeText(window.location.href).then(function() {
+            if (label) { var orig = label.textContent; label.textContent = '✅ Link copied!'; setTimeout(function() { label.textContent = orig; }, 2000); }
+        });
+    }
+    </script>
+
     <footer class="live-footer">
         <p>Tournament Allocator &copy; 2026</p>
     </footer>

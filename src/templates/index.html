@@ -228,12 +228,12 @@
         {% if schedule_stats %}
         <a href="{{ url_for('api_export_schedule_csv') }}" class="btn btn-secondary btn-sm">📥 Download CSV</a>
         {% endif %}
-        <div id="qr-live" style="display:inline-flex;flex-direction:column;align-items:center;gap:0.25rem;vertical-align:middle;cursor:pointer;" onclick="copyLiveLink()" title="Click to copy live link">
+        <a href="{{ url_for('api_export_tournament') }}" class="btn btn-secondary btn-sm">💾 Export Tournament</a>
+        <button onclick="document.getElementById('import-file').click()" class="btn btn-secondary btn-sm">📂 Import Tournament</button>
+        <div id="qr-live" style="display:inline-flex;flex-direction:column;align-items:center;gap:0.25rem;align-self:center;cursor:pointer;" onclick="copyLiveLink()" title="Click to copy live link">
             <div id="qr-container" style="background:#fff;padding:4px;border-radius:6px;line-height:0;"></div>
             <span style="font-size:0.75rem;color:var(--text-muted);">📡 Live Page</span>
         </div>
-        <a href="{{ url_for('api_export_tournament') }}" class="btn btn-secondary btn-sm">💾 Export Tournament</a>
-        <button onclick="document.getElementById('import-file').click()" class="btn btn-secondary btn-sm">📂 Import Tournament</button>
     </div>
     <form id="import-form" method="POST" action="{{ url_for('api_import_tournament') }}" enctype="multipart/form-data" style="display:none">
         <input type="file" id="import-file" name="file" accept=".zip" onchange="confirmImport(this)">
@@ -252,8 +252,8 @@
         container.innerHTML = qr.createSvgTag(2, 0);
         var svg = container.querySelector('svg');
         if (svg) {
-            svg.style.width = '100px';
-            svg.style.height = '100px';
+            svg.style.width = '60px';
+            svg.style.height = '60px';
         }
     }
 })();
