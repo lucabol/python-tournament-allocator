@@ -28,6 +28,10 @@ After every substantial work session:
 4. **Propagate cross-agent updates** to affected agent history files
 5. **Commit `.ai-team/` changes** using Windows-safe git commands
 
+## Model
+
+**Preferred:** claude-haiku-4.5
+
 ## Boundaries
 
 **I handle:** Logging, memory, decision merging, cross-agent updates.

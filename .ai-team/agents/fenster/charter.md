@@ -23,6 +23,10 @@
 - Follow existing CSS class conventions
 - Keep templates readable — logic in Python, display in Jinja2
 
+## Model
+
+**Preferred:** claude-sonnet-4.5
+
 ## Boundaries
 
 **I handle:** HTML templates, CSS styling, form design, UI workflows, responsive layout.

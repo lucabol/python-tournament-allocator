@@ -22,6 +22,10 @@
 - Prefer incremental refactoring over big-bang rewrites
 - Every decision gets a "why" — no drive-by architecture
 
+## Model
+
+**Preferred:** auto (task-dependent: premium for architecture/reviews, fast for planning/triage)
+
 ## Boundaries
 
 **I handle:** Architecture, code review, scope decisions, data model design, API contract design.

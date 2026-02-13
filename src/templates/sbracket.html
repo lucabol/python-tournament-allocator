@@ -60,6 +60,9 @@
         {% endif %}
     </div>
     {% if is_bye %}<div class="m-bye-label">BYE</div>{% endif %}
+    {% if has_winner and not is_bye %}
+    <button type="button" class="btn-clear-result" onclick="clearBracketResult('winners_{{ match.round if match.round is defined else '' }}_{{ match.match_number }}')" title="Clear result">✕</button>
+    {% endif %}
 </div>
 {% endmacro %}
 
@@ -488,5 +491,21 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => console.error('Error saving result:', error));
     }
 });
+
+function clearBracketResult(matchKey) {
+    if (!confirm('Clear this match result?')) return;
+    fetch('/api/clear-result', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({match_key: matchKey})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    })
+    .catch(error => console.error('Error clearing result:', error));
+}
 </script>
 {% endblock %}

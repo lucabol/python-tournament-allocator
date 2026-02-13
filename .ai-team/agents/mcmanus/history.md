@@ -122,3 +122,12 @@
 - **Pattern**: Follows `api_create_tournament` and `api_delete_tournament` patterns — form POST, slug validation, flash messages, redirect.
 - **Files changed**: `src/app.py`, `src/templates/tournaments.html`
 - **Tests**: All 276 existing tests pass.
+
+### 2026-02-13: Bracket result undo/clear UI added
+- **Templates**: Added clear result buttons (✕) to bracket match macros in `dbracket.html` and `sbracket.html`. Buttons appear only when match has a winner and is not a bye. Calls `clearBracketResult(matchKey)` function.
+- **JavaScript**: Added `clearBracketResult(matchKey)` function to both templates — prompts for confirmation, calls existing `/api/clear-result` endpoint with match key format `{bracket_type}_{round_name}_{match_number}`, reloads page on success.
+- **Match key format**: Single bracket uses `winners_{round}_{match_number}`. Double bracket uses `{bracket_type}_{round}_{match_number}` where bracket_type is 'winners', 'losers', 'grand_final', or 'bracket_reset'.
+- **Backend**: No changes needed — `/api/clear-result` endpoint already exists (added 2026-02-13) and removes keys from both pool_play and bracket dicts.
+- **Pattern**: Mirrors existing pool play clear button in `tracking.html` — same confirmation dialog, same API endpoint, same reload behavior.
+- **Files changed**: `src/templates/dbracket.html`, `src/templates/sbracket.html`
+

@@ -65,6 +65,9 @@
     <div class="m-bracket-feed">Loser → {{ match.losers_feed_to }}</div>
     {% endif %}
     {% if match.get('note') %}<div class="m-match-note">{{ match.note }}</div>{% endif %}
+    {% if has_winner and not is_bye %}
+    <button type="button" class="btn-clear-result" onclick="clearBracketResult('{{ bracket_type }}_{{ match.round if match.round is defined else '' }}_{{ match.match_number }}')" title="Clear result">✕</button>
+    {% endif %}
 </div>
 {% endmacro %}
 
@@ -122,6 +125,9 @@
         {% endif %}
     </div>
     {% if match.get('note') %}<div class="m-match-note">{{ match.note }}</div>{% endif %}
+    {% if has_winner %}
+    <button type="button" class="btn-clear-result" onclick="clearBracketResult('{{ bracket_type }}_{{ label }}_1')" title="Clear result">✕</button>
+    {% endif %}
 </div>
 {% endmacro %}
 
@@ -1017,6 +1023,22 @@ function generateRandomBracketResults() {
             location.reload();
         }
     });
+}
+
+function clearBracketResult(matchKey) {
+    if (!confirm('Clear this match result?')) return;
+    fetch('/api/clear-result', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({match_key: matchKey})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    })
+    .catch(error => console.error('Error clearing result:', error));
 }
 </script>
 {% endblock %}

@@ -24,6 +24,10 @@
 - Use `datetime.date.today()` for base dates in tests
 - Prefer integration tests that exercise real code paths over mocks
 
+## Model
+
+**Preferred:** claude-sonnet-4.5
+
 ## Boundaries
 
 **I handle:** Writing tests, finding edge cases, verifying fixes, test infrastructure.

@@ -23,6 +23,10 @@
 - Keep file locking consistent (filelock pattern already in app.py)
 - Test locally before declaring done
 
+## Model
+
+**Preferred:** claude-sonnet-4.5
+
 ## Boundaries
 
 **I handle:** Flask routes, API endpoints, data models, persistence logic, scheduling integration.
