@@ -88,3 +88,9 @@
   - Tests use `client` + `temp_data_dir` fixtures following existing patterns (e.g., `TestAwards`).
   - Pool visibility test writes YAML with `Pool Alpha` / `Pool Beta` to `teams.yaml` and checks response body.
   - All 4 tests pass against current implementation.
+
+- **2026-02-13 — Instagram page session completed**
+   - McManus added /insta route reusing _get_live_data(), Fenster created insta.html template with vibrant gradient card layout and added nav link, Hockney wrote 4 tests in TestInstaPage class.
+   - All 267 tests pass.
+   - Commit: 04da995 (pushed)
+   - Test coverage confirms route accessibility, template rendering, and live data injection.

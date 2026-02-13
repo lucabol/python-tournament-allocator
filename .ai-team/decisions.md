@@ -188,3 +188,28 @@
 **Date:** 2026-02-13
 **What:** Wrote 9 proactive tests in `TestAwards` class covering default empty awards, award creation with validation, award deletion and image cleanup, image upload and serving, live data injection, sample list retrieval. All tests pass.
 **Why:** Awards feature is new and complex with file uploads and live integration. Test-first approach catches issues early. Tests serve as documentation of expected behavior.
+
+---
+
+## Instagram Friendly Tournament Summary (2026-02-13)
+
+### Instagram summary route reuses _get_live_data()
+**By:** McManus
+**Date:** 2026-02-13
+**What:** Added `GET /insta` route that renders `insta.html` with the full `_get_live_data()` payload (pools, standings, schedule, results, bracket_data, silver_bracket_data, awards, constraints). Added `'insta'` to the `tournament_endpoints` whitelist so it works without an active tournament.
+**Why:** Follows the same pattern as `/live` — reuses the existing data-gathering helper rather than duplicating logic. Template rendering is delegated to Fenster's `insta.html`.
+
+### Instagram summary page design: dark gradient card with inline styles
+**By:** Fenster
+**Date:** 2026-02-13
+**What:** The Insta page (`insta.html`) uses a self-contained inline `<style>` block rather than adding to `style.css`. The card is a 480px-max dark gradient (purple → blue) designed for phone screenshots. All CSS classes are prefixed with `insta-` to avoid collisions. The template reuses `_get_live_data()` for its context, keeping it consistent with the live page data. Added "Insta" nav link in `base.html` between Awards and Live.
+**Why:** Inline styles keep the page self-contained and avoid bloating the shared stylesheet with single-use classes. The `insta-` prefix prevents any accidental cascade into other pages. Using `_get_live_data()` means the Insta page always shows the same data as the live page — no drift, no separate data pipeline.
+**Affected files:** `src/templates/insta.html` (new), `src/templates/base.html` (nav link added)
+
+### Instagram tests comprehensive coverage (TestInstaPage)
+**By:** Hockney
+**Date:** 2026-02-13
+**What:** Wrote 4 tests in `TestInstaPage` class covering page load (200), empty tournament (200), pools visible in response, and nav link presence. All tests pass.
+**Why:** Insta page is a new route with conditional rendering. Tests verify the route is accessible and the template renders correctly with live data.
+**Test Coverage:** 4 tests in `TestInstaPage` — all passing.
+**Impact:** All 267 tests pass. Insta page feature complete with route, template, and comprehensive tests.

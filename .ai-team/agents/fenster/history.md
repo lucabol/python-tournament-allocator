@@ -50,3 +50,9 @@
 - **Sections**: Tournament header (logo, club, name, date), Champions (gold/silver with gradient text and emoji), Pool Standings (compact tables with green advancing highlight), Awards (grid of small cards with icons), footer watermark.
 - **Visual patterns**: Gradient text for title and gold champion name (`background-clip: text`), semi-transparent cards and borders for glassy feel, `radial-gradient` overlay for subtle light effects, green accent for advancing teams with marker.
 - **Data source**: Uses `_get_live_data()` — same context as the live page. Template variables: `constraints`, `bracket_data`, `silver_bracket_data`, `standings`, `pools`, `awards`.
+
+### 2026-02-13: Instagram page session completed
+- **Session overview**: McManus added `/insta` route reusing `_get_live_data()`, Fenster created `insta.html` template with vibrant gradient card layout and added nav link, Hockney wrote 4 tests in `TestInstaPage` class.
+- **Test results**: All 267 tests pass.
+- **Commit**: 04da995 (pushed)
+- **Design pattern**: Inline styles + `insta-` prefixed classes follow the `print.html` precedent for self-contained pages. This pattern is now established for future single-page-layout features.

@@ -92,3 +92,9 @@
 - **Route**: `GET /insta` renders `insta.html` template using `_get_live_data()` helper, same data as `/live` route.
 - **Whitelist**: `'insta'` added to `tournament_endpoints` set so it works even without an active tournament.
 - **Files changed**: `src/app.py`
+
+### 2026-02-13: Instagram page session completed
+- **Session overview**: McManus added `/insta` route reusing `_get_live_data()`, Fenster created `insta.html` template with vibrant gradient card layout and added nav link, Hockney wrote 4 tests in `TestInstaPage` class covering page load, empty tournaments, pools visibility, and nav link presence.
+- **Test results**: All 267 tests pass.
+- **Commit**: 04da995 (pushed)
+- **Decisions merged**: Two inbox decisions consolidated into main `decisions.md` — route pattern and template design pattern documented for future reference.
