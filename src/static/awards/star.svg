@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFE44D"/>
+      <stop offset="100%" stop-color="#FFB800"/>
+    </linearGradient>
+  </defs>
+  <polygon points="16,2 20.2,10.5 29.6,11.9 22.8,18.5 24.4,27.8 16,23.4 7.6,27.8 9.2,18.5 2.4,11.9 11.8,10.5" fill="url(#sg)" stroke="#E09800" stroke-width=".7"/>
+  <polygon points="16,6 18.8,11.8 25.2,12.7 20.6,17.2 21.6,23.5 16,20.6 10.4,23.5 11.4,17.2 6.8,12.7 13.2,11.8" fill="#FFF4A0" opacity=".4"/>
+</svg>
