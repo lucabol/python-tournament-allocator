@@ -1812,3 +1812,65 @@ class TestDeleteAccount:
         # otheruser directory still exists
         assert other_dir.exists()
         assert (other_tournaments / "teams.yaml").exists()
+
+
+class TestShowTestButtons:
+    """Tests for show_test_buttons constraint feature."""
+
+    def test_show_test_buttons_default_false(self, client, temp_data_dir):
+        """Test that show_test_buttons defaults to False in constraints."""
+        constraints = load_constraints()
+        assert constraints.get('show_test_buttons') is False
+
+    def test_show_test_buttons_toggle_on(self, client, temp_data_dir):
+        """Test POSTing with show_test_buttons in form data saves it as True."""
+        response = client.post('/constraints', data={
+            'action': 'update_general',
+            'match_duration': '25',
+            'days_number': '1',
+            'min_break': '5',
+            'day_end_time': '02:00',
+            'bracket_type': 'double',
+            'scoring_format': 'single_set',
+            'show_test_buttons': 'on',
+        }, follow_redirects=True)
+        assert response.status_code == 200
+
+        constraints = load_constraints()
+        assert constraints['show_test_buttons'] is True
+
+    def test_show_test_buttons_toggle_off(self, client, temp_data_dir):
+        """Test that omitting show_test_buttons from form data (unchecked checkbox) saves it as False."""
+        # First enable it
+        constraints_file = temp_data_dir / "constraints.yaml"
+        constraints_file.write_text(yaml.dump({'show_test_buttons': True}))
+
+        # POST without show_test_buttons (simulates unchecked checkbox)
+        response = client.post('/constraints', data={
+            'action': 'update_general',
+            'match_duration': '25',
+            'days_number': '1',
+            'min_break': '5',
+            'day_end_time': '02:00',
+            'bracket_type': 'double',
+            'scoring_format': 'single_set',
+        }, follow_redirects=True)
+        assert response.status_code == 200
+
+        constraints = load_constraints()
+        assert constraints['show_test_buttons'] is False
+
+    def test_teams_page_hides_test_button_by_default(self, client, temp_data_dir):
+        """Test that GET /teams does NOT show the test button when show_test_buttons is False."""
+        response = client.get('/teams')
+        assert response.status_code == 200
+        assert b'onclick="loadTestTeams()"' not in response.data
+
+    def test_teams_page_shows_test_button_when_enabled(self, client, temp_data_dir):
+        """Test that GET /teams shows the test button when show_test_buttons is True."""
+        constraints_file = temp_data_dir / "constraints.yaml"
+        constraints_file.write_text(yaml.dump({'show_test_buttons': True}))
+
+        response = client.get('/teams')
+        assert response.status_code == 200
+        assert b'onclick="loadTestTeams()"' in response.data

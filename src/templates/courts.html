@@ -6,7 +6,7 @@
 <div class="page-header">
     <h1>Court Management</h1>
     <div class="page-header-actions">
-        <button type="button" class="btn btn-sm btn-secondary" onclick="loadTestCourts()">Test</button>
+        {% if show_test_buttons %}<button type="button" class="btn btn-sm btn-secondary" onclick="loadTestCourts()">Test</button>{% endif %}
     </div>
 </div>
 

@@ -113,6 +113,16 @@
                     <span class="help-icon" title="Teams that don't advance from pool play will compete in a separate Silver Bracket elimination tournament.">?</span>
                 </label>
             </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show_test_buttons" name="show_test_buttons" 
+                           {% if constraints.show_test_buttons %}checked{% endif %}
+                           onchange="updateSetting('show_test_buttons', this.checked)">
+                    Show Test Buttons
+                    <span class="help-icon" title="When enabled, shows Test buttons on Teams, Courts, Tracking, and Bracket pages for generating sample data.">?</span>
+                </label>
+            </div>
         </div>
     </div>
 </section>

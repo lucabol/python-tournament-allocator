@@ -966,6 +966,7 @@ def get_default_constraints():
         'scoring_format': 'single_set',
         'pool_in_same_court': True,
         'silver_bracket_enabled': True,
+        'show_test_buttons': False,
         'pool_to_bracket_delay_minutes': 120,
         'club_name': 'Montgó Beach Volley Club',
         'tournament_name': 'Summer Tournament 2026',
@@ -1042,10 +1043,17 @@ def set_active_tournament():
 @app.context_processor
 def inject_tournament_context():
     """Make tournament and user info available to all templates."""
+    show_test_buttons = False
+    try:
+        constraints = load_constraints()
+        show_test_buttons = constraints.get('show_test_buttons', False)
+    except Exception:
+        pass
     return {
         'active_tournament': getattr(g, 'active_tournament', None),
         'tournament_name': getattr(g, 'tournament_name', None),
         'current_user': session.get('user'),
+        'show_test_buttons': show_test_buttons,
     }
 
 
@@ -1540,6 +1548,8 @@ def api_update_settings():
         constraints_data['pool_in_same_court'] = data['pool_in_same_court']
     if 'silver_bracket_enabled' in data:
         constraints_data['silver_bracket_enabled'] = data['silver_bracket_enabled']
+    if 'show_test_buttons' in data:
+        constraints_data['show_test_buttons'] = data['show_test_buttons']
     if 'pool_to_bracket_delay' in data:
         constraints_data['pool_to_bracket_delay_minutes'] = int(data['pool_to_bracket_delay'])
     if 'club_name' in data:
@@ -2000,6 +2010,7 @@ def settings():
             constraints_data['scoring_format'] = request.form.get('scoring_format', 'best_of_3')
             constraints_data['pool_in_same_court'] = request.form.get('pool_in_same_court') == 'on'
             constraints_data['silver_bracket_enabled'] = request.form.get('silver_bracket_enabled') == 'on'
+            constraints_data['show_test_buttons'] = 'show_test_buttons' in request.form
             save_constraints(constraints_data)
         
         elif action == 'add_team_constraint':
@@ -2318,7 +2329,8 @@ def tracking():
     share_url = url_for('public_live', username=session.get('user', ''), slug=getattr(g, 'active_tournament', ''), _external=True)
     return render_template('tracking.html', schedule=schedule_data, stats=tracking_stats,
                           results=results.get('pool_play', {}), standings=standings,
-                          scoring_format=scoring_format, pools=pools, share_url=share_url)
+                          scoring_format=scoring_format, pools=pools, share_url=share_url,
+)
 
 
 @app.route('/print')
@@ -2938,7 +2950,8 @@ def dbracket():
     
     return render_template('dbracket.html', bracket_data=bracket_data, error=None,
                           bracket_results=bracket_results, scoring_format=scoring_format,
-                          silver_bracket_data=silver_bracket_data, silver_bracket_enabled=silver_bracket_enabled)
+                          silver_bracket_data=silver_bracket_data, silver_bracket_enabled=silver_bracket_enabled,
+)
 
 
 @app.route('/schedule/double_elimination', methods=['GET', 'POST'])
