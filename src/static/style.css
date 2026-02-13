@@ -494,6 +494,11 @@ h3 {
     margin-bottom: 1rem;
 }
 
+.section-danger-zone {
+    border: 2px solid var(--danger-color);
+    background: #fef2f2;
+}
+
 /* Forms */
 .form-grid {
     display: grid;

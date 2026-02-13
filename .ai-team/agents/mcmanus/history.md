@@ -50,3 +50,12 @@
 - **Import**: Validates ZIP, reads `tournaments.yaml` from the root, extracts only `ALLOWED_IMPORT_NAMES` files and logos per slug into `g.user_tournaments_dir/<slug>/`. Merges the imported `tournaments.yaml` additively — new slugs are added, existing slugs get name/created updated, tournaments not in ZIP are preserved.
 - **Whitelist**: Added `api_export_user` and `api_import_user` to the `tournament_endpoints` guard set in `before_request`.
 - **Pattern**: Logo handling replicates the per-tournament pattern (glob for `logo.*`, delete old, extract new). Security checks mirror existing import route (path traversal, size limit).
+
+### 2026-02-12: Site-wide export/import routes added
+- **Routes**: `GET /api/export/site` and `POST /api/import/site`. Both require `@login_required` and `is_admin()` check (403 for non-admins).
+- **Helper**: `is_admin()` returns `True` if `session.get('user') == 'admin'`. Placed near `login_required` decorator.
+- **Export**: Walks `DATA_DIR` recursively, zips everything (`.secret_key`, `users.yaml`, `users/` directory) while skipping `__pycache__`, `.pyc`, and `.lock` files. Returns `site_export_{timestamp}.zip`.
+- **Import**: Validates ZIP (path traversal, size ≤ 50MB, must contain `users.yaml`). Full replace: removes existing `users/` dir, `users.yaml`, `.secret_key`, then extracts ZIP into `DATA_DIR`. Clears Flask session and redirects to login page.
+- **Whitelist**: Added `api_export_site` and `api_import_site` to the `tournament_endpoints` guard set in `before_request`.
+- **Constants**: `MAX_SITE_UPLOAD_SIZE = 50MB`, `SITE_EXPORT_SKIP` set for filtering during walk.
+- **Pattern**: Follows the same security checks as `api_import_user` (path traversal, zip validation, flash messages).

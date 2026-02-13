@@ -1419,3 +1419,249 @@ class TestUserExportImport:
         # Verify navigating to a tab does NOT redirect to /tournaments
         resp = client.get('/teams', follow_redirects=False)
         assert resp.status_code == 200
+
+
+def _make_site_zip(secret_key_content: bytes = b'test-secret-key-data',
+                   users_yaml_content: dict = None,
+                   user_tree: dict = None) -> io.BytesIO:
+    """Build a site-level export ZIP.
+
+    secret_key_content: raw bytes for .secret_key entry
+    users_yaml_content: dict to serialize as users.yaml
+    user_tree: {relative_path: content_str} for entries under users/
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w') as zf:
+        if secret_key_content is not None:
+            zf.writestr('.secret_key', secret_key_content)
+        if users_yaml_content is not None:
+            zf.writestr('users.yaml', yaml.dump(users_yaml_content, default_flow_style=False))
+        if user_tree:
+            for rel_path, content in user_tree.items():
+                zf.writestr(f'users/{rel_path}', content)
+    buf.seek(0)
+    return buf
+
+
+class TestSiteExportImport:
+    """Tests for admin-only site-wide export/import."""
+
+    def _login_as_admin(self, client, temp_data_dir):
+        """Set up admin user in the test environment and switch session to admin."""
+        import app as app_module
+        from werkzeug.security import generate_password_hash
+
+        # Add admin to users.yaml if not present
+        users_file = pathlib.Path(app_module.USERS_FILE)
+        users_data = yaml.safe_load(users_file.read_text()) or {'users': []}
+        if not any(u['username'] == 'admin' for u in users_data.get('users', [])):
+            users_data['users'].append({
+                'username': 'admin',
+                'password_hash': generate_password_hash('admin'),
+                'created': '2026-01-01'
+            })
+            users_file.write_text(yaml.dump(users_data, default_flow_style=False))
+
+        # Create admin user directory with a default tournament
+        users_dir = pathlib.Path(app_module.USERS_DIR)
+        admin_dir = users_dir / "admin"
+        admin_default = admin_dir / "tournaments" / "default"
+        admin_default.mkdir(parents=True, exist_ok=True)
+        (admin_dir / "tournaments.yaml").write_text(yaml.dump({
+            'active': 'default',
+            'tournaments': [{'slug': 'default', 'name': 'Admin Default'}]
+        }, default_flow_style=False))
+        (admin_default / "teams.yaml").write_text("")
+        (admin_default / "courts.csv").write_text("court_name,start_time,end_time\n")
+        (admin_default / "constraints.yaml").write_text("")
+
+        # Ensure .secret_key exists in site root (parent of USERS_FILE)
+        site_root = pathlib.Path(app_module.USERS_FILE).parent
+        secret_key_path = site_root / ".secret_key"
+        if not secret_key_path.exists():
+            secret_key_path.write_bytes(b'test-secret-key-data')
+
+        # Switch session to admin
+        with client.session_transaction() as sess:
+            sess['user'] = 'admin'
+
+    def test_export_site_non_admin_forbidden(self, client, temp_data_dir):
+        """Non-admin user cannot export site."""
+        response = client.get('/api/export/site')
+        # testuser is logged in — should be 403 or redirect, not 200
+        assert response.status_code in (302, 303, 403)
+
+    def test_export_site_admin_produces_valid_zip(self, client, temp_data_dir):
+        """Admin export returns valid ZIP with correct structure."""
+        self._login_as_admin(client, temp_data_dir)
+        response = client.get('/api/export/site')
+        assert response.status_code == 200
+        assert 'application/zip' in response.content_type
+
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        assert zf.testzip() is None
+        names = zf.namelist()
+        assert 'users.yaml' in names
+        assert any(n.startswith('users/') for n in names)
+
+    def test_export_site_includes_secret_key(self, client, temp_data_dir):
+        """Export ZIP contains .secret_key file."""
+        self._login_as_admin(client, temp_data_dir)
+        response = client.get('/api/export/site')
+        assert response.status_code == 200
+
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        assert '.secret_key' in zf.namelist()
+        content = zf.read('.secret_key')
+        assert len(content) > 0
+
+    def test_export_site_includes_users_data(self, client, temp_data_dir):
+        """Export ZIP contains users.yaml and user directories."""
+        self._login_as_admin(client, temp_data_dir)
+        response = client.get('/api/export/site')
+        assert response.status_code == 200
+
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        names = zf.namelist()
+        assert 'users.yaml' in names
+        # Both testuser and admin should have entries in the ZIP
+        assert any('testuser' in n for n in names)
+        assert any('admin' in n for n in names)
+
+    def test_import_site_non_admin_forbidden(self, client, temp_data_dir):
+        """Non-admin user cannot import site."""
+        buf = _make_site_zip(
+            users_yaml_content={'users': [
+                {'username': 'testuser', 'password_hash': 'x', 'created': '2026-01-01'}
+            ]},
+            user_tree={
+                'testuser/tournaments.yaml': yaml.dump({
+                    'active': 'default', 'tournaments': []
+                })
+            }
+        )
+        response = client.post(
+            '/api/import/site',
+            data={'file': (buf, 'site_backup.zip')},
+            content_type='multipart/form-data',
+        )
+        # testuser is not admin — should be 403 or redirect
+        assert response.status_code in (302, 303, 403)
+
+    def test_import_site_replaces_data(self, client, temp_data_dir):
+        """Admin import replaces existing user data with ZIP contents."""
+        import app as app_module
+        self._login_as_admin(client, temp_data_dir)
+
+        users_dir = pathlib.Path(app_module.USERS_DIR)
+
+        # Plant a marker in existing user dir to verify full wipe
+        marker = users_dir / "testuser" / "marker.txt"
+        marker.write_text("should be deleted")
+
+        # Build a site ZIP with only a "newuser"
+        new_users = {'users': [
+            {'username': 'newuser', 'password_hash': 'hash123', 'created': '2026-01-01'}
+        ]}
+        user_tree = {
+            'newuser/tournaments.yaml': yaml.dump({
+                'active': 'default',
+                'tournaments': [{'slug': 'default', 'name': 'New'}]
+            }),
+            'newuser/tournaments/default/teams.yaml': yaml.dump(
+                {'Pool N': {'teams': ['N1'], 'advance': 1}}
+            ),
+        }
+        buf = _make_site_zip(users_yaml_content=new_users, user_tree=user_tree)
+
+        response = client.post(
+            '/api/import/site',
+            data={'file': (buf, 'site_backup.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        assert response.status_code in (200, 302)
+
+        # Full replace: old testuser data should be wiped
+        assert not marker.exists(), "Old user data was not wiped — import should do full replace"
+
+        # New user directory should exist with correct files
+        assert (users_dir / "newuser").is_dir()
+        assert (users_dir / "newuser" / "tournaments" / "default" / "teams.yaml").exists()
+
+    def test_import_site_rejects_malicious_zip(self, client, temp_data_dir):
+        """ZIP with path traversal entries is rejected."""
+        import app as app_module
+        self._login_as_admin(client, temp_data_dir)
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('users.yaml', yaml.dump({'users': []}))
+            zf.writestr('../../../etc/evil.txt', 'malicious content')
+        buf.seek(0)
+
+        users_dir = pathlib.Path(app_module.USERS_DIR)
+
+        response = client.post(
+            '/api/import/site',
+            data={'file': (buf, 'evil.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        # The path traversal entry must NOT be extracted
+        evil_path = users_dir.parent.parent.parent / "etc" / "evil.txt"
+        assert not evil_path.exists(), "Path traversal entry was extracted — security vulnerability!"
+
+    def test_import_site_rejects_missing_users_yaml(self, client, temp_data_dir):
+        """ZIP without users.yaml is rejected."""
+        self._login_as_admin(client, temp_data_dir)
+
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('.secret_key', b'somekey')
+            zf.writestr('users/testuser/tournaments.yaml', 'active: default')
+        buf.seek(0)
+
+        response = client.post(
+            '/api/import/site',
+            data={'file': (buf, 'no_users.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        # Should reject — either 400 or error flash
+        page_text = response.data.decode('utf-8', errors='replace').lower()
+        assert response.status_code == 400 or 'users.yaml' in page_text or 'error' in page_text or 'invalid' in page_text
+
+    def test_import_site_clears_session(self, client, temp_data_dir):
+        """After import, session is cleared (user must re-login)."""
+        self._login_as_admin(client, temp_data_dir)
+
+        # Confirm we're logged in
+        with client.session_transaction() as sess:
+            assert sess.get('user') == 'admin'
+
+        # Import a valid site ZIP
+        new_users = {'users': [
+            {'username': 'admin', 'password_hash': 'hash', 'created': '2026-01-01'}
+        ]}
+        user_tree = {
+            'admin/tournaments.yaml': yaml.dump({
+                'active': 'default',
+                'tournaments': [{'slug': 'default', 'name': 'Default'}]
+            }),
+            'admin/tournaments/default/teams.yaml': '',
+        }
+        buf = _make_site_zip(users_yaml_content=new_users, user_tree=user_tree)
+
+        response = client.post(
+            '/api/import/site',
+            data={'file': (buf, 'site_backup.zip')},
+            content_type='multipart/form-data',
+        )
+
+        # Session should be cleared — next request to a protected page redirects to login
+        resp = client.get('/', follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        assert 'login' in resp.headers.get('Location', '').lower()

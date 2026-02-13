@@ -36,3 +36,12 @@
   - Uses module-level `_make_user_zip()` helper that builds ZIPs with `tournaments.yaml` + per-slug file entries.
   - Directory navigation: `temp_data_dir.parent` = tournaments dir, `.parent.parent` = user dir (where tournaments.yaml lives), `.parent.parent.parent` = USERS_DIR.
   - All 6 tests pass against current implementation (routes already exist). Unlike prior test batches, these are not written ahead — McManus had already implemented the routes.
+
+- **2026-02-12 — Site-wide export/import tests added (`tests/test_app.py :: TestSiteExportImport`)**
+  - 9 proactive tests for admin-only `GET /api/export/site` and `POST /api/import/site` endpoints.
+  - Tests: non-admin forbidden (export + import), valid ZIP export, .secret_key inclusion, users data inclusion, full replace on import, path traversal rejection, missing users.yaml rejection, session clearing after import.
+  - Uses `_make_site_zip()` module-level helper analogous to `_make_user_zip()`.
+  - Introduces `_login_as_admin()` instance helper that: adds admin to users.yaml, creates admin user directory tree, writes `.secret_key` to `DATA_DIR`, switches client session to admin.
+  - Admin check assumption: `is_admin()` returns True when `session['user'] == 'admin'`. Non-admin gets 302/303/403.
+  - Directory layout for site export: `.secret_key` at `DATA_DIR/.secret_key`, `users.yaml` at `USERS_FILE`, user tree at `USERS_DIR`.
+  - Written proactively before McManus implements the routes — tests will fail until endpoints are added.

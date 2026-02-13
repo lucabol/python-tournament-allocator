@@ -58,8 +58,10 @@ DEFAULT_LOGO_URL = 'https://montgobvc.com/wp-content/uploads/2024/02/LOGO-MBVC-0
 ALLOWED_LOGO_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'}
 _data_lock = FileLock(os.path.join(DATA_DIR, '.lock'), timeout=10)
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_SITE_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB for site-wide exports
 MAX_UNCOMPRESSED_SIZE = 50 * 1024 * 1024  # 50 MB
 MAX_ZIP_FILES = 20
+SITE_EXPORT_SKIP = {'__pycache__', '.pyc', '.lock'}
 
 # Files eligible for tournament export/import (legacy — use _get_exportable_files() in routes)
 EXPORTABLE_FILES = {
@@ -160,6 +162,11 @@ def login_required(f):
             return redirect(url_for('login_page'))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def is_admin() -> bool:
+    """Check if the current session user is admin."""
+    return session.get('user') == 'admin'
 
 
 def _slugify(name: str) -> str:
@@ -1024,7 +1031,8 @@ def set_active_tournament():
     # Guard: redirect to tournaments page if user has no tournaments
     tournament_endpoints = {'tournaments', 'api_create_tournament', 'api_delete_tournament',
                             'api_switch_tournament', 'logout', 'api_export_tournament',
-                            'api_import_tournament', 'api_export_user', 'api_import_user'}
+                            'api_import_tournament', 'api_export_user', 'api_import_user',
+                            'api_export_site', 'api_import_site'}
     if request.endpoint not in tournament_endpoints:
         flash('Please create a tournament first.', 'info')
         return redirect(url_for('tournaments'))
@@ -3248,6 +3256,113 @@ def api_import_user():
 
     flash('User tournaments imported successfully.', 'success')
     return redirect(url_for('tournaments'))
+
+
+@app.route('/api/export/site')
+@login_required
+def api_export_site():
+    """Export entire site data (all users, all tournaments) as a downloadable ZIP. Admin only."""
+    if not is_admin():
+        flash('Admin access required.', 'error')
+        return redirect(url_for('index')), 403
+
+    # Derive site root from USERS_FILE location (works in both prod and test)
+    site_root = os.path.dirname(USERS_FILE)
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(site_root):
+            # Skip unwanted directories in-place
+            dirs[:] = [d for d in dirs if d not in ('__pycache__',)]
+
+            for fname in files:
+                if fname.endswith('.pyc') or fname == '.lock':
+                    continue
+                full_path = os.path.join(root, fname)
+                arcname = os.path.relpath(full_path, site_root)
+                # Safety: skip if relpath escapes
+                if arcname.startswith('..'):
+                    continue
+                zf.write(full_path, arcname)
+
+    buffer.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return send_file(
+        buffer,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'site_export_{timestamp}.zip',
+    )
+
+
+@app.route('/api/import/site', methods=['POST'])
+@login_required
+def api_import_site():
+    """Import full site data from an uploaded ZIP. Admin only. Full replace."""
+    if not is_admin():
+        flash('Admin access required.', 'error')
+        return redirect(url_for('index')), 403
+
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        flash('No file selected.', 'error')
+        return redirect(url_for('tournaments'))
+
+    file_bytes = file.read()
+    if len(file_bytes) > MAX_SITE_UPLOAD_SIZE:
+        flash('File too large (max 50 MB).', 'error')
+        return redirect(url_for('tournaments'))
+
+    if not zipfile.is_zipfile(io.BytesIO(file_bytes)):
+        flash('Uploaded file is not a valid ZIP archive.', 'error')
+        return redirect(url_for('tournaments'))
+
+    with zipfile.ZipFile(io.BytesIO(file_bytes), 'r') as zf:
+        names = zf.namelist()
+
+        # Security: reject entries with path traversal
+        for name in names:
+            if '..' in name or name.startswith('/') or name.startswith('\\'):
+                flash('ZIP contains unsafe file paths. Import aborted.', 'error')
+                return redirect(url_for('tournaments'))
+
+        # Must contain users.yaml at the root
+        if 'users.yaml' not in names:
+            flash('ZIP does not contain users.yaml. Not a valid site export.', 'error')
+            return redirect(url_for('tournaments'))
+
+        # Derive site root from USERS_FILE location
+        site_root = os.path.dirname(USERS_FILE)
+
+        # Full replace: remove existing site data
+        users_dir = os.path.join(site_root, 'users')
+        if os.path.isdir(users_dir):
+            shutil.rmtree(users_dir)
+
+        for remove_name in ('users.yaml', '.secret_key'):
+            remove_path = os.path.join(site_root, remove_name)
+            if os.path.exists(remove_path):
+                os.remove(remove_path)
+
+        # Extract all files into site root with safe names
+        for name in names:
+            # Skip directories (they get created by extracting files)
+            if name.endswith('/'):
+                continue
+            # Extra safety: normalize and reject traversal
+            normalized = os.path.normpath(name)
+            if normalized.startswith('..') or os.path.isabs(normalized):
+                continue
+
+            dest = os.path.join(site_root, normalized)
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with zf.open(name) as src, open(dest, 'wb') as dst:
+                dst.write(src.read())
+
+    # Clear session and force re-login since all user data changed
+    session.clear()
+    flash('Site data imported successfully. Please log in again.', 'success')
+    return redirect(url_for('login_page'))
 
 
 @app.route('/tournaments')
