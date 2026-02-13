@@ -49,3 +49,9 @@
 - **2026-02-13 — Decision merged: `_login_as_admin()` is canonical admin test helper**
   - Per Hockney's decision (merged into `decisions.md`), future admin-only endpoint tests should reuse `TestSiteExportImport._login_as_admin()` rather than inventing their own setup.
   - If `is_admin()` logic evolves beyond `session['user'] == 'admin'`, update this single helper.
+
+- **2026-02-13 — Delete account tests added (`tests/test_app.py :: TestDeleteAccount`)**
+  - 5 tests covering `POST /api/delete-account`: success (user removed from users.yaml, directory deleted, session cleared), multi-tournament removal, admin prevention (403), unauthenticated redirect, and other-user isolation.
+  - Admin setup follows canonical `_login_as_admin()` pattern from `TestSiteExportImport`.
+  - Directory navigation: `USERS_DIR / "testuser"` for user dir, `USERS_FILE` for users.yaml.
+  - Written proactively before McManus implements the route — tests will fail until the endpoint is added.

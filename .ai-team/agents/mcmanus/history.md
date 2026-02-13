@@ -64,3 +64,10 @@
 - **Problem**: Export/import routes originally used `DATA_DIR` as the site root. When `DATA_DIR` pointed to a per-user or nested path, the export would miss `users.yaml` and `.secret_key` which sit at the site root.
 - **Fix**: Both `api_export_site` and `api_import_site` now compute `site_root = os.path.dirname(USERS_FILE)` instead of using `DATA_DIR` directly.
 - **Files changed**: `src/app.py`
+
+### 2026-02-13: POST /api/delete-account route added
+- **Route**: `POST /api/delete-account` with `@login_required`. Deletes the logged-in user's account, their data directory, and clears the session.
+- **Admin guard**: Returns 403 if `session['user'] == 'admin'` to prevent admin self-deletion.
+- **Data cleanup**: Uses `_data_lock` (FileLock) to atomically load/filter/save users list, then `shutil.rmtree` on `USERS_DIR/<username>`.
+- **Whitelist**: Added `api_delete_account` to `tournament_endpoints` set in `before_request` so the route works even without an active tournament.
+- **Files changed**: `src/app.py`
