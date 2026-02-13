@@ -1,60 +1,93 @@
 # Tournament Allocator
 
-This project is designed to allocate teams to courts for a tournament, supporting both pool play and single elimination formats. It provides a structured way to manage tournament logistics, ensuring that teams are allocated to courts according to specified constraints.
+A web application for organizing sports tournaments. Handles pool play, single/double elimination brackets, court allocation with constraint-based scheduling, match result tracking, and public live pages.
+
+## Features
+
+- Multi-user authentication with per-user tournament management
+- Pool play with configurable team pools
+- Single and double elimination brackets with seeding
+- Constraint-based court scheduling (OR-Tools CP-SAT solver)
+- Live match result tracking with automatic standings
+- Public shareable live page for spectators
+- Print-friendly tournament views
+- Export/import at tournament, user, and site levels
+- Admin site backup/restore for platform migration
+
+## Tech Stack
+
+- **Python 3.11+**
+- **Flask** — web framework
+- **OR-Tools** — constraint-based scheduling via CP-SAT solver
+- **pandas, numpy** — data processing
+- **PyYAML 6.0.1** — configuration
+- **jsonschema** — data validation
+- **filelock** — concurrent file access
+- **Gunicorn** — production WSGI server
 
 ## Project Structure
 
 ```
-python-tournament-allocator
-├── src
-│   ├── main.py               # Entry point of the application
-│   └── core
-│       ├── __init__.py       # Initializes the core module
-│       ├── allocation.py      # Manages allocation of teams to courts
-│       ├── formats.py         # Defines tournament formats
-│       └── models.py          # Data models for teams, courts, and constraints
-├── data
-│   ├── teams.csv             # Definitions of participating teams
-│   ├── courts.csv            # Definitions of available courts
-│   └── constraints.json       # Allocation constraints in JSON format
-├── requirements.txt           # Project dependencies
-└── README.md                  # Project documentation
+src/
+├── app.py                    # Flask application (routes, API endpoints, auth)
+├── generate_matches.py       # Match generation utilities
+├── allocate_matches.py       # CLI allocation tool
+├── core/
+│   ├── models.py             # Data models: Team, Court, Constraint
+│   ├── allocation.py         # AllocationManager (OR-Tools CP-SAT)
+│   ├── elimination.py        # Single elimination bracket logic
+│   ├── double_elimination.py # Double elimination bracket logic
+│   └── formats.py            # Tournament format definitions
+├── templates/                # Jinja2 HTML templates
+└── static/                   # CSS stylesheets
+data/                         # Tournament data (YAML/CSV, created at runtime)
+tests/                        # pytest test suite
 ```
 
-## Setup Instructions
+## Getting Started
 
-1. **Clone the repository**:
-   ```
-   git clone <repository-url>
-   cd python-tournament-allocator
-   ```
-
-2. **Install dependencies**:
-   Ensure you have Python installed, then run:
-   ```
-   pip install -r requirements.txt
-   ```
-
-3. **Prepare data files**:
-   - Populate `data/teams.csv` with the names and attributes of the teams.
-   - Populate `data/courts.csv` with the names and start times of the courts.
-   - Define allocation constraints in `data/constraints.json`.
-
-## Running the Application
-
-To run the tournament allocation script, execute the following command in your terminal:
-```
-python src/main.py
+```bash
+git clone <repository-url>
+cd python-tournament-allocator
+pip install -r requirements.txt
+cd src && python -m flask run --debug
 ```
 
-Follow the prompts to input the necessary data and view the allocation results.
+Open http://127.0.0.1:5000, register an account, and create a tournament.
 
-## Overview of Tournament Allocation Process
+## Running Tests
 
-The allocation process involves:
-- Reading team and court data from CSV files.
-- Applying constraints defined in the JSON file.
-- Allocating teams to courts based on the selected tournament format (pool play or single elimination).
-- Outputting the results of the allocation.
+```bash
+pytest tests/ -v
+pytest tests/ --cov=src --cov-report=html  # with coverage
+```
 
-This project aims to streamline the organization of tournaments, making it easier for organizers to manage teams and courts effectively.
+## Deployment
+
+Deploy to Azure App Service:
+
+**Prerequisites:** Azure CLI logged in, `.env` file with `AZURE_SUBSCRIPTION_ID`.
+
+Optional `.env` variables: `AZURE_RESOURCE_GROUP`, `AZURE_LOCATION`, `AZURE_APP_NAME`, `AZURE_APP_SERVICE_PLAN`, `AZURE_APP_SERVICE_SKU`.
+
+```bash
+.\deploy.ps1
+```
+
+The script handles resource creation, zip deployment with retry, and configuration. Production uses Gunicorn via `startup.sh`. Data persists in `/home/data` on Azure (outside wwwroot).
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AZURE_SUBSCRIPTION_ID` | Yes (deploy) | — | Azure subscription for deployment |
+| `TOURNAMENT_DATA_DIR` | No | `./data` | Directory for tournament data files |
+| `SECRET_KEY` | No | Auto-generated | Flask session signing key |
+
+## Documentation
+
+See [USER_GUIDE.md](USER_GUIDE.md) for a complete walkthrough of all features.
+
+## License
+
+See LICENSE file.
