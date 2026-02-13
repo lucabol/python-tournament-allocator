@@ -1024,7 +1024,7 @@ def set_active_tournament():
     # Guard: redirect to tournaments page if user has no tournaments
     tournament_endpoints = {'tournaments', 'api_create_tournament', 'api_delete_tournament',
                             'api_switch_tournament', 'logout', 'api_export_tournament',
-                            'api_import_tournament'}
+                            'api_import_tournament', 'api_export_user', 'api_import_user'}
     if request.endpoint not in tournament_endpoints:
         flash('Please create a tournament first.', 'info')
         return redirect(url_for('tournaments'))
@@ -3096,6 +3096,151 @@ def api_import_tournament():
 
     flash('Tournament data imported successfully.', 'success')
     return redirect(url_for('index'))
+
+
+@app.route('/api/export/user')
+@login_required
+def api_export_user():
+    """Export all user tournaments as a downloadable ZIP file."""
+    tournaments_file = g.user_tournaments_file
+    if not os.path.exists(tournaments_file):
+        flash('No tournaments to export.', 'error')
+        return redirect(url_for('tournaments'))
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Include the tournaments registry
+        zf.write(tournaments_file, 'tournaments.yaml')
+
+        data = load_tournaments()
+        for t in data.get('tournaments', []):
+            slug = t['slug']
+            tournament_path = os.path.join(g.user_tournaments_dir, slug)
+            if not os.path.isdir(tournament_path):
+                continue
+
+            # Add standard data files
+            for name in ALLOWED_IMPORT_NAMES:
+                file_path = os.path.join(tournament_path, name)
+                if os.path.exists(file_path):
+                    zf.write(file_path, f'{slug}/{name}')
+
+            # Add logo file if it exists
+            logo_prefix = os.path.join(tournament_path, 'logo')
+            logo_matches = glob.glob(logo_prefix + '.*')
+            if logo_matches:
+                logo = logo_matches[0]
+                logo_ext = os.path.splitext(logo)[1]
+                zf.write(logo, f'{slug}/logo{logo_ext}')
+
+    buffer.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return send_file(
+        buffer,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'user_export_{timestamp}.zip',
+    )
+
+
+@app.route('/api/import/user', methods=['POST'])
+@login_required
+def api_import_user():
+    """Import user tournaments from an uploaded ZIP file (additive merge)."""
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        flash('No file selected.', 'error')
+        return redirect(url_for('tournaments'))
+
+    file_bytes = file.read()
+    if len(file_bytes) > MAX_UPLOAD_SIZE:
+        flash('File too large.', 'error')
+        return redirect(url_for('tournaments'))
+
+    if not zipfile.is_zipfile(io.BytesIO(file_bytes)):
+        flash('Uploaded file is not a valid ZIP archive.', 'error')
+        return redirect(url_for('tournaments'))
+
+    with zipfile.ZipFile(io.BytesIO(file_bytes), 'r') as zf:
+        names = set(zf.namelist())
+
+        # Security: reject entries with path traversal
+        for name in names:
+            if '..' in name or name.startswith('/') or name.startswith('\\'):
+                flash('ZIP contains unsafe file paths. Import aborted.', 'error')
+                return redirect(url_for('tournaments'))
+
+        # Must contain tournaments.yaml at the root
+        if 'tournaments.yaml' not in names:
+            flash('ZIP does not contain a tournaments.yaml registry file.', 'error')
+            return redirect(url_for('tournaments'))
+
+        # Parse the imported tournaments registry
+        try:
+            imported_data = yaml.safe_load(zf.read('tournaments.yaml'))
+            if not imported_data or not isinstance(imported_data.get('tournaments'), list):
+                flash('Invalid tournaments.yaml in ZIP.', 'error')
+                return redirect(url_for('tournaments'))
+        except Exception:
+            flash('Failed to parse tournaments.yaml from ZIP.', 'error')
+            return redirect(url_for('tournaments'))
+
+        imported_tournaments = imported_data['tournaments']
+
+        # Extract files for each tournament
+        for t in imported_tournaments:
+            slug = t.get('slug', '')
+            if not slug or '..' in slug or '/' in slug or '\\' in slug:
+                continue
+
+            tournament_path = os.path.join(g.user_tournaments_dir, slug)
+            os.makedirs(tournament_path, exist_ok=True)
+
+            # Extract allowed data files
+            for allowed_name in ALLOWED_IMPORT_NAMES:
+                zip_entry = f'{slug}/{allowed_name}'
+                if zip_entry in names:
+                    dest = os.path.join(tournament_path, allowed_name)
+                    with zf.open(zip_entry) as src, open(dest, 'wb') as dst:
+                        dst.write(src.read())
+
+            # Handle logo: delete existing, extract new if present
+            logo_entries = [n for n in names
+                           if n.startswith(f'{slug}/logo.')
+                           and os.path.splitext(n)[1] in ALLOWED_LOGO_EXTENSIONS]
+            if logo_entries:
+                # Delete existing logo
+                existing_logo_prefix = os.path.join(tournament_path, 'logo')
+                for old_logo in glob.glob(existing_logo_prefix + '.*'):
+                    os.remove(old_logo)
+                # Extract new logo
+                logo_name = logo_entries[0]
+                logo_ext = os.path.splitext(logo_name)[1]
+                logo_dest = os.path.join(tournament_path, 'logo') + logo_ext
+                with zf.open(logo_name) as src, open(logo_dest, 'wb') as dst:
+                    dst.write(src.read())
+
+        # Merge tournaments registry (additive)
+        existing_data = load_tournaments()
+        existing_slugs = {t['slug']: i for i, t in enumerate(existing_data.get('tournaments', []))}
+
+        for t in imported_tournaments:
+            slug = t.get('slug', '')
+            if not slug or '..' in slug or '/' in slug or '\\' in slug:
+                continue
+            if slug in existing_slugs:
+                # Update name/created for existing tournament
+                idx = existing_slugs[slug]
+                existing_data['tournaments'][idx]['name'] = t.get('name', slug)
+                existing_data['tournaments'][idx]['created'] = t.get('created', datetime.now().isoformat())
+            else:
+                # Add new tournament
+                existing_data['tournaments'].append(t)
+
+        save_tournaments(existing_data)
+
+    flash('User tournaments imported successfully.', 'success')
+    return redirect(url_for('tournaments'))
 
 
 @app.route('/tournaments')

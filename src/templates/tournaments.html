@@ -68,4 +68,26 @@
     </div>
     {% endif %}
 </section>
+
+<section class="section">
+    <h2>Backup & Restore</h2>
+    <div class="actions-bar" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <a href="{{ url_for('api_export_user') }}" class="btn btn-secondary btn-sm">💾 Export All Tournaments</a>
+        <button onclick="document.getElementById('import-all-file').click()" class="btn btn-secondary btn-sm">📂 Import Tournaments</button>
+    </div>
+    <form id="import-all-form" method="POST" action="{{ url_for('api_import_user') }}" enctype="multipart/form-data" style="display:none">
+        <input type="file" id="import-all-file" name="file" accept=".zip" onchange="confirmImport(this)">
+    </form>
+</section>
+
+<script>
+function confirmImport(input) {
+    if (!input.files.length) return;
+    if (confirm('This will import tournaments from the ZIP file. Existing tournaments with the same name will be overwritten. Continue?')) {
+        document.getElementById('import-all-form').submit();
+    } else {
+        input.value = '';
+    }
+}
+</script>
 {% endblock %}

@@ -29,3 +29,10 @@
   - Covers: 200 on valid paths (3 endpoints), 404 for nonexistent user, 404 for nonexistent tournament, path traversal rejection, public_mode flag in rendered output.
   - Uses `temp_data_dir` fixture to set up monkeypatched `USERS_DIR` — the public URL `/live/testuser/default` maps to the fixture's `tmp_path/users/testuser/tournaments/default` directory.
   - Written ahead of McManus's implementation; tests will fail until the routes are added.
+
+- **2026-02-12 — User-level export/import tests added (`tests/test_app.py :: TestUserExportImport`)**
+  - 6 tests covering `/api/export/user` and `/api/import/user` endpoints.
+  - Tests: valid ZIP export with tournaments.yaml + default/ entries, multi-tournament export coverage, import creates new tournament directory, import overwrites existing tournament files, path traversal rejection (security), preservation of unmentioned tournaments on import.
+  - Uses module-level `_make_user_zip()` helper that builds ZIPs with `tournaments.yaml` + per-slug file entries.
+  - Directory navigation: `temp_data_dir.parent` = tournaments dir, `.parent.parent` = user dir (where tournaments.yaml lives), `.parent.parent.parent` = USERS_DIR.
+  - All 6 tests pass against current implementation (routes already exist). Unlike prior test batches, these are not written ahead — McManus had already implemented the routes.

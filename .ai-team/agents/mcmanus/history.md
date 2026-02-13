@@ -43,3 +43,10 @@
 - **SSE stream**: Public stream builds watched file paths directly from `data_dir` instead of using `_file_path()` (which requires `g.data_dir` set by the auth flow).
 - **Share URL**: The `/tracking` route now passes `share_url` to the template for organizers to copy/share.
 - **Template flag**: Existing `/live` route now passes `public_mode=False`; public route passes `public_mode=True`, `public_username`, `public_slug` so the template can adjust (e.g., hide nav, change SSE URL).
+
+### 2026-02-12: User-level export/import routes added
+- **Routes**: `GET /api/export/user` and `POST /api/import/user`. Both require `@login_required`.
+- **Export**: Reads `g.user_tournaments_file` to discover slugs, zips all tournament data (standard files + logos) into `<slug>/` subdirectories with `tournaments.yaml` at the root. Returns `user_export_{timestamp}.zip`.
+- **Import**: Validates ZIP, reads `tournaments.yaml` from the root, extracts only `ALLOWED_IMPORT_NAMES` files and logos per slug into `g.user_tournaments_dir/<slug>/`. Merges the imported `tournaments.yaml` additively — new slugs are added, existing slugs get name/created updated, tournaments not in ZIP are preserved.
+- **Whitelist**: Added `api_export_user` and `api_import_user` to the `tournament_endpoints` guard set in `before_request`.
+- **Pattern**: Logo handling replicates the per-tournament pattern (glob for `logo.*`, delete old, extract new). Security checks mirror existing import route (path traversal, size limit).

@@ -1220,3 +1220,171 @@ class TestPublicLive:
             assert response.status_code == 200
             # The response should contain the public API URLs
             assert b'/api/live-html/testuser/default' in response.data or b'live-html' in response.data
+
+
+def _make_user_zip(tournaments_yaml_content: dict, tournament_files: dict) -> io.BytesIO:
+    """Build a user export ZIP.
+
+    tournaments_yaml_content: dict for tournaments.yaml
+    tournament_files: {slug: {filename: content_bytes}}
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w') as zf:
+        zf.writestr('tournaments.yaml', yaml.dump(tournaments_yaml_content))
+        for slug, files in tournament_files.items():
+            for fname, content in files.items():
+                zf.writestr(f'{slug}/{fname}', content)
+    buf.seek(0)
+    return buf
+
+
+class TestUserExportImport:
+    """Tests for user-level export/import endpoints (/api/export/user, /api/import/user)."""
+
+    def test_export_user_produces_valid_zip(self, client, temp_data_dir):
+        """GET /api/export/user returns a ZIP containing tournaments.yaml and default/ entries."""
+        response = client.get('/api/export/user')
+        assert response.status_code == 200
+        assert 'application/zip' in response.content_type
+
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        assert zf.testzip() is None
+        names = zf.namelist()
+        assert 'tournaments.yaml' in names
+        # At least one entry under the default/ tournament subfolder
+        assert any(n.startswith('default/') for n in names)
+
+    def test_export_user_includes_all_tournaments(self, client, temp_data_dir):
+        """Export ZIP contains entries for every tournament in the registry."""
+        # Create a second tournament directory with a teams.yaml
+        second_dir = temp_data_dir.parent / "second"
+        second_dir.mkdir(parents=True, exist_ok=True)
+        (second_dir / "teams.yaml").write_text(
+            yaml.dump({'Pool S': {'teams': ['S1', 'S2'], 'advance': 1}})
+        )
+
+        # Update user's tournaments.yaml to include both tournaments
+        user_reg = temp_data_dir.parent.parent / "tournaments.yaml"
+        user_reg.write_text(yaml.dump({
+            'active': 'default',
+            'tournaments': [
+                {'slug': 'default', 'name': 'Default'},
+                {'slug': 'second', 'name': 'Second'},
+            ]
+        }, default_flow_style=False))
+
+        response = client.get('/api/export/user')
+        assert response.status_code == 200
+
+        zf = zipfile.ZipFile(io.BytesIO(response.data))
+        names = zf.namelist()
+        assert any(n.startswith('default/') for n in names)
+        assert any(n.startswith('second/') for n in names)
+
+    def test_import_user_creates_new_tournament(self, client, temp_data_dir):
+        """Importing a ZIP with a new tournament creates its directory and files."""
+        tournaments_content = {
+            'active': 'imported',
+            'tournaments': [{'slug': 'imported', 'name': 'Imported'}],
+        }
+        tournament_files = {
+            'imported': {
+                'teams.yaml': yaml.dump({'Pool I': {'teams': ['I1', 'I2'], 'advance': 1}}),
+            },
+        }
+        buf = _make_user_zip(tournaments_content, tournament_files)
+
+        response = client.post(
+            '/api/import/user',
+            data={'file': (buf, 'user_backup.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+        # Should succeed (200 after redirect, or 302)
+        assert response.status_code in (200, 302)
+
+        # The tournament directory and teams.yaml should exist
+        imported_dir = temp_data_dir.parent / "imported"
+        assert imported_dir.is_dir()
+        assert (imported_dir / "teams.yaml").exists()
+
+    def test_import_user_overwrites_existing(self, client, temp_data_dir):
+        """Importing a ZIP overwrites files in existing tournaments."""
+        original_content = "Pool Old:\n  teams:\n    - OldTeam\n  advance: 1\n"
+        (temp_data_dir / "teams.yaml").write_text(original_content)
+
+        new_content = yaml.dump({'Pool New': {'teams': ['NewTeam'], 'advance': 1}})
+        tournaments_content = {
+            'active': 'default',
+            'tournaments': [{'slug': 'default', 'name': 'Default'}],
+        }
+        tournament_files = {
+            'default': {'teams.yaml': new_content},
+        }
+        buf = _make_user_zip(tournaments_content, tournament_files)
+
+        client.post(
+            '/api/import/user',
+            data={'file': (buf, 'overwrite.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        written = (temp_data_dir / "teams.yaml").read_text()
+        assert 'Pool New' in written
+        assert 'OldTeam' not in written
+
+    def test_import_user_rejects_malicious_zip(self, client, temp_data_dir):
+        """A ZIP with path traversal entries should be rejected."""
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('tournaments.yaml', yaml.dump({
+                'active': 'evil',
+                'tournaments': [{'slug': 'evil', 'name': 'Evil'}],
+            }))
+            zf.writestr('../evil/teams.yaml', 'Pool Evil:\n  teams: [Hacker]\n  advance: 1\n')
+        buf.seek(0)
+
+        response = client.post(
+            '/api/import/user',
+            data={'file': (buf, 'evil.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        # Should not succeed cleanly — either error status or flash rejection
+        # The malicious path should NOT have been extracted
+        evil_dir = temp_data_dir.parent.parent.parent / "evil"
+        assert not evil_dir.exists(), "Path traversal entry was extracted — security vulnerability!"
+
+    def test_import_user_preserves_unmentioned_tournaments(self, client, temp_data_dir):
+        """Tournaments not in the import ZIP should remain untouched."""
+        # Confirm "default" tournament exists with some data
+        (temp_data_dir / "teams.yaml").write_text(
+            yaml.dump({'Pool D': {'teams': ['D1'], 'advance': 1}})
+        )
+
+        # Import a ZIP that only mentions a new "imported" tournament
+        tournaments_content = {
+            'active': 'imported',
+            'tournaments': [{'slug': 'imported', 'name': 'Imported'}],
+        }
+        tournament_files = {
+            'imported': {
+                'teams.yaml': yaml.dump({'Pool I': {'teams': ['I1'], 'advance': 1}}),
+            },
+        }
+        buf = _make_user_zip(tournaments_content, tournament_files)
+
+        client.post(
+            '/api/import/user',
+            data={'file': (buf, 'partial.zip')},
+            content_type='multipart/form-data',
+            follow_redirects=True,
+        )
+
+        # The default tournament directory and its data should still exist
+        assert temp_data_dir.is_dir()
+        assert (temp_data_dir / "teams.yaml").exists()
+        existing = (temp_data_dir / "teams.yaml").read_text()
+        assert 'Pool D' in existing
