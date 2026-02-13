@@ -1665,3 +1665,150 @@ class TestSiteExportImport:
         resp = client.get('/', follow_redirects=False)
         assert resp.status_code in (302, 303)
         assert 'login' in resp.headers.get('Location', '').lower()
+
+
+class TestDeleteAccount:
+    """Tests for POST /api/delete-account endpoint."""
+
+    def test_delete_account_success(self, client, temp_data_dir):
+        """Deleting account removes user from users.yaml, removes dir, clears session."""
+        import app as app_module
+
+        users_file = pathlib.Path(app_module.USERS_FILE)
+        users_dir = pathlib.Path(app_module.USERS_DIR)
+        user_dir = users_dir / "testuser"
+
+        # Preconditions
+        assert user_dir.exists()
+        users_data = yaml.safe_load(users_file.read_text())
+        assert any(u['username'] == 'testuser' for u in users_data['users'])
+
+        response = client.post('/api/delete-account')
+        assert response.status_code == 200
+
+        data = response.get_json()
+        assert data['success'] is True
+        assert 'redirect' in data
+
+        # User removed from users.yaml
+        users_data = yaml.safe_load(users_file.read_text())
+        remaining = [u['username'] for u in users_data.get('users', [])]
+        assert 'testuser' not in remaining
+
+        # User directory removed
+        assert not user_dir.exists()
+
+        # Session cleared — subsequent request redirects to login
+        resp = client.get('/teams', follow_redirects=False)
+        assert resp.status_code in (302, 303)
+        assert 'login' in resp.headers.get('Location', '').lower()
+
+    def test_delete_account_removes_all_tournaments(self, client, temp_data_dir):
+        """Deleting account removes the entire user directory tree including extra tournaments."""
+        import app as app_module
+
+        users_dir = pathlib.Path(app_module.USERS_DIR)
+        user_dir = users_dir / "testuser"
+        tournaments_dir = user_dir / "tournaments"
+
+        # Create a second tournament directory
+        second_tournament = tournaments_dir / "second-tourney"
+        second_tournament.mkdir(parents=True, exist_ok=True)
+        (second_tournament / "teams.yaml").write_text("")
+        assert second_tournament.exists()
+
+        response = client.post('/api/delete-account')
+        assert response.status_code == 200
+
+        # Entire user directory tree is gone
+        assert not user_dir.exists()
+
+    def test_delete_account_admin_prevented(self, client, temp_data_dir):
+        """Admin user cannot delete their own account."""
+        import app as app_module
+        from werkzeug.security import generate_password_hash
+
+        users_file = pathlib.Path(app_module.USERS_FILE)
+        users_dir = pathlib.Path(app_module.USERS_DIR)
+
+        # Add admin to users.yaml
+        users_data = yaml.safe_load(users_file.read_text()) or {'users': []}
+        if not any(u['username'] == 'admin' for u in users_data.get('users', [])):
+            users_data['users'].append({
+                'username': 'admin',
+                'password_hash': generate_password_hash('admin'),
+                'created': '2026-01-01'
+            })
+            users_file.write_text(yaml.dump(users_data, default_flow_style=False))
+
+        # Create admin user directory tree
+        admin_dir = users_dir / "admin"
+        admin_default = admin_dir / "tournaments" / "default"
+        admin_default.mkdir(parents=True, exist_ok=True)
+        (admin_dir / "tournaments.yaml").write_text(yaml.dump({
+            'active': 'default',
+            'tournaments': [{'slug': 'default', 'name': 'Admin Default'}]
+        }, default_flow_style=False))
+        (admin_default / "teams.yaml").write_text("")
+        (admin_default / "courts.csv").write_text("court_name,start_time,end_time\n")
+        (admin_default / "constraints.yaml").write_text("")
+
+        # Switch session to admin
+        with client.session_transaction() as sess:
+            sess['user'] = 'admin'
+
+        response = client.post('/api/delete-account')
+        assert response.status_code == 403
+
+        # Admin still in users.yaml
+        users_data = yaml.safe_load(users_file.read_text())
+        assert any(u['username'] == 'admin' for u in users_data['users'])
+
+        # Admin directory still exists
+        assert admin_dir.exists()
+
+    def test_delete_account_requires_login(self, client, temp_data_dir):
+        """Unauthenticated request is redirected to login."""
+        # Log out first
+        client.get('/logout')
+
+        response = client.post('/api/delete-account', follow_redirects=False)
+        assert response.status_code in (302, 303)
+        assert 'login' in response.headers.get('Location', '').lower()
+
+    def test_delete_account_other_users_unaffected(self, client, temp_data_dir):
+        """Deleting testuser does not affect other users."""
+        import app as app_module
+
+        users_file = pathlib.Path(app_module.USERS_FILE)
+        users_dir = pathlib.Path(app_module.USERS_DIR)
+
+        # Create a second user in users.yaml
+        users_data = yaml.safe_load(users_file.read_text()) or {'users': []}
+        users_data['users'].append({
+            'username': 'otheruser',
+            'password_hash': 'somehash',
+            'created': '2026-01-01'
+        })
+        users_file.write_text(yaml.dump(users_data, default_flow_style=False))
+
+        # Create otheruser's directory
+        other_dir = users_dir / "otheruser"
+        other_tournaments = other_dir / "tournaments" / "default"
+        other_tournaments.mkdir(parents=True, exist_ok=True)
+        (other_dir / "tournaments.yaml").write_text(yaml.dump({
+            'active': 'default',
+            'tournaments': [{'slug': 'default', 'name': 'Other Default'}]
+        }, default_flow_style=False))
+        (other_tournaments / "teams.yaml").write_text("")
+
+        response = client.post('/api/delete-account')
+        assert response.status_code == 200
+
+        # otheruser still in users.yaml
+        users_data = yaml.safe_load(users_file.read_text())
+        assert any(u['username'] == 'otheruser' for u in users_data['users'])
+
+        # otheruser directory still exists
+        assert other_dir.exists()
+        assert (other_tournaments / "teams.yaml").exists()

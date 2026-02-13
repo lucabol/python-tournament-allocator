@@ -240,5 +240,33 @@ function resetAll() {
         }
     });
 }
+
+function confirmDeleteAccount() {
+    const typed = prompt('This will permanently delete your account and all tournament data.\n\nType "DELETE" to confirm:');
+    if (typed === 'DELETE') {
+        fetch('{{ url_for("api_delete_account") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(response => response.json().then(data => ({ok: response.ok, data})))
+        .then(({ok, data}) => {
+            if (ok) {
+                window.location.href = data.redirect;
+            } else {
+                alert(data.error || 'Failed to delete account.');
+            }
+        })
+        .catch(() => alert('Network error — please try again.'));
+    } else if (typed !== null) {
+        alert('Deletion cancelled — you must type exactly "DELETE" to proceed.');
+    }
+}
 </script>
+
+<section class="section section-danger-zone">
+    <h2>⚠️ Delete Account</h2>
+    <p>Permanently delete your account and all tournament data. This action cannot be undone.</p>
+    <button onclick="confirmDeleteAccount()" class="btn btn-danger btn-sm">🗑️ Delete My Account</button>
+</section>
+
 {% endblock %}

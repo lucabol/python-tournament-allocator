@@ -1032,7 +1032,8 @@ def set_active_tournament():
     tournament_endpoints = {'tournaments', 'api_create_tournament', 'api_delete_tournament',
                             'api_switch_tournament', 'logout', 'api_export_tournament',
                             'api_import_tournament', 'api_export_user', 'api_import_user',
-                            'api_export_site', 'api_import_site'}
+                            'api_export_site', 'api_import_site',
+                            'api_delete_account'}
     if request.endpoint not in tournament_endpoints:
         flash('Please create a tournament first.', 'info')
         return redirect(url_for('tournaments'))
@@ -1092,6 +1093,25 @@ def logout():
     session.clear()
     flash('Logged out.', 'success')
     return redirect(url_for('login_page'))
+
+
+@app.route('/api/delete-account', methods=['POST'])
+@login_required
+def api_delete_account():
+    """Delete the currently logged-in user's account and all their data."""
+    username = session.get('user')
+    if username == 'admin':
+        return jsonify({'success': False, 'error': 'Admin account cannot be deleted.'}), 403
+
+    with _data_lock:
+        users = load_users()
+        users = [u for u in users if u['username'] != username]
+        save_users(users)
+
+    shutil.rmtree(os.path.join(USERS_DIR, username), ignore_errors=True)
+    session.clear()
+    flash('Your account and all data have been permanently deleted.', 'success')
+    return jsonify({'success': True, 'redirect': url_for('login_page')})
 
 
 @app.route('/')
