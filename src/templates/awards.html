@@ -3,7 +3,12 @@
 {% block title %}Awards - Tournament Allocator{% endblock %}
 
 {% block content %}
-<h1>Awards {% if show_test_buttons %}<button type="button" class="btn btn-sm btn-secondary" onclick="loadTestAwards()">Test</button>{% endif %}</h1>
+<div class="page-header">
+    <h1>Awards</h1>
+    <div class="page-header-actions">
+        {% if show_test_buttons %}<button type="button" class="btn btn-sm btn-secondary" onclick="loadTestAwards()">Test</button>{% endif %}
+    </div>
+</div>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
