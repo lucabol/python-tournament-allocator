@@ -3,7 +3,7 @@
 {% block title %}Awards - Tournament Allocator{% endblock %}
 
 {% block content %}
-<h1>Awards</h1>
+<h1>Awards {% if show_test_buttons %}<button type="button" class="btn btn-sm btn-secondary" onclick="loadTestAwards()">Test</button>{% endif %}</h1>
 
 {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -181,6 +181,18 @@ function deleteAward(id) {
         }
     })
     .catch(() => alert('Failed to delete award — please try again.'));
+}
+function loadTestAwards() {
+    fetch('{{ url_for("api_test_awards") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    });
 }
 </script>
 

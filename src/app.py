@@ -2517,6 +2517,22 @@ def api_awards_image(filename):
     return send_file(image_path)
 
 
+@app.route('/api/test-awards', methods=['POST'])
+def api_test_awards():
+    """Load sample beach volleyball awards for testing."""
+    test_awards = [
+        {'id': 'award-test-1', 'name': 'MVP', 'player': 'Alex Silva', 'image': 'trophy.svg'},
+        {'id': 'award-test-2', 'name': 'Best Blocker', 'player': 'Jordan Lee', 'image': 'medal-gold.svg'},
+        {'id': 'award-test-3', 'name': 'Best Defender', 'player': 'Sam Costa', 'image': 'medal-silver.svg'},
+        {'id': 'award-test-4', 'name': 'Best Server', 'player': 'Chris Tanaka', 'image': 'target.svg'},
+        {'id': 'award-test-5', 'name': 'Spirit Award', 'player': 'Morgan Reyes', 'image': 'star.svg'},
+    ]
+    awards_data = load_awards()
+    awards_data['awards'] = test_awards
+    save_awards(awards_data)
+    return jsonify({'success': True})
+
+
 @app.route('/api/awards/samples')
 def api_awards_samples():
     """List available sample award images."""

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Test button on Awards page to autofill 5 beach volleyball awards (MVP, Best Blocker, Best Defender, Best Server, Spirit Award)
 - Awards page — assign awards (MVP, Best Receiver, etc.) with player names and custom or sample icons; visible on the Live page for spectators
 - Show Test Buttons toggle in Settings — test buttons on Teams, Courts, Pools, and Bracket pages are hidden by default and can be enabled via a checkbox
 - Delete account with confirmation dialog and validation
