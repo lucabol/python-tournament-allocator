@@ -2732,6 +2732,37 @@ def save_pool_result():
     # Load existing results
     results = load_results()
     
+    # Check if user is clearing the result (all scores empty/None)
+    all_empty = all(
+        (score[0] is None or score[0] == '') and (score[1] is None or score[1] == '')
+        for score in sets
+        if isinstance(score, (list, tuple)) and len(score) >= 2
+    )
+    
+    if all_empty or not sets:
+        # Clear the result
+        results['pool_play'].pop(match_key, None)
+        save_results(results)
+        
+        # Recalculate standings
+        pools = load_teams()
+        standings = calculate_pool_standings(pools, results)
+        
+        return jsonify({
+            'success': True,
+            'match_key': match_key,
+            'cleared': True,
+            'standings': standings
+        })
+    
+    # Validate partial input (one score filled, one empty is an error)
+    for score in sets:
+        if isinstance(score, (list, tuple)) and len(score) >= 2:
+            score0_empty = score[0] is None or score[0] == ''
+            score1_empty = score[1] is None or score[1] == ''
+            if score0_empty != score1_empty:
+                return jsonify({'error': 'Both scores must be filled or both must be empty'}), 400
+    
     # Determine winner based on input order (team1 = index 0, team2 = index 1)
     winner_idx, set_wins = determine_winner(sets)
     winner = None
@@ -2784,6 +2815,32 @@ def save_bracket_result():
     
     # Load existing results
     results = load_results()
+    
+    # Check if user is clearing the result (all scores empty/None)
+    all_empty = all(
+        (score[0] is None or score[0] == '') and (score[1] is None or score[1] == '')
+        for score in sets
+        if isinstance(score, (list, tuple)) and len(score) >= 2
+    )
+    
+    if all_empty or not sets:
+        # Clear the result
+        results['bracket'].pop(match_key, None)
+        save_results(results)
+        
+        return jsonify({
+            'success': True,
+            'match_key': match_key,
+            'cleared': True
+        })
+    
+    # Validate partial input (one score filled, one empty is an error)
+    for score in sets:
+        if isinstance(score, (list, tuple)) and len(score) >= 2:
+            score0_empty = score[0] is None or score[0] == ''
+            score1_empty = score[1] is None or score[1] == ''
+            if score0_empty != score1_empty:
+                return jsonify({'error': 'Both scores must be filled or both must be empty'}), 400
     
     # Determine winner
     winner_idx, set_wins = determine_winner(sets)

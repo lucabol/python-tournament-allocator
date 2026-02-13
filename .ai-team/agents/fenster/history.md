@@ -76,3 +76,8 @@
 - **QR code approach**: Uses `qrcode-generator` (~4KB) loaded from jsdelivr CDN. Generates an inline SVG (`qr.createSvgTag`) — works in both light and dark mode since the container has an explicit white background. The SVG is generated immediately on page load via an IIFE.
 - **Dark mode**: The QR container uses `background:#fff` so the QR code is always black-on-white regardless of theme. The label uses `var(--text-muted)` to adapt to theme.
 - **Test results**: All 276 tests pass.
+
+### 2026-02-14: Clear button removal — simpler result clearing UX
+- **What**: Removed all "Clear" (✕) buttons from `tracking.html` (pool play), `sbracket.html` (single elimination), and `dbracket.html` (double elimination). Also removed the associated JavaScript functions `clearResult()` and `clearBracketResult()` from all three templates. Users now clear results by deleting both score values in the input boxes and letting the auto-save trigger.
+- **Why**: User preference — wanted fewer UI elements and a more natural workflow. Clearing both scores is already the mental model for "resetting" a match, so no need for a separate button.
+- **Impact**: Cleaner UI with less visual clutter on completed matches. The backend `/api/clear-result` endpoint still exists but is no longer called from the frontend. Score inputs remain fully functional — deletion and auto-save (debounced 500ms) work exactly as before.

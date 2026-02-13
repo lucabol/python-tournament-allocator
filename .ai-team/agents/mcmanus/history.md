@@ -131,3 +131,12 @@
 - **Pattern**: Mirrors existing pool play clear button in `tracking.html` — same confirmation dialog, same API endpoint, same reload behavior.
 - **Files changed**: `src/templates/dbracket.html`, `src/templates/sbracket.html`
 
+### 2026-02-13: Result clearing via empty score submission
+- **Behavior change**: `save_pool_result()` and `save_bracket_result()` now detect when all scores are empty (both team1_score and team2_score are `None` or `''`) and delete the result instead of saving it. Replaces the separate clear button workflow.
+- **Validation**: Partial input (one score filled, one empty) returns 400 error with message "Both scores must be filled or both must be empty".
+- **Response**: When clearing, pool endpoint returns `{'success': True, 'cleared': True, 'standings': ...}`; bracket endpoint returns `{'success': True, 'cleared': True}`.
+- **Detection logic**: Uses `all()` comprehension checking both score slots in each set. Empty means `is None or == ''`.
+- **Pattern**: Clear-on-empty pattern — avoids need for separate clear buttons in templates. User can clear by deleting scores and submitting.
+- **Files changed**: `src/app.py` (lines 2716-2877: `save_pool_result`, `save_bracket_result`)
+- **Tests**: All 276 tests pass.
+
