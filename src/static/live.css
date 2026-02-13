@@ -400,3 +400,44 @@ body {
     .hero-match-row .team-name { font-size: 1.2rem; }
     .hero-match-row .hero-score { font-size: 1.75rem; }
 }
+
+/* Awards */
+.awards-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.award-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+    background: var(--bg-color, #fff);
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #e0e0e0);
+}
+
+.award-card-img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.award-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.award-card-info strong {
+    font-size: 0.875rem;
+}
+
+.award-card-info span {
+    font-size: 0.8125rem;
+    color: var(--text-muted, #666);
+}
