@@ -213,3 +213,29 @@
 **Why:** Insta page is a new route with conditional rendering. Tests verify the route is accessible and the template renders correctly with live data.
 **Test Coverage:** 4 tests in `TestInstaPage` — all passing.
 **Impact:** All 267 tests pass. Insta page feature complete with route, template, and comprehensive tests.
+
+### Instagram page enhanced with bracket results (2026-02-13)
+**By:** Fenster
+**Date:** 2026-02-13
+**What:** Added condensed bracket results section to `insta.html` displaying Gold Bracket (winners, losers, grand final, bracket reset) and Silver Bracket with same structure. Bracket display is compact: `Team A v Team B` with winner highlighted in green, scores as `X / Y` on right side. Byes skipped, no match codes or playability indicators. Uses CSS classes: `insta-bracket-match`, `insta-bracket-round`, `insta-bracket-sub`, `insta-grand-final`, `insta-match-done`, `insta-winner`, `insta-vs`, `insta-score`.
+**Why:** Instagram snapshots need complete tournament results for sharing. Brackets are critical — pool standings alone don't tell the full story.
+
+### Print page route and related code removed (2026-02-13)
+**By:** McManus
+**Date:** 2026-02-13
+**What:** Removed three route handlers from `src/app.py`: `print_view()` (GET /print), `update_print_settings()` (POST /api/print-settings), and `save_print_settings()` helper function. Kept `load_print_settings()` — still used internally by `_get_live_data()` to populate the tournament header on `/live`, `/insta`, and public live routes. Retained `print_settings.yaml` file references in migration and export infrastructure for backward compatibility with existing tournaments.
+**Why:** Print view is deprecated in favor of the insta page. Removing dead route code reduces maintenance burden, but keeping data file support ensures existing tournaments don't break.
+
+### Print page template and nav link removed (2026-02-13)
+**By:** Fenster
+**Date:** 2026-02-13
+**What:** Deleted `src/templates/print.html` template, removed "Print" nav link from `base.html`, and updated broken `url_for('print_view')` references in `index.html` to point to `url_for('insta')` instead.
+**Why:** Print page is deprecated; all traffic should redirect to the insta page which has richer content (bracket results, awards).
+**Affected files:** `src/templates/print.html` (deleted), `src/templates/base.html` (nav link removed), `src/templates/index.html` (references updated)
+
+### Print page test cleanup (2026-02-13)
+**By:** Hockney
+**Date:** 2026-02-13
+**What:** Removed `assert b'Print View' in response.data` line from `TestEnhancedDashboard::test_dashboard_shows_export_bar` (was verifying the print page nav link existed). No dedicated test classes/methods for print route existed to remove. Added `TestInstaPage::test_insta_page_shows_bracket_data` to verify bracket rendering on insta page when pools are configured.
+**Why:** Print page nav link is gone; the assertion would always fail. New test documents bracket rendering behavior on insta page.
+**Impact:** All 268 tests pass. No print-route failures because route was already removed upstream.
