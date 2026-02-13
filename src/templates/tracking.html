@@ -110,6 +110,9 @@
                                         {% endif %}
                                     </div>
                                 </div>
+                                {% if is_completed %}
+                                <button type="button" class="btn-clear-result" onclick="clearResult('{{ full_match_key }}')" title="Clear result">✕</button>
+                                {% endif %}
                             </div>
                         {% endif %}
                     </td>
@@ -176,6 +179,9 @@
                         {% endif %}
                     </div>
                 </div>
+                {% if is_completed %}
+                <button type="button" class="btn-clear-result" onclick="clearResult('{{ full_match_key }}')" title="Clear result">✕</button>
+                {% endif %}
             </div>
         {% endif %}
         {% endfor %}
@@ -442,6 +448,22 @@ function generateRandomResults() {
             location.reload();
         }
     });
+}
+
+function clearResult(matchKey) {
+    if (!confirm('Clear this match result?')) return;
+    fetch('/api/clear-result', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({match_key: matchKey})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        }
+    })
+    .catch(error => console.error('Error clearing result:', error));
 }
 </script>
 {% endblock %}

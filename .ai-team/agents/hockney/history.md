@@ -100,3 +100,15 @@
   - No dedicated `TestPrint*` classes or print-route test methods existed to remove.
   - Added `TestInstaPage::test_insta_page_shows_bracket_data` — sets up 2 pools with 2 teams each (advance=1), hits `/insta`, verifies `Gold Bracket` text appears in response. This confirms bracket rendering works on the insta page when pools are configured.
   - All 268 tests pass. No print-route failures because McManus already removed the route and Fenster cleaned up the template references.
+
+- **2026-02-13 — Hamburger menu, dark mode, and clear result tests added**
+  - 8 tests across 3 new test classes in `tests/test_app.py`:
+    - `TestHamburgerMenu` (2 tests): Verifies hamburger toggle element and `nav-links` class exist in rendered HTML. Lightweight — only checks HTML structure, not CSS/JS behavior.
+    - `TestDarkMode` (2 tests): Verifies dark mode toggle element exists and `style.css` is linked. Dark mode is client-side localStorage, so server-side tests are limited to structural checks.
+    - `TestClearResult` (4 tests): Full coverage of `POST /api/clear-result` — success (save then clear then verify gone), idempotent clear of nonexistent key, missing `match_key` returns 400, and clear reflects in data layer (result removed from `load_results()`).
+  - All tests use `client` + `temp_data_dir` fixtures following existing patterns.
+  - `TestClearResult` saves results via `POST /api/results/pool` before clearing, matching the existing result-save pattern from `TestEnhancedDashboard`.
+  - The tracking-reflects test verifies through `load_results()` data layer rather than HTML scraping, since tracking page requires a schedule to render match data.
+  - `/api/clear-result` already existed in `app.py` (line 2822) — McManus had it implemented. All 8 new tests pass against current code.
+  - Hamburger and dark mode tests also pass — Fenster had already added both features to `base.html`.
+  - All 276 tests pass (268 existing + 8 new).

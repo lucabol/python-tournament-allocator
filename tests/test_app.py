@@ -2079,3 +2079,130 @@ class TestAwards:
         assert 'awards' in awards_content
         award_names = [a['name'] for a in awards_content['awards']]
         assert 'Best Scorer' in award_names
+
+
+class TestHamburgerMenu:
+    """Tests for hamburger menu HTML structure in base template."""
+
+    def test_base_has_hamburger_toggle(self, client, temp_data_dir):
+        """Test that rendered pages include a hamburger toggle element."""
+        response = client.get('/')
+        assert response.status_code == 200
+        html = response.data.decode()
+        # Expect a checkbox or button with hamburger-related id/class
+        assert ('hamburger' in html.lower() or 'menu-toggle' in html.lower()), \
+            "Expected a hamburger toggle element (id/class containing 'hamburger' or 'menu-toggle') in page HTML"
+
+    def test_nav_links_has_toggleable_class(self, client, temp_data_dir):
+        """Test that the nav links container has a class that supports toggling."""
+        response = client.get('/')
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert 'nav-links' in html, \
+            "Expected nav-links class on navigation container"
+
+
+class TestDarkMode:
+    """Tests for dark mode toggle HTML structure."""
+
+    def test_page_has_dark_mode_toggle(self, client, temp_data_dir):
+        """Test that rendered pages include a dark mode toggle element."""
+        response = client.get('/')
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert ('dark-mode' in html.lower() or 'theme-toggle' in html.lower() or
+                'darkmode' in html.lower() or 'dark_mode' in html.lower()), \
+            "Expected a dark mode toggle element in page HTML"
+
+    def test_stylesheet_linked(self, client, temp_data_dir):
+        """Test that style.css is still linked in the page."""
+        response = client.get('/')
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert 'style.css' in html, \
+            "Expected style.css to be linked in the page"
+
+
+class TestClearResult:
+    """Tests for POST /api/clear-result endpoint."""
+
+    def test_clear_result_success(self, client, temp_data_dir):
+        """Save a pool result, then clear it, verify it's gone."""
+        # Save a result first
+        save_resp = client.post('/api/results/pool', json={
+            'team1': 'Alpha',
+            'team2': 'Beta',
+            'pool': 'Pool A',
+            'sets': [[21, 15]],
+        })
+        assert save_resp.status_code == 200
+        match_key = save_resp.get_json()['match_key']
+
+        # Clear the result
+        clear_resp = client.post('/api/clear-result', json={
+            'match_key': match_key,
+        })
+        assert clear_resp.status_code == 200
+        assert clear_resp.get_json()['success'] is True
+
+        # Verify the result is gone from disk
+        import app as app_module
+        results = app_module.load_results()
+        assert match_key not in results.get('pool_play', {}), \
+            "Result should be removed after clearing"
+
+    def test_clear_result_nonexistent_key(self, client, temp_data_dir):
+        """Clearing a key that doesn't exist returns success (idempotent)."""
+        resp = client.post('/api/clear-result', json={
+            'match_key': 'NoTeam_vs_Nobody_Pool Z',
+        })
+        assert resp.status_code == 200
+        assert resp.get_json()['success'] is True
+
+    def test_clear_result_missing_key(self, client, temp_data_dir):
+        """POST without match_key returns error."""
+        resp = client.post('/api/clear-result', json={})
+        assert resp.status_code == 400
+
+        data = resp.get_json()
+        assert 'error' in data
+
+    def test_clear_result_reflects_in_tracking(self, client, temp_data_dir):
+        """After clearing a result, tracking standings no longer reflect it."""
+        import app as app_module
+
+        # Set up teams
+        teams_file = temp_data_dir / "teams.yaml"
+        teams_file.write_text(yaml.dump({
+            'Pool A': {
+                'teams': ['Alpha', 'Beta'],
+                'advance': 1,
+            }
+        }))
+
+        # Save a result
+        save_resp = client.post('/api/results/pool', json={
+            'team1': 'Alpha',
+            'team2': 'Beta',
+            'pool': 'Pool A',
+            'sets': [[21, 15]],
+        })
+        match_key = save_resp.get_json()['match_key']
+
+        # Verify result exists in stored data
+        results = app_module.load_results()
+        assert match_key in results['pool_play']
+        assert results['pool_play'][match_key]['completed'] is True
+
+        # Clear the result
+        clear_resp = client.post('/api/clear-result', json={'match_key': match_key})
+        assert clear_resp.status_code == 200
+
+        # Verify the result is gone — standings should reset
+        results = app_module.load_results()
+        assert match_key not in results.get('pool_play', {}), \
+            "Cleared result should not appear in pool_play results"
+
+        # Tracking page should still load successfully
+        tracking_resp = client.get('/tracking')
+        assert tracking_resp.status_code == 200

@@ -6,6 +6,13 @@
     <title>{% block title %}Tournament Allocator{% endblock %}</title>
     <link rel="icon" href="/api/logo">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        // Apply saved theme immediately to prevent flash
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        })();
+    </script>
 </head>
 <body>
     <nav class="navbar">
@@ -13,6 +20,12 @@
             <a href="{{ url_for('index') }}">🏆 {% if tournament_name %}{{ tournament_name }}{% else %}Tournament Allocator{% endif %}</a>
         </div>
         {% if current_user %}
+        <div class="nav-right-controls">
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">🌙</button>
+            <button class="hamburger" onclick="this.classList.toggle('open');document.querySelector('.nav-links').classList.toggle('nav-open')" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
         <ul class="nav-links">
             <li><a href="{{ url_for('tournaments') }}" {% if request.endpoint == 'tournaments' %}class="active"{% endif %}>Tournaments</a></li>
             <li><a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Dashboard</a></li>
@@ -44,5 +57,25 @@
     <footer class="footer">
         <p>Tournament Allocator &copy; 2026</p>
     </footer>
+    <script>
+    function toggleTheme() {
+        var html = document.documentElement;
+        var btn = document.querySelector('.theme-toggle');
+        if (html.getAttribute('data-theme') === 'dark') {
+            html.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            if (btn) btn.textContent = '🌙';
+        } else {
+            html.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            if (btn) btn.textContent = '☀️';
+        }
+    }
+    // Set correct icon on load
+    (function() {
+        var btn = document.querySelector('.theme-toggle');
+        if (btn && localStorage.getItem('theme') === 'dark') btn.textContent = '☀️';
+    })();
+    </script>
 </body>
 </html>

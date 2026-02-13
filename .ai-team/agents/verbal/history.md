@@ -16,3 +16,9 @@
 - Tests use `monkeypatch` to redirect 8+ module-level constants to temp dirs
 - Decided: subdirectories per tournament (`data/tournaments/<slug>/`), session-based routing, `g.data_dir` parameterization
 - Key trade-off: session-based (not URL-prefixed) to minimize code churn — revisit if multi-user sharing needed
+
+### 2026-02-13: Improvement Brainstorm
+- Full codebase review completed: ~40 routes, 11 nav items, 17 templates, 5 core modules
+- Produced 22-idea brainstorm across UX/UI, New Features, Technical, and Mobile/Sharing categories
+- Key themes: mobile navigation needs hamburger menu, tournament templates would save repeat setup, undo/edit for results is missing, dark mode requested
+- See brainstorm output delivered to Luca for full list with effort estimates

@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Print page — replaced by the Insta page for tournament sharing
 
 ### Added
+- Hamburger menu on mobile — navbar collapses into a slide-out menu on small screens (≤768px)
+- Dark mode toggle — 🌙/☀️ button in navbar switches between light and dark themes, persisted in localStorage
+- Clear/undo match results — ✕ button on completed matches in the Tracking page to remove a result
 - Insta page now includes bracket results (Gold/Silver brackets) and awards section
 - Insta page — Instagram-friendly tournament summary card with vibrant gradient design, champions, pool standings, and awards; optimized for phone screenshots
 - Test button on Awards page to autofill 5 beach volleyball awards (MVP, Best Blocker, Best Defender, Best Server, Spirit Award)

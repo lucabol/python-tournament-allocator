@@ -106,3 +106,10 @@
 - **No template changes needed**: `print_view` was not referenced in any current template; the `print.html` template still exists but is now unreachable (not removed per task scope — only `app.py` was in scope).
 - **Files changed**: `src/app.py`
 - **Tests**: All 268 tests pass.
+
+### 2026-02-13: Clear match result API endpoint added
+- **Route**: `POST /api/clear-result` accepts JSON `{ "match_key": "..." }`.
+- **Behavior**: Removes the given key from both `results['pool_play']` and `results['bracket']` dicts, then saves. Idempotent — returns success even if the key doesn't exist.
+- **Pattern**: Follows `save_pool_result` / `save_bracket_result` — no `@login_required`, uses `load_results()` / `save_results()`, returns `jsonify`.
+- **Files changed**: `src/app.py`
+- **Tests**: All 268 existing tests pass.

@@ -2819,6 +2819,24 @@ def save_bracket_result():
     })
 
 
+@app.route('/api/clear-result', methods=['POST'])
+def api_clear_result():
+    """API endpoint to clear/delete a match result."""
+    data = request.get_json()
+    if not data or not data.get('match_key'):
+        return jsonify({'error': 'Missing match_key'}), 400
+
+    match_key = data['match_key']
+    results = load_results()
+
+    # Remove from pool_play or bracket (idempotent — missing key is fine)
+    results.get('pool_play', {}).pop(match_key, None)
+    results.get('bracket', {}).pop(match_key, None)
+
+    save_results(results)
+    return jsonify({'success': True})
+
+
 @app.route('/sbracket')
 def sbracket():
     """Display single elimination bracket."""
