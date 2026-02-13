@@ -8,14 +8,6 @@
     {% if show_test_buttons %}<button type="button" class="btn btn-sm btn-secondary" onclick="generateRandomResults()">Test</button>{% endif %}
 </div>
 
-{% if share_url %}
-<div class="share-link-bar" style="background: #f0f7ff; border: 1px solid #c3daef; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-    <span style="font-weight: 600;">📡 Live link:</span>
-    <code id="share-url" style="background: #fff; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #ddd; font-size: 0.9em; word-break: break-all;">{{ share_url }}</code>
-    <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('share-url').textContent).then(function(){this.textContent='Copied!'}.bind(this))" style="padding: 0.25rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 0.85em;">📋 Copy</button>
-</div>
-{% endif %}
-
 {% if not schedule %}
 <div class="empty-state">
     <h2>No schedule to track</h2>

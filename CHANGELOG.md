@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Print page — replaced by the Insta page for tournament sharing
 
 ### Added
+- QR code on dashboard — scan to open the Live page; replaces the old text link on the Pools page
 - Hamburger menu on mobile — navbar collapses into a slide-out menu on small screens (≤768px)
 - Dark mode toggle — 🌙/☀️ button in navbar switches between light and dark themes, persisted in localStorage
 - Clear/undo match results — ✕ button on completed matches in the Tracking page to remove a result

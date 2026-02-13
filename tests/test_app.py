@@ -799,7 +799,7 @@ class TestEnhancedDashboard:
         response = client.get('/')
         assert response.status_code == 200
         assert b'Quick Actions' in response.data
-        assert b'Copy Live Link' in response.data
+        assert b'Live Page' in response.data
 
 
 class TestExportScheduleCSV:

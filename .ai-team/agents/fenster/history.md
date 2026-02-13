@@ -69,3 +69,9 @@
 - **Clear result button**: Added `✕` button (`.btn-clear-result`) on each completed match in `tracking.html` (both desktop table and mobile accordion). Calls `clearResult(matchKey)` JS function which POSTs to `/api/clear-result` and reloads on success. McManus needs to implement the `/api/clear-result` endpoint accepting `{match_key: string}` and removing the result from `results.yaml`.
 - **CSS classes added**: `.theme-toggle`, `.nav-right-controls`, `.hamburger`, `.hamburger span`, `.hamburger.open`, `.btn-clear-result`, `@media (max-width: 768px)` hamburger block, `[data-theme="dark"]` block with ~15 overrides.
 - **Test results**: All 276 tests pass.
+
+### 2026-02-14: QR code replaces live link on dashboard
+- **What**: Removed the inline `.share-link-bar` block from `tracking.html` (the `{% if share_url %}` section showing the live URL + copy button). Replaced the "📡 Copy Live Link" button in the Quick Actions bar of `index.html` with a client-side QR code rendered via `qrcode-generator@1.4.4` CDN library. The QR code encodes the live page URL, displays at ~100×100px in a white-background rounded container, and has a "📡 Live Page" label beneath it. Clicking the QR code copies the live URL to clipboard (reuses `copyLiveLink()` logic). Updated the test assertion in `test_dashboard_shows_export_bar` from `Copy Live Link` to `Live Page`.
+- **QR code approach**: Uses `qrcode-generator` (~4KB) loaded from jsdelivr CDN. Generates an inline SVG (`qr.createSvgTag`) — works in both light and dark mode since the container has an explicit white background. The SVG is generated immediately on page load via an IIFE.
+- **Dark mode**: The QR container uses `background:#fff` so the QR code is always black-on-white regardless of theme. The label uses `var(--text-muted)` to adapt to theme.
+- **Test results**: All 276 tests pass.
