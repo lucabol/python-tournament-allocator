@@ -72,3 +72,30 @@
 **By:** McManus
 **What:** Three surgical fixes in `src/app.py`: (1) Guard in `set_active_tournament()` redirects users with no tournaments to `/tournaments` page, whitelisting only tournament-management and auth endpoints. (2) `api_delete_tournament()` now syncs the session to the next available tournament instead of always clearing it. (3) `load_tournaments()` and `load_users()` wrap `yaml.safe_load()` in try/except to handle corrupt YAML gracefully.
 **Why:** Without fix 1, users with no tournaments could navigate to any route and hit errors from missing `g.data_dir`. Without fix 2, deleting the active tournament when others exist left the session stale — the user appeared to have no active tournament until page refresh. Without fix 3, a single corrupt YAML file could crash the entire app on any request.
+
+---
+
+## Public Live Tournament Routes (2026-02-12)
+
+### Public (unauthenticated) routes for spectators at /live/<username>/<slug>
+**By:** McManus
+**Date:** 2026-02-12
+**What:** Added `_resolve_public_tournament_dir()` helper, 3 public route handlers (`public_live`, `api_public_live_html`, `api_public_live_stream`), updated `before_request` whitelist, added `public_mode` flag to existing `/live` route, added `share_url` to `/tracking` template context. No new files created — reuses existing `live.html` and `live_content.html` templates with the `public_mode` flag for conditional rendering.
+**Why:** Spectators and players need to follow a tournament in real time without needing an account. URL pattern `/<username>/<slug>` is simple, shareable, and bookmarkable. Path validation mirrors the existing `api_delete_tournament` pattern to prevent traversal attacks. The SSE stream builds file paths directly to avoid coupling to the auth-gated `g.data_dir` flow.
+**Impact:** Read-only access only. Three new endpoints bypass `before_request` auth check. `public_mode` variable available in `live.html`. 228 existing tests pass.
+
+---
+
+## User Export/Import (2026-02-12)
+
+### User-level export/import uses additive merge for tournaments.yaml
+**By:** McManus
+**Date:** 2026-02-12
+**What:** `POST /api/import/user` merges the imported `tournaments.yaml` with the existing one additively — new tournament slugs are appended, existing slugs get their `name` and `created` fields updated, and tournaments not present in the ZIP are preserved. This differs from the single-tournament import which is a full replace.
+**Why:** Full replace would silently delete tournaments the user has locally but didn't include in the ZIP. Additive merge is safer for a bulk operation — you can import a subset without losing data. The trade-off is that there's no "clean import" path, but that can be achieved by deleting tournaments manually first.
+
+### User export/import endpoints added to before_request whitelist
+**By:** McManus
+**Date:** 2026-02-12
+**What:** `api_export_user` and `api_import_user` are added to the `tournament_endpoints` guard set in `set_active_tournament()`. These routes work even when the user has no active tournament (since they operate on the user-level tournaments registry, not a specific tournament).
+**Why:** Without whitelisting, users with no tournaments would be redirected to `/tournaments` before these routes could execute. The export route needs to work even with zero tournaments (returns an empty zip with just the registry), and the import route is how a user would restore tournaments.
