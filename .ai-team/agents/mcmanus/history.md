@@ -59,3 +59,8 @@
 - **Whitelist**: Added `api_export_site` and `api_import_site` to the `tournament_endpoints` guard set in `before_request`.
 - **Constants**: `MAX_SITE_UPLOAD_SIZE = 50MB`, `SITE_EXPORT_SKIP` set for filtering during walk.
 - **Pattern**: Follows the same security checks as `api_import_user` (path traversal, zip validation, flash messages).
+
+### 2026-02-13: Coordinator fix — site export/import derives site_root from USERS_FILE parent
+- **Problem**: Export/import routes originally used `DATA_DIR` as the site root. When `DATA_DIR` pointed to a per-user or nested path, the export would miss `users.yaml` and `.secret_key` which sit at the site root.
+- **Fix**: Both `api_export_site` and `api_import_site` now compute `site_root = os.path.dirname(USERS_FILE)` instead of using `DATA_DIR` directly.
+- **Files changed**: `src/app.py`

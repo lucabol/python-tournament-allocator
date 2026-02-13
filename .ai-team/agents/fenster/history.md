@@ -18,3 +18,8 @@
 - **Export/Import pattern**: Hidden file input triggered by visible button, auto-submits on change via `onchange` handler. Confirm dialog before submit, reset input value on cancel. Used in both `index.html` (single tournament) and `tournaments.html` (all tournaments). IDs must be unique across page (`import-all-file`/`import-all-form` for user-level).
 - **Admin-only sections**: Use `{% if current_user == 'admin' %}` conditional (context processor provides `current_user`). Site-level admin actions in `tournaments.html` use `section-danger-zone` CSS class (red border + light red background) and a `prompt()`-based confirmation requiring the user to type "REPLACE" — stronger than a simple `confirm()`. IDs: `import-site-file`/`import-site-form`.
 - **Danger zone pattern**: `.section-danger-zone` class in `style.css` — red border + `#fef2f2` background, stacks with `.section`. Reusable for any destructive admin UI.
+
+### 2026-02-13: Coordinator fix — hardcoded URLs replaced with url_for()
+- **Problem**: Site admin section in `tournaments.html` used hardcoded `/api/export/site` and `/api/import/site` URLs.
+- **Fix**: Replaced with `{{ url_for('api_export_site') }}` and `{{ url_for('api_import_site') }}`.
+- **Lesson**: Always use `url_for()` in templates — hardcoded paths break if routes are renamed or prefixed.

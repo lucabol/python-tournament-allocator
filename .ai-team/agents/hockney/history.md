@@ -45,3 +45,7 @@
   - Admin check assumption: `is_admin()` returns True when `session['user'] == 'admin'`. Non-admin gets 302/303/403.
   - Directory layout for site export: `.secret_key` at `DATA_DIR/.secret_key`, `users.yaml` at `USERS_FILE`, user tree at `USERS_DIR`.
   - Written proactively before McManus implements the routes — tests will fail until endpoints are added.
+
+- **2026-02-13 — Decision merged: `_login_as_admin()` is canonical admin test helper**
+  - Per Hockney's decision (merged into `decisions.md`), future admin-only endpoint tests should reuse `TestSiteExportImport._login_as_admin()` rather than inventing their own setup.
+  - If `is_admin()` logic evolves beyond `session['user'] == 'admin'`, update this single helper.

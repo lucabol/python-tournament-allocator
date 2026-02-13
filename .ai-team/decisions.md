@@ -99,3 +99,26 @@
 **Date:** 2026-02-12
 **What:** `api_export_user` and `api_import_user` are added to the `tournament_endpoints` guard set in `set_active_tournament()`. These routes work even when the user has no active tournament (since they operate on the user-level tournaments registry, not a specific tournament).
 **Why:** Without whitelisting, users with no tournaments would be redirected to `/tournaments` before these routes could execute. The export route needs to work even with zero tournaments (returns an empty zip with just the registry), and the import route is how a user would restore tournaments.
+
+---
+
+## Site Export/Import (2026-02-13)
+
+### Site-wide export/import uses full replace strategy
+**By:** McManus
+**Date:** 2026-02-13
+**What:** `POST /api/import/site` does a full replace of `users/`, `users.yaml`, and `.secret_key` in DATA_DIR before extracting the ZIP. After import, the Flask session is cleared and the user is redirected to the login page. This differs from user-level import which does additive merge.
+**Why:** Site export/import is for platform migration — you want an exact copy of the source site, not a merge. Full replace is the only thing that makes sense when you're moving the entire platform. Clearing the session forces re-login because user credentials and secret key may have changed. The 50MB size limit (vs 10MB for user imports) accounts for multi-user data.
+
+### Site admin backup/restore UI uses typed-confirmation pattern
+**By:** Fenster
+**Date:** 2026-02-13
+**What:** The site-level import (replace all data) requires the user to type "REPLACE" in a `prompt()` dialog, not just click OK in a `confirm()`. This is a deliberate UX escalation — the action destroys all user data site-wide, so the friction should match the severity. The section is gated behind `{% if current_user == 'admin' %}` and visually distinct with a red danger-zone border.
+**Why:** A simple confirm dialog is too easy to click through accidentally. Typing a specific word forces the admin to pause and read. This pattern should be reused for any future site-wide destructive action.
+**Affected files:** `src/templates/tournaments.html`, `src/static/style.css`
+
+### Site export/import test pattern: admin login helper
+**By:** Hockney
+**Date:** 2026-02-13
+**What:** `TestSiteExportImport._login_as_admin()` is the canonical pattern for tests that need admin privileges. It adds admin to `users.yaml`, creates the admin user directory tree, writes `.secret_key` to `DATA_DIR`, and switches the client session to `'admin'`. Future admin-only endpoint tests should reuse this pattern rather than inventing their own setup.
+**Why:** The existing `client` fixture always logs in as `testuser`. Admin-gated endpoints need a repeatable way to escalate. Centralizing in one helper avoids duplication and makes it easy to update if the admin detection logic changes (e.g., if `is_admin()` evolves beyond a simple username check).
