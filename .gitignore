@@ -17,6 +17,7 @@ venv/
 .pytest_cache/
 .coverage
 htmlcov/
+testout*.txt
 
 # Benchmarks
 .benchmarks/
