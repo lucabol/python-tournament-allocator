@@ -25,3 +25,11 @@
 - **Stack:** Python 3.11+, Flask, Jinja2, pandas, numpy, OR-Tools CP-SAT, PyYAML, pytest
 - **Description:** Tournament scheduling app with pool play, single/double elimination brackets, court allocation, and match result tracking.
 - **Created:** 2026-02-11
+
+## Issue Source
+
+| Field | Value |
+|-------|-------|
+| **Repository** | lucabol/python-tournament-allocator |
+| **Connected** | 2026-02-13 |
+| **Filters** | all open |
