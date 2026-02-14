@@ -252,108 +252,143 @@
 <details class="drill-down-section">
     <summary>🥇 Gold Bracket</summary>
     <div class="drill-down-content">
-        <h4 class="bracket-sub-header">🔵 Winners Bracket</h4>
-        {% for round_name, matches in bracket_data.winners_bracket.items() %}
-        <div class="bracket-round-label">{{ round_name }}</div>
-        {% for match in matches %}
-        <div class="match-list-item {% if match.is_bye %}bye-item{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') and not match.is_bye %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
-            <div class="match-list-meta">
-                <span class="match-code-label">{{ match.match_code }}</span>
-                {% if match.get('winner') and not match.is_bye %}<span>✓</span>
-                {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+        {# Check if this is double elimination (has winners_bracket) or single elimination (has rounds) #}
+        {% if bracket_data.winners_bracket %}
+            {# Double Elimination Format #}
+            <h4 class="bracket-sub-header">🔵 Winners Bracket</h4>
+            {% for round_name, matches in bracket_data.winners_bracket.items() %}
+            <div class="bracket-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            <div class="match-list-item {% if match.is_bye %}bye-item{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') and not match.is_bye %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
+                <div class="match-list-meta">
+                    <span class="match-code-label">{{ match.match_code }}</span>
+                    {% if match.get('winner') and not match.is_bye %}<span>✓</span>
+                    {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">
+                        {% if match.seeds %}({{ match.seeds[0] }}) {% endif %}{{ match.teams[0] }}
+                    </span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">
+                        {% if match.seeds %}({{ match.seeds[1] }}) {% endif %}{{ match.teams[1] }}
+                    </span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                {% if match.is_bye %}<div class="bye-label">BYE</div>{% endif %}
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">
-                    {% if match.seeds %}({{ match.seeds[0] }}) {% endif %}{{ match.teams[0] }}
-                </span>
-                {% if match.result and match.result.sets %}
-                <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
-                {% endif %}
-            </div>
-            <div class="match-list-row">
-                <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">
-                    {% if match.seeds %}({{ match.seeds[1] }}) {% endif %}{{ match.teams[1] }}
-                </span>
-                {% if match.result and match.result.sets %}
-                <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
-                {% endif %}
-            </div>
-            {% if match.is_bye %}<div class="bye-label">BYE</div>{% endif %}
-        </div>
-        {% endfor %}
-        {% endfor %}
+            {% endfor %}
+            {% endfor %}
 
-        {% if bracket_data.losers_bracket %}
-        <h4 class="bracket-sub-header">🔴 Losers Bracket</h4>
-        {% for round_name, matches in bracket_data.losers_bracket.items() %}
-        <div class="bracket-round-label">{{ round_name }}</div>
-        {% for match in matches %}
-        <div class="match-list-item {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
-            <div class="match-list-meta">
-                <span class="match-code-label">{{ match.match_code }}</span>
-                {% if match.get('winner') %}<span>✓</span>
-                {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+            {% if bracket_data.losers_bracket %}
+            <h4 class="bracket-sub-header">🔴 Losers Bracket</h4>
+            {% for round_name, matches in bracket_data.losers_bracket.items() %}
+            <div class="bracket-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            <div class="match-list-item {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
+                <div class="match-list-meta">
+                    <span class="match-code-label">{{ match.match_code }}</span>
+                    {% if match.get('winner') %}<span>✓</span>
+                    {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">{{ match.teams[0] }}</span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">{{ match.teams[1] }}</span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">{{ match.teams[0] }}</span>
-                {% if match.result and match.result.sets %}
-                <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
-                {% endif %}
-            </div>
-            <div class="match-list-row">
-                <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">{{ match.teams[1] }}</span>
-                {% if match.result and match.result.sets %}
-                <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-        {% endfor %}
-        {% endif %}
+            {% endfor %}
+            {% endfor %}
+            {% endif %}
 
-        {% if bracket_data.grand_final %}
-        <h4 class="bracket-sub-header">🏆 Grand Final</h4>
-        <div class="match-list-item grand-final-item {% if bracket_data.grand_final.get('winner') %}match-completed{% endif %}" data-teams="{{ bracket_data.grand_final.teams[0] }} {{ bracket_data.grand_final.teams[1] }}">
-            <div class="match-list-meta">
-                <span>Grand Final</span>
-                {% if bracket_data.grand_final.get('winner') %}<span>✓</span>
-                {% elif bracket_data.grand_final.get('is_playable') %}<span>🟢</span>{% endif %}
+            {% if bracket_data.grand_final %}
+            <h4 class="bracket-sub-header">🏆 Grand Final</h4>
+            <div class="match-list-item grand-final-item {% if bracket_data.grand_final.get('winner') %}match-completed{% endif %}" data-teams="{{ bracket_data.grand_final.teams[0] }} {{ bracket_data.grand_final.teams[1] }}">
+                <div class="match-list-meta">
+                    <span>Grand Final</span>
+                    {% if bracket_data.grand_final.get('winner') %}<span>✓</span>
+                    {% elif bracket_data.grand_final.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if bracket_data.grand_final.winner == bracket_data.grand_final.teams[0] %}winner{% endif %}">{{ bracket_data.grand_final.teams[0] }}</span>
+                    {% if bracket_data.grand_final.result and bracket_data.grand_final.result.sets %}
+                    <span class="list-score">{{ bracket_data.grand_final.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if bracket_data.grand_final.winner == bracket_data.grand_final.teams[1] %}winner{% endif %}">{{ bracket_data.grand_final.teams[1] }}</span>
+                    {% if bracket_data.grand_final.result and bracket_data.grand_final.result.sets %}
+                    <span class="list-score">{{ bracket_data.grand_final.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if bracket_data.grand_final.winner == bracket_data.grand_final.teams[0] %}winner{% endif %}">{{ bracket_data.grand_final.teams[0] }}</span>
-                {% if bracket_data.grand_final.result and bracket_data.grand_final.result.sets %}
-                <span class="list-score">{{ bracket_data.grand_final.result.sets | map('first') | join('-') }}</span>
-                {% endif %}
-            </div>
-            <div class="match-list-row">
-                <span class="team-name {% if bracket_data.grand_final.winner == bracket_data.grand_final.teams[1] %}winner{% endif %}">{{ bracket_data.grand_final.teams[1] }}</span>
-                {% if bracket_data.grand_final.result and bracket_data.grand_final.result.sets %}
-                <span class="list-score">{{ bracket_data.grand_final.result.sets | map('last') | join('-') }}</span>
-                {% endif %}
-            </div>
-        </div>
 
-        {% if bracket_data.bracket_reset and bracket_data.bracket_reset.get('needs_reset') %}
-        <div class="match-list-item grand-final-item {% if bracket_data.bracket_reset.get('winner') %}match-completed{% endif %}" data-teams="{{ bracket_data.bracket_reset.teams[0] }} {{ bracket_data.bracket_reset.teams[1] }}">
-            <div class="match-list-meta">
-                <span>Bracket Reset</span>
-                {% if bracket_data.bracket_reset.get('winner') %}<span>✓</span>
-                {% elif bracket_data.bracket_reset.get('is_playable') %}<span>🟢</span>{% endif %}
+            {% if bracket_data.bracket_reset and bracket_data.bracket_reset.get('needs_reset') %}
+            <div class="match-list-item grand-final-item {% if bracket_data.bracket_reset.get('winner') %}match-completed{% endif %}" data-teams="{{ bracket_data.bracket_reset.teams[0] }} {{ bracket_data.bracket_reset.teams[1] }}">
+                <div class="match-list-meta">
+                    <span>Bracket Reset</span>
+                    {% if bracket_data.bracket_reset.get('winner') %}<span>✓</span>
+                    {% elif bracket_data.bracket_reset.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if bracket_data.bracket_reset.winner == bracket_data.bracket_reset.teams[0] %}winner{% endif %}">{{ bracket_data.bracket_reset.teams[0] }}</span>
+                    {% if bracket_data.bracket_reset.result and bracket_data.bracket_reset.result.sets %}
+                    <span class="list-score">{{ bracket_data.bracket_reset.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if bracket_data.bracket_reset.winner == bracket_data.bracket_reset.teams[1] %}winner{% endif %}">{{ bracket_data.bracket_reset.teams[1] }}</span>
+                    {% if bracket_data.bracket_reset.result and bracket_data.bracket_reset.result.sets %}
+                    <span class="list-score">{{ bracket_data.bracket_reset.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if bracket_data.bracket_reset.winner == bracket_data.bracket_reset.teams[0] %}winner{% endif %}">{{ bracket_data.bracket_reset.teams[0] }}</span>
-                {% if bracket_data.bracket_reset.result and bracket_data.bracket_reset.result.sets %}
-                <span class="list-score">{{ bracket_data.bracket_reset.result.sets | map('first') | join('-') }}</span>
-                {% endif %}
+            {% endif %}
+            {% endif %}
+        {% elif bracket_data.rounds %}
+            {# Single Elimination Format #}
+            {% for round_name, matches in bracket_data.rounds.items() %}
+            <div class="bracket-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            <div class="match-list-item {% if match.is_bye %}bye-item{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') and not match.is_bye %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
+                <div class="match-list-meta">
+                    <span class="match-code-label">{{ match.match_code }}</span>
+                    {% if match.get('winner') and not match.is_bye %}<span>✓</span>
+                    {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">
+                        {% if match.seeds %}({{ match.seeds[0] }}) {% endif %}{{ match.teams[0] }}
+                    </span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">
+                        {% if match.seeds %}({{ match.seeds[1] }}) {% endif %}{{ match.teams[1] }}
+                    </span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                {% if match.is_bye %}<div class="bye-label">BYE</div>{% endif %}
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if bracket_data.bracket_reset.winner == bracket_data.bracket_reset.teams[1] %}winner{% endif %}">{{ bracket_data.bracket_reset.teams[1] }}</span>
-                {% if bracket_data.bracket_reset.result and bracket_data.bracket_reset.result.sets %}
-                <span class="list-score">{{ bracket_data.bracket_reset.result.sets | map('last') | join('-') }}</span>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
+            {% endfor %}
+            {% endfor %}
         {% endif %}
     </div>
 </details>
@@ -364,108 +399,143 @@
 <details class="drill-down-section">
     <summary>🥈 Silver Bracket</summary>
     <div class="drill-down-content">
-        <h4 class="bracket-sub-header">🥈 Winners Bracket</h4>
-        {% for round_name, matches in silver_bracket_data.winners_bracket.items() %}
-        <div class="bracket-round-label">{{ round_name }}</div>
-        {% for match in matches %}
-        <div class="match-list-item {% if match.is_bye %}bye-item{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') and not match.is_bye %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
-            <div class="match-list-meta">
-                <span class="match-code-label">{{ match.match_code }}</span>
-                {% if match.get('winner') and not match.is_bye %}<span>✓</span>
-                {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+        {# Check if this is double elimination (has winners_bracket) or single elimination (has rounds) #}
+        {% if silver_bracket_data.winners_bracket %}
+            {# Double Elimination Silver Bracket #}
+            <h4 class="bracket-sub-header">🥈 Winners Bracket</h4>
+            {% for round_name, matches in silver_bracket_data.winners_bracket.items() %}
+            <div class="bracket-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            <div class="match-list-item {% if match.is_bye %}bye-item{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') and not match.is_bye %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
+                <div class="match-list-meta">
+                    <span class="match-code-label">{{ match.match_code }}</span>
+                    {% if match.get('winner') and not match.is_bye %}<span>✓</span>
+                    {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">
+                        {% if match.seeds %}({{ match.seeds[0] }}) {% endif %}{{ match.teams[0] }}
+                    </span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">
+                        {% if match.seeds %}({{ match.seeds[1] }}) {% endif %}{{ match.teams[1] }}
+                    </span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                {% if match.is_bye %}<div class="bye-label">BYE</div>{% endif %}
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">
-                    {% if match.seeds %}({{ match.seeds[0] }}) {% endif %}{{ match.teams[0] }}
-                </span>
-                {% if match.result and match.result.sets %}
-                <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
-                {% endif %}
-            </div>
-            <div class="match-list-row">
-                <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">
-                    {% if match.seeds %}({{ match.seeds[1] }}) {% endif %}{{ match.teams[1] }}
-                </span>
-                {% if match.result and match.result.sets %}
-                <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
-                {% endif %}
-            </div>
-            {% if match.is_bye %}<div class="bye-label">BYE</div>{% endif %}
-        </div>
-        {% endfor %}
-        {% endfor %}
+            {% endfor %}
+            {% endfor %}
 
-        {% if silver_bracket_data.losers_bracket %}
-        <h4 class="bracket-sub-header">🥈 Losers Bracket</h4>
-        {% for round_name, matches in silver_bracket_data.losers_bracket.items() %}
-        <div class="bracket-round-label">{{ round_name }}</div>
-        {% for match in matches %}
-        <div class="match-list-item {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
-            <div class="match-list-meta">
-                <span class="match-code-label">{{ match.match_code }}</span>
-                {% if match.get('winner') %}<span>✓</span>
-                {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+            {% if silver_bracket_data.losers_bracket %}
+            <h4 class="bracket-sub-header">🥈 Losers Bracket</h4>
+            {% for round_name, matches in silver_bracket_data.losers_bracket.items() %}
+            <div class="bracket-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            <div class="match-list-item {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
+                <div class="match-list-meta">
+                    <span class="match-code-label">{{ match.match_code }}</span>
+                    {% if match.get('winner') %}<span>✓</span>
+                    {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">{{ match.teams[0] }}</span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">{{ match.teams[1] }}</span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">{{ match.teams[0] }}</span>
-                {% if match.result and match.result.sets %}
-                <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
-                {% endif %}
-            </div>
-            <div class="match-list-row">
-                <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">{{ match.teams[1] }}</span>
-                {% if match.result and match.result.sets %}
-                <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-        {% endfor %}
-        {% endif %}
+            {% endfor %}
+            {% endfor %}
+            {% endif %}
 
-        {% if silver_bracket_data.grand_final %}
-        <h4 class="bracket-sub-header">🥈 Silver Grand Final</h4>
-        <div class="match-list-item grand-final-item {% if silver_bracket_data.grand_final.get('winner') %}match-completed{% endif %}" data-teams="{{ silver_bracket_data.grand_final.teams[0] }} {{ silver_bracket_data.grand_final.teams[1] }}">
-            <div class="match-list-meta">
-                <span>Silver Grand Final</span>
-                {% if silver_bracket_data.grand_final.get('winner') %}<span>✓</span>
-                {% elif silver_bracket_data.grand_final.get('is_playable') %}<span>🟢</span>{% endif %}
+            {% if silver_bracket_data.grand_final %}
+            <h4 class="bracket-sub-header">🥈 Silver Grand Final</h4>
+            <div class="match-list-item grand-final-item {% if silver_bracket_data.grand_final.get('winner') %}match-completed{% endif %}" data-teams="{{ silver_bracket_data.grand_final.teams[0] }} {{ silver_bracket_data.grand_final.teams[1] }}">
+                <div class="match-list-meta">
+                    <span>Silver Grand Final</span>
+                    {% if silver_bracket_data.grand_final.get('winner') %}<span>✓</span>
+                    {% elif silver_bracket_data.grand_final.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if silver_bracket_data.grand_final.winner == silver_bracket_data.grand_final.teams[0] %}winner{% endif %}">{{ silver_bracket_data.grand_final.teams[0] }}</span>
+                    {% if silver_bracket_data.grand_final.result and silver_bracket_data.grand_final.result.sets %}
+                    <span class="list-score">{{ silver_bracket_data.grand_final.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if silver_bracket_data.grand_final.winner == silver_bracket_data.grand_final.teams[1] %}winner{% endif %}">{{ silver_bracket_data.grand_final.teams[1] }}</span>
+                    {% if silver_bracket_data.grand_final.result and silver_bracket_data.grand_final.result.sets %}
+                    <span class="list-score">{{ silver_bracket_data.grand_final.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if silver_bracket_data.grand_final.winner == silver_bracket_data.grand_final.teams[0] %}winner{% endif %}">{{ silver_bracket_data.grand_final.teams[0] }}</span>
-                {% if silver_bracket_data.grand_final.result and silver_bracket_data.grand_final.result.sets %}
-                <span class="list-score">{{ silver_bracket_data.grand_final.result.sets | map('first') | join('-') }}</span>
-                {% endif %}
-            </div>
-            <div class="match-list-row">
-                <span class="team-name {% if silver_bracket_data.grand_final.winner == silver_bracket_data.grand_final.teams[1] %}winner{% endif %}">{{ silver_bracket_data.grand_final.teams[1] }}</span>
-                {% if silver_bracket_data.grand_final.result and silver_bracket_data.grand_final.result.sets %}
-                <span class="list-score">{{ silver_bracket_data.grand_final.result.sets | map('last') | join('-') }}</span>
-                {% endif %}
-            </div>
-        </div>
 
-        {% if silver_bracket_data.bracket_reset and silver_bracket_data.bracket_reset.get('needs_reset') %}
-        <div class="match-list-item grand-final-item {% if silver_bracket_data.bracket_reset.get('winner') %}match-completed{% endif %}" data-teams="{{ silver_bracket_data.bracket_reset.teams[0] }} {{ silver_bracket_data.bracket_reset.teams[1] }}">
-            <div class="match-list-meta">
-                <span>Silver Bracket Reset</span>
-                {% if silver_bracket_data.bracket_reset.get('winner') %}<span>✓</span>
-                {% elif silver_bracket_data.bracket_reset.get('is_playable') %}<span>🟢</span>{% endif %}
+            {% if silver_bracket_data.bracket_reset and silver_bracket_data.bracket_reset.get('needs_reset') %}
+            <div class="match-list-item grand-final-item {% if silver_bracket_data.bracket_reset.get('winner') %}match-completed{% endif %}" data-teams="{{ silver_bracket_data.bracket_reset.teams[0] }} {{ silver_bracket_data.bracket_reset.teams[1] }}">
+                <div class="match-list-meta">
+                    <span>Silver Bracket Reset</span>
+                    {% if silver_bracket_data.bracket_reset.get('winner') %}<span>✓</span>
+                    {% elif silver_bracket_data.bracket_reset.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if silver_bracket_data.bracket_reset.winner == silver_bracket_data.bracket_reset.teams[0] %}winner{% endif %}">{{ silver_bracket_data.bracket_reset.teams[0] }}</span>
+                    {% if silver_bracket_data.bracket_reset.result and silver_bracket_data.bracket_reset.result.sets %}
+                    <span class="list-score">{{ silver_bracket_data.bracket_reset.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if silver_bracket_data.bracket_reset.winner == silver_bracket_data.bracket_reset.teams[1] %}winner{% endif %}">{{ silver_bracket_data.bracket_reset.teams[1] }}</span>
+                    {% if silver_bracket_data.bracket_reset.result and silver_bracket_data.bracket_reset.result.sets %}
+                    <span class="list-score">{{ silver_bracket_data.bracket_reset.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if silver_bracket_data.bracket_reset.winner == silver_bracket_data.bracket_reset.teams[0] %}winner{% endif %}">{{ silver_bracket_data.bracket_reset.teams[0] }}</span>
-                {% if silver_bracket_data.bracket_reset.result and silver_bracket_data.bracket_reset.result.sets %}
-                <span class="list-score">{{ silver_bracket_data.bracket_reset.result.sets | map('first') | join('-') }}</span>
-                {% endif %}
+            {% endif %}
+            {% endif %}
+        {% elif silver_bracket_data.rounds %}
+            {# Single Elimination Silver Bracket #}
+            {% for round_name, matches in silver_bracket_data.rounds.items() %}
+            <div class="bracket-round-label">{{ round_name }}</div>
+            {% for match in matches %}
+            <div class="match-list-item {% if match.is_bye %}bye-item{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if match.get('winner') and not match.is_bye %}match-completed{% endif %}" data-teams="{{ match.teams[0] }} {{ match.teams[1] }}">
+                <div class="match-list-meta">
+                    <span class="match-code-label">{{ match.match_code }}</span>
+                    {% if match.get('winner') and not match.is_bye %}<span>✓</span>
+                    {% elif match.get('is_playable') %}<span>🟢</span>{% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[0] %}winner{% endif %}">
+                        {% if match.seeds %}({{ match.seeds[0] }}) {% endif %}{{ match.teams[0] }}
+                    </span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('first') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                <div class="match-list-row">
+                    <span class="team-name {% if match.winner == match.teams[1] %}winner{% endif %}">
+                        {% if match.seeds %}({{ match.seeds[1] }}) {% endif %}{{ match.teams[1] }}
+                    </span>
+                    {% if match.result and match.result.sets %}
+                    <span class="list-score">{{ match.result.sets | map('last') | join('-') }}</span>
+                    {% endif %}
+                </div>
+                {% if match.is_bye %}<div class="bye-label">BYE</div>{% endif %}
             </div>
-            <div class="match-list-row">
-                <span class="team-name {% if silver_bracket_data.bracket_reset.winner == silver_bracket_data.bracket_reset.teams[1] %}winner{% endif %}">{{ silver_bracket_data.bracket_reset.teams[1] }}</span>
-                {% if silver_bracket_data.bracket_reset.result and silver_bracket_data.bracket_reset.result.sets %}
-                <span class="list-score">{{ silver_bracket_data.bracket_reset.result.sets | map('last') | join('-') }}</span>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
+            {% endfor %}
+            {% endfor %}
         {% endif %}
     </div>
 </details>
