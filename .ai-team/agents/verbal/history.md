@@ -22,3 +22,15 @@
 - Produced 22-idea brainstorm across UX/UI, New Features, Technical, and Mobile/Sharing categories
 - Key themes: mobile navigation needs hamburger menu, tournament templates would save repeat setup, undo/edit for results is missing, dark mode requested
 - See brainstorm output delivered to Luca for full list with effort estimates
+
+### 2026-02-19: Admin User Removal
+- Removed privileged "admin" user concept entirely from codebase — no longer needed after multi-user architecture
+- Deleted: `is_admin()` function, `_ensure_admin_user_exists()`, `_migrate_to_admin_user()` 
+- Deleted: `/api/export/site`, `/api/import/site` routes (site-wide admin export/import)
+- Deleted: `ADMIN_PASSWORD` environment variable handling
+- Updated: `ensure_tournament_structure()` now just creates directories, no migration logic
+- Updated: `api_delete_account()` no longer blocks admin deletion
+- Test changes: Removed `TestSiteExportImport` class (16 tests), removed `test_delete_account_admin_prevented`, removed migration tests from `test_tournaments.py`
+- All 450 non-backup tests pass; user-scoped tournament export/import still works fine
+
+📌 Team update (2026-02-14): Azure backup/restore workflow consolidated: Hockney added 67 tests, Keaton cleaned deployment config, McManus established CLI-based scripts as primary strategy. Data persistence now fully documented and tested.

@@ -321,6 +321,55 @@
 **By:** McManus
 **What:** Admin user now auto-created on fresh deployment and ensured to exist on every startup. Password sourced from `ADMIN_PASSWORD` environment variable (defaults to "admin"). Implementation: new `_ensure_admin_user_exists()` helper (idempotent), updated `_migrate_to_admin_user()` to read env var, modified `ensure_tournament_structure()` migration logic, added `ADMIN_PASSWORD` app setting to `deploy.ps1`.
 **Why:** Fresh Azure deploys had no way to access the app (no users existed). Zero-friction deployment pattern. Admin credentials displayed in deployment output so deployer knows how to log in immediately.
+
+---
+
+## Azure Backup/Restore & Multi-User Cleanup (2026-02-14–2026-02-15)
+
+### 2026-02-14: Comprehensive Azure backup/restore test coverage
+
+**By:** Hockney
+
+**What:** Created 67 tests across 3 files (`test_backup_script.py`, `test_restore_script.py`, `test_backup_restore_integration.py`) covering Azure App Service backup/restore scripts with comprehensive mocking.
+
+**Why:** The backup/restore scripts (`scripts/backup.py`, `scripts/restore.py`) are critical for production data safety but had zero test coverage. Tests validate all workflows (CLI checks, remote operations, ZIP handling, error conditions, exit codes) without requiring actual Azure infrastructure. Mock all `az` CLI calls via `unittest.mock.patch('subprocess.run')`. Security validations include directory traversal detection and absolute path rejection in ZIP files. Round-trip integration tests verify data integrity through full backup → restore → verify cycles.
+
+### 2026-02-14: Removed admin configuration from deployment script
+
+**By:** Keaton
+
+**What:** Removed all ADMIN_PASSWORD environment variable settings, admin user references, and admin login documentation from deploy.ps1
+
+**Why:** Multi-user authentication system is being removed from the application. The deployment script no longer needs to configure admin users or passwords. This simplifies deployment and removes unnecessary security configuration for a single-user tournament management tool.
+
+### 2026-02-15: CLI-based backup/restore strategy for Azure
+
+**By:** McManus
+
+**What:** Tournament data backup and restore now uses Azure CLI scripts (`scripts/backup.py`, `scripts/restore.py`) instead of web-based admin routes. Data lives in `/home/data` on Azure and is persistent across deployments.
+
+**Why:** 
+- **Scriptable**: Backup/restore operations can be automated in CI/CD pipelines or local cron jobs without web UI intervention
+- **No admin privileges**: Removes need for special admin credentials or web-based admin panels
+- **Auditable**: All operations are plain-text CLI commands (easily logged and reviewed)
+- **Azure-native**: Uses Azure CLI (`az webapp ssh`) for secure, direct container access
+
+**Usage:**
+```bash
+# Backup
+python scripts/backup.py --app-name <app> --resource-group <rg>
+
+# Restore (with safety checks)
+python scripts/restore.py backup.zip --app-name <app> --resource-group <rg>
+```
+
+**Documentation:** See `docs/CLI_BACKUP_RESTORE.md` for:
+- Detailed CLI usage examples
+- Automated backup scheduling (Task Scheduler, cron, Azure Pipelines)
+- Disaster recovery procedures
+- Troubleshooting common Azure CLI issues
+
+**Impact:** No admin user type in codebase. All backups and restores are user-initiated CLI operations with pre-restore safety backups created automatically.
 **Security:** Password never hardcoded in source. Env var pattern matches existing `SECRET_KEY` handling. First-deploy only — won't overwrite password on subsequent deploys.
 
 ---

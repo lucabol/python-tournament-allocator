@@ -49,3 +49,12 @@
 - **Usage:** `python scripts/backup.py --app-name <webapp> --resource-group <rg>`
 
 📌 **Team update (2026-02-14):** Azure backup/restore workflow coordinated with Fenster — backup uses SSH tar streaming; restore uses base64-chunked upload with app stop. See decisions.md for full architecture.
+
+### Multi-user authentication architecture removed (2026-02-14)
+- Removed ADMIN_PASSWORD environment variable configuration from deploy.ps1
+- Removed admin user creation logic and documentation from deployment script
+- Deployment output no longer displays admin login credentials
+- SECRET_KEY still configured for Flask session security (used by multi-user auth system)
+- App configuration now sets only runtime settings: SECRET_KEY, DISABLE_COLLECTSTATIC, TOURNAMENT_DATA_DIR
+
+📌 Team update (2026-02-14): Hockney created 67 comprehensive backup/restore tests. McManus established CLI-based backup/restore as primary strategy for Azure data persistence — no more admin-based backups.
