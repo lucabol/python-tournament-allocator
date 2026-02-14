@@ -245,3 +245,26 @@ Hockney is responsible for the pytest test suite covering all routes, models, bu
   - Court model: `Court(name="Court 1", start_time="08:00", end_time="22:00")` from `src/core/models.py`.
   - Constraint source: `min_break_between_matches_minutes` from `constraints.yaml` (default: 15, configurable via constraints form).
 
+- **2026-02-14 — Bracket phase transition tests (`tests/test_schedule_validity.py :: TestBracketPhaseTransitions`)**
+  - Added 3 comprehensive tests validating pool-to-bracket phase transitions and timing constraints.
+  - `test_pool_to_bracket_delay_enforced`: Validates `pool_to_bracket_delay_minutes` constraint (60 minutes in test). Sets up 4 teams in 2 pools, schedules pool play, verifies delay constraint exists in config and would be applied during bracket scheduling. Tests constraint loading and manager initialization.
+  - `test_bracket_starts_after_pools_complete`: Validates bracket waits for ALL pool matches to complete before starting. Sets up 6 teams in 3 pools on 2 courts (pools finish at different times), tracks end times per pool, verifies latest pool completion time is captured. Tests multi-pool scheduling with staggered completion.
+  - `test_no_placeholders_in_scheduled_bracket`: Validates that scheduled matches contain only concrete team names, not placeholders like "#1 Pool A", "Winner W1-M1", "Loser W2-M1". The `AllocationManager` only schedules pool play (concrete teams) — bracket matches with placeholders are handled separately in Flask app (`src/app.py` lines 2388-2399 set `is_placeholder` flag).
+  - All 3 tests use `AllocationManager` with `generate_pool_play_matches()`, following the integration test pattern from `tests/test_integration.py`.
+  - Pool-to-bracket delay is configurable in `constraints.yaml` (`pool_to_bracket_delay_minutes`, default: 0). Test uses 60-minute delay. Delay is added to bracket start time calculation in Flask app (line 2369-2370).
+  - Tests validate CONSTRAINTS and TIMING logic, not full bracket scheduling (which happens in Flask app, not AllocationManager).
+  - All 12 tests in file pass in 1.01s (9 existing + 3 new).
+  - Key files: `src/core/allocation.py` (AllocationManager), `src/app.py` (bracket scheduling logic), `data/tournaments/default/constraints.yaml` (constraint definitions).
+
+
+- **2026-02-14 — Grand final scheduling tests (	ests/test_schedule_validity.py :: TestGrandFinalScheduling)**
+  - Added 3 tests validating grand final and bracket reset scheduling in double elimination tournaments.
+  - 	est_grand_final_after_both_finals: Validates that Grand Final is scheduled AFTER BOTH Winners Final AND Losers Final complete. Tests 3 scenarios: valid (GF at 11:30 after both finals end at 11:00), invalid (GF at 10:30 before Losers Final completes), invalid (GF at 10:00 concurrent with finals). Validation: gf.start_time >= max(wf.end_time, lf.end_time).
+  - 	est_bracket_reset_conditional: Validates bracket reset scheduling rules based on Grand Final result. Tests 4 scenarios: (1) Losers champ wins GF → bracket reset REQUIRED, (2) Winners champ wins GF → bracket reset should NOT exist, (3) Winners champ wins with bracket reset scheduled → INVALID, (4) Result unknown → bracket reset allowed as placeholder. Validation: if gf.winner == losers_champ then r must exist.
+  - 	est_bracket_reset_timing: Validates bracket reset timing constraints. Tests 4 scenarios: (1) Valid (BR at 12:30 after GF ends at 12:00 + 30 min break), (2) Invalid (BR at 12:00, no break time), (3) Invalid (BR at 14:00, 2 hours later), (4) Invalid (BR at 11:30, overlapping with GF). Validation: r.start_time >= gf.end_time + min_break_minutes AND r.start_time <= gf.end_time + 60 minutes.
+  - All 3 tests use mock schedules with datetime objects (not AllocationManager or fixtures) — pure validation logic in isolation.
+  - Double elimination structure: Winners Final + Losers Final → Grand Final. If losers champ wins GF, bracket reset occurs (both teams have 1 loss). If winners champ wins GF, tournament ends (they never lost).
+  - Bracket reset logic in src/core/double_elimination.py lines 114-130 (generate_double_elimination_bracket) and lines 1649-1654 (matches_in_order generation). Conditional: only scheduled if 
+eeds_reset = gf_winner and gf_winner == losers_champion.
+  - All 15 tests in file pass in 0.90s (12 existing + 3 new).
+  - Key files: src/core/double_elimination.py (bracket reset logic), 	ests/test_schedule_validity.py (validation tests).

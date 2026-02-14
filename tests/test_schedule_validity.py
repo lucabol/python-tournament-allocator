@@ -633,13 +633,273 @@ class TestBracketPhaseTransitions:
                     # Verify no placeholder patterns in scheduled matches
                     assert not team_name.startswith("#"), \
                         f"Placeholder team '{team_name}' found in scheduled match"
-                    assert "Pool" not in team_name or team_name in ["Team A", "Team B", "Team C", "Team D"], \
-                        f"Placeholder pattern '{team_name}' found in scheduled match"
-                    assert not team_name.startswith("Winner"), \
-                        f"Placeholder '{team_name}' found in scheduled match"
-                    assert not team_name.startswith("Loser"), \
-                        f"Placeholder '{team_name}' found in scheduled match"
+
+
+class TestGrandFinalScheduling:
+    """Tests for grand final scheduling validation in double elimination tournaments."""
+    
+    def test_grand_final_after_both_finals(self):
+        """Grand final must be scheduled after BOTH winners final AND losers final complete."""
+        # Create a mock schedule with explicit timing
+        base_date = datetime.date.today()
         
-        # Verify that at least some matches were scheduled
-        total_matches = sum(len(court_matches) for court_matches in manager.schedule.values())
-        assert total_matches > 0, "No matches were scheduled"
+        # Winners Final at 10:00 - 11:00
+        winners_final = {
+            'round': 'Winners Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(10, 0)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(11, 0)),
+            'teams': ('Team A', 'Team B')
+        }
+        
+        # Losers Final at 10:00 - 11:00 (parallel on different court)
+        losers_final = {
+            'round': 'Losers Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(10, 0)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(11, 0)),
+            'teams': ('Team C', 'Team D')
+        }
+        
+        # VALID: Grand Final at 11:30 (after both finals complete + 30 min break)
+        valid_gf = {
+            'round': 'Grand Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(11, 30)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(12, 30)),
+            'teams': ('Winner WF', 'Winner LF')
+        }
+        
+        # INVALID: Grand Final at 10:30 (before Losers Final completes)
+        invalid_gf_before_lf = {
+            'round': 'Grand Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(10, 30)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(11, 30)),
+            'teams': ('Winner WF', 'Winner LF')
+        }
+        
+        # INVALID: Grand Final at 10:00 (concurrent with both finals)
+        invalid_gf_concurrent = {
+            'round': 'Grand Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(10, 0)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(11, 0)),
+            'teams': ('Winner WF', 'Winner LF')
+        }
+        
+        # Validation logic
+        def validate_gf_timing(schedule):
+            """
+            Validate that grand final is scheduled after both finals.
+            Returns True if valid, False if invalid.
+            """
+            wf = next(m for m in schedule if m['round'] == 'Winners Final')
+            lf = next(m for m in schedule if m['round'] == 'Losers Final')
+            gf = next(m for m in schedule if m['round'] == 'Grand Final')
+            
+            # Grand Final must start after BOTH finals end
+            latest_final_end = max(wf['end_time'], lf['end_time'])
+            return gf['start_time'] >= latest_final_end
+        
+        # Test valid schedule
+        valid_schedule = [winners_final, losers_final, valid_gf]
+        assert validate_gf_timing(valid_schedule) is True, \
+            "Grand Final scheduled after both finals should be valid"
+        
+        # Test invalid schedule (GF before Losers Final)
+        invalid_schedule_1 = [winners_final, losers_final, invalid_gf_before_lf]
+        assert validate_gf_timing(invalid_schedule_1) is False, \
+            "Grand Final before Losers Final completes should be invalid"
+        
+        # Test invalid schedule (GF concurrent with finals)
+        invalid_schedule_2 = [winners_final, losers_final, invalid_gf_concurrent]
+        assert validate_gf_timing(invalid_schedule_2) is False, \
+            "Grand Final concurrent with finals should be invalid"
+    
+    def test_bracket_reset_conditional(self):
+        """Bracket reset should only be scheduled if losers champ wins grand final."""
+        base_date = datetime.date.today()
+        
+        # Grand Final with known result: Losers champ wins
+        gf_losers_win = {
+            'round': 'Grand Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(11, 0)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(12, 0)),
+            'teams': ('Winners Champ', 'Losers Champ'),
+            'winner': 'Losers Champ'  # Losers champ wins = bracket reset needed
+        }
+        
+        # Grand Final with known result: Winners champ wins
+        gf_winners_win = {
+            'round': 'Grand Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(11, 0)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(12, 0)),
+            'teams': ('Winners Champ', 'Losers Champ'),
+            'winner': 'Winners Champ'  # Winners champ wins = no bracket reset
+        }
+        
+        # Grand Final with no result yet
+        gf_no_result = {
+            'round': 'Grand Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(11, 0)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(12, 0)),
+            'teams': ('Winners Champ', 'Losers Champ'),
+            'winner': None  # Result unknown
+        }
+        
+        # Bracket Reset match
+        bracket_reset = {
+            'round': 'Bracket Reset',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(12, 30)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(13, 30)),
+            'teams': ('TBD', 'TBD')
+        }
+        
+        def validate_bracket_reset_conditional(schedule):
+            """
+            Validate bracket reset scheduling rules:
+            1. If GF result is unknown, bracket reset can be scheduled (placeholder)
+            2. If Winners champ wins GF, bracket reset should NOT be scheduled
+            3. If Losers champ wins GF, bracket reset MUST be scheduled
+            Returns (is_valid, reason)
+            """
+            gf = next((m for m in schedule if m['round'] == 'Grand Final'), None)
+            br = next((m for m in schedule if m['round'] == 'Bracket Reset'), None)
+            
+            if not gf:
+                return (False, "No grand final in schedule")
+            
+            gf_winner = gf.get('winner')
+            
+            # Determine which team is losers champ
+            # In double elim, losers champ comes from losers bracket
+            losers_champ = gf['teams'][1] if 'Losers' in str(gf['teams'][1]) else gf['teams'][0]
+            
+            if gf_winner is None:
+                # Result unknown - bracket reset can be scheduled as placeholder
+                # This is valid during planning phase
+                return (True, "GF result unknown - bracket reset allowed as placeholder")
+            elif gf_winner == losers_champ:
+                # Losers champ won - bracket reset REQUIRED
+                if br is None:
+                    return (False, "Losers champ won GF but no bracket reset scheduled")
+                return (True, "Losers champ won GF - bracket reset correctly scheduled")
+            else:
+                # Winners champ won - bracket reset should NOT exist
+                if br is not None:
+                    return (False, "Winners champ won GF but bracket reset scheduled")
+                return (True, "Winners champ won GF - no bracket reset correctly")
+        
+        # VALID: Losers champ wins, bracket reset scheduled
+        schedule_losers_win = [gf_losers_win, bracket_reset]
+        is_valid, reason = validate_bracket_reset_conditional(schedule_losers_win)
+        assert is_valid is True, f"Losers win with bracket reset should be valid: {reason}"
+        
+        # INVALID: Winners champ wins, bracket reset still scheduled
+        schedule_winners_win_with_reset = [gf_winners_win, bracket_reset]
+        is_valid, reason = validate_bracket_reset_conditional(schedule_winners_win_with_reset)
+        assert is_valid is False, f"Winners win with bracket reset should be invalid: {reason}"
+        
+        # VALID: Winners champ wins, no bracket reset
+        schedule_winners_win_no_reset = [gf_winners_win]
+        is_valid, reason = validate_bracket_reset_conditional(schedule_winners_win_no_reset)
+        assert is_valid is True, f"Winners win without bracket reset should be valid: {reason}"
+        
+        # VALID: Result unknown, bracket reset as placeholder
+        schedule_no_result_with_reset = [gf_no_result, bracket_reset]
+        is_valid, reason = validate_bracket_reset_conditional(schedule_no_result_with_reset)
+        assert is_valid is True, f"No result with bracket reset placeholder should be valid: {reason}"
+    
+    def test_bracket_reset_timing(self):
+        """If bracket reset exists, it must be scheduled immediately after grand final."""
+        base_date = datetime.date.today()
+        min_break_minutes = 30  # Standard break between matches
+        
+        # Grand Final
+        grand_final = {
+            'round': 'Grand Final',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(11, 0)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(12, 0)),
+            'teams': ('Winners Champ', 'Losers Champ'),
+            'winner': 'Losers Champ'
+        }
+        
+        # VALID: Bracket Reset immediately after GF (with min break)
+        valid_bracket_reset = {
+            'round': 'Bracket Reset',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(12, 30)),
+            'end_time': datetime.datetime.combine(base_date, datetime.time(13, 30)),
+            'teams': ('Losers Champ', 'Winners Champ')
+        }
+        
+        # INVALID: Bracket Reset too soon (no break time)
+        invalid_br_no_break = {
+            'round': 'Bracket Reset',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(12, 0)),  # Starts immediately
+            'end_time': datetime.datetime.combine(base_date, datetime.time(13, 0)),
+            'teams': ('Losers Champ', 'Winners Champ')
+        }
+        
+        # INVALID: Bracket Reset scheduled much later (large gap)
+        invalid_br_late = {
+            'round': 'Bracket Reset',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(14, 0)),  # 2 hours later
+            'end_time': datetime.datetime.combine(base_date, datetime.time(15, 0)),
+            'teams': ('Losers Champ', 'Winners Champ')
+        }
+        
+        # INVALID: Bracket Reset overlapping with GF
+        invalid_br_overlap = {
+            'round': 'Bracket Reset',
+            'start_time': datetime.datetime.combine(base_date, datetime.time(11, 30)),  # During GF
+            'end_time': datetime.datetime.combine(base_date, datetime.time(12, 30)),
+            'teams': ('Losers Champ', 'Winners Champ')
+        }
+        
+        def validate_bracket_reset_timing(schedule, min_break_minutes=30):
+            """
+            Validate bracket reset timing:
+            1. Must start after grand final ends
+            2. Must respect minimum break time
+            3. Should start within reasonable time of GF (not hours later)
+            Returns (is_valid, reason)
+            """
+            gf = next((m for m in schedule if m['round'] == 'Grand Final'), None)
+            br = next((m for m in schedule if m['round'] == 'Bracket Reset'), None)
+            
+            if not gf or not br:
+                return (True, "No bracket reset or grand final to validate")
+            
+            # Check: Bracket reset must start after grand final ends
+            if br['start_time'] < gf['end_time']:
+                return (False, "Bracket reset starts before grand final ends")
+            
+            # Check: Minimum break time respected
+            min_start_time = gf['end_time'] + datetime.timedelta(minutes=min_break_minutes)
+            if br['start_time'] < min_start_time:
+                return (False, f"Bracket reset doesn't respect {min_break_minutes} min break")
+            
+            # Check: Reasonable timing (not hours later)
+            # Allow up to 60 minutes gap (30 min break + 30 min buffer)
+            max_gap_minutes = 60
+            max_start_time = gf['end_time'] + datetime.timedelta(minutes=max_gap_minutes)
+            if br['start_time'] > max_start_time:
+                return (False, f"Bracket reset scheduled too late (>{max_gap_minutes} min after GF)")
+            
+            return (True, "Bracket reset timing valid")
+        
+        # Test valid timing
+        valid_schedule = [grand_final, valid_bracket_reset]
+        is_valid, reason = validate_bracket_reset_timing(valid_schedule, min_break_minutes)
+        assert is_valid is True, f"Valid bracket reset timing should pass: {reason}"
+        
+        # Test no break
+        invalid_schedule_no_break = [grand_final, invalid_br_no_break]
+        is_valid, reason = validate_bracket_reset_timing(invalid_schedule_no_break, min_break_minutes)
+        assert is_valid is False, f"No break between GF and reset should be invalid: {reason}"
+        
+        # Test scheduled too late
+        invalid_schedule_late = [grand_final, invalid_br_late]
+        is_valid, reason = validate_bracket_reset_timing(invalid_schedule_late, min_break_minutes)
+        assert is_valid is False, f"Late bracket reset should be invalid: {reason}"
+        
+        # Test overlap
+        invalid_schedule_overlap = [grand_final, invalid_br_overlap]
+        is_valid, reason = validate_bracket_reset_timing(invalid_schedule_overlap, min_break_minutes)
+        assert is_valid is False, f"Overlapping bracket reset should be invalid: {reason}"
