@@ -11,6 +11,7 @@ How to decide who handles what.
 | Jinja2 templates, CSS, HTML, UI components | Fenster | Tournament selector UI, template refactoring, responsive layout |
 | Code review | Verbal | Review PRs, check quality, suggest improvements |
 | Testing | Hockney | Write tests, find edge cases, verify fixes |
+| Azure deployment, CI/CD, infrastructure | Keaton | App Service config, GitHub Actions, deployment scripts, monitoring |
 | Scope & priorities | Verbal | What to build next, trade-offs, decisions |
 | Session logging | Scribe | Automatic — never needs routing |
 
