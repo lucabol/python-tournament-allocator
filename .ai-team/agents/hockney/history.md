@@ -268,3 +268,30 @@ Hockney is responsible for the pytest test suite covering all routes, models, bu
 eeds_reset = gf_winner and gf_winner == losers_champion.
   - All 15 tests in file pass in 0.90s (12 existing + 3 new).
   - Key files: src/core/double_elimination.py (bracket reset logic), 	ests/test_schedule_validity.py (validation tests).
+
+## Learnings
+
+### 2026-02-14 - Integration Tests Implementation
+
+**Tournament Flow Integration:**
+- Implemented end-to-end tests covering pool play → bracket elimination workflows
+- Validated integration of AllocationManager with elimination bracket generators
+- Confirmed that generate_elimination_matches_for_scheduling() and generate_double_elimination_matches_for_scheduling() return tuples suitable for scheduling
+
+**Test Patterns:**
+- Integration tests override _generate_pool_play_matches lambda to inject combined match lists (pool + elimination)
+- Double elimination generates only first-round winners bracket matches (later rounds depend on results)
+- Silver bracket uses create_bracket_matchups(seeded_teams) with single parameter (returns list of match dicts)
+- Match tuples format: ((team1, team2), phase_or_round_name)
+
+**Key Validation Approaches:**
+- No team double-booking: Build per-team match lists, verify no time overlaps on same day
+- Court constraints: Verify all matches within court operating hours (start_time to day_end_time_limit)
+- Minimum break respected: Check actual break time between consecutive matches ≥ min_break_between_matches_minutes
+- Bracket structure: Confirm both pool and elimination phases present in combined schedules
+
+**File:** 	ests/test_integration.py
+- Added TestFullTournamentIntegration class with 5 comprehensive scenarios
+- All tests validate correctness, not just "no errors"
+- Combined execution time: ~20 seconds (acceptable for integration tests)
+

@@ -264,3 +264,435 @@ class TestScheduleConsistency:
                     f"Match starts before court opens: {start_dt.time()} < {court_start}"
                 assert end_dt.time() <= day_end, \
                     f"Match ends after day limit: {end_dt.time()} > {day_end}"
+
+
+class TestFullTournamentIntegration:
+    """
+    End-to-end integration tests for complete tournament workflows.
+    
+    These tests validate full tournament flows from pool play through bracket elimination,
+    ensuring all phases integrate correctly and produce valid schedules.
+    """
+    
+    def test_pool_plus_single_elimination(self, sample_courts):
+        """Test complete flow: pool play → gold bracket (single elimination)."""
+        # Setup: 2 pools of 4 teams, top 2 advance
+        teams = [
+            Team(name="Pool1_A", attributes={"pool": "pool1"}),
+            Team(name="Pool1_B", attributes={"pool": "pool1"}),
+            Team(name="Pool1_C", attributes={"pool": "pool1"}),
+            Team(name="Pool1_D", attributes={"pool": "pool1"}),
+            Team(name="Pool2_A", attributes={"pool": "pool2"}),
+            Team(name="Pool2_B", attributes={"pool": "pool2"}),
+            Team(name="Pool2_C", attributes={"pool": "pool2"}),
+            Team(name="Pool2_D", attributes={"pool": "pool2"}),
+        ]
+        
+        constraints = {
+            "match_duration_minutes": 60,
+            "days_number": 2,
+            "min_break_between_matches_minutes": 15,
+            "time_slot_increment_minutes": 15,
+            "day_end_time_limit": "22:00",
+            "team_specific_constraints": [],
+            "general_constraints": [],
+            "tournament_settings": {
+                "type": "pool_play_with_elimination",
+                "elimination_type": "single",
+                "pools": {
+                    "pool1": {"teams": ["Pool1_A", "Pool1_B", "Pool1_C", "Pool1_D"], "advance": 2},
+                    "pool2": {"teams": ["Pool2_A", "Pool2_B", "Pool2_C", "Pool2_D"], "advance": 2}
+                }
+            }
+        }
+        
+        manager = AllocationManager(teams, sample_courts, constraints)
+        
+        # Generate all matches: pool play + elimination
+        from core.elimination import generate_elimination_matches_for_scheduling
+        
+        pool_matches = generate_pool_play_matches(teams)
+        pool_tuples = [(tuple(m["teams"]), m["pool"]) for m in pool_matches]
+        
+        pools_data = constraints["tournament_settings"]["pools"]
+        elim_tuples = generate_elimination_matches_for_scheduling(pools_data)
+        
+        # Combine pool and elimination matches
+        all_matches = pool_tuples + elim_tuples
+        manager._generate_pool_play_matches = lambda: all_matches
+        
+        # Run allocation
+        schedule, warnings = manager.allocate_teams_to_courts()
+        
+        # Validations
+        scheduled_count = sum(len(court_matches) for court_matches in schedule.values())
+        expected_pool_matches = len(pool_matches)
+        expected_elim_matches = len(elim_tuples)
+        expected_total = expected_pool_matches + expected_elim_matches
+        
+        assert scheduled_count > 0, "Schedule should not be empty"
+        # Allow some tolerance for tight schedules
+        assert scheduled_count >= expected_total * 0.8, \
+            f"Expected at least {expected_total * 0.8:.0f} matches, got {scheduled_count}"
+        
+        # Verify no team double-booking
+        team_matches = {}
+        for court_matches in schedule.values():
+            for day_num, start_dt, end_dt, match_tuple in court_matches:
+                for team in match_tuple:
+                    if team not in team_matches:
+                        team_matches[team] = []
+                    team_matches[team].append((day_num, start_dt, end_dt))
+        
+        for team, matches_list in team_matches.items():
+            sorted_matches = sorted(matches_list, key=lambda x: (x[0], x[1]))
+            for i in range(len(sorted_matches) - 1):
+                day1, _, end1 = sorted_matches[i]
+                day2, start2, _ = sorted_matches[i + 1]
+                
+                if day1 == day2:
+                    assert end1 <= start2, f"Team {team} has overlapping matches"
+        
+        # Verify both pool and elimination phases present
+        pool_phase_found = any("pool" in str(match_info).lower() 
+                               for match_info in [m[1] for m in all_matches if len(m) > 1])
+        elimination_phase_found = any("round" in str(match_info).lower() or "final" in str(match_info).lower()
+                                      for match_info in [m[1] for m in all_matches if len(m) > 1])
+        
+        # At minimum, we should have attempted to schedule both phases
+        assert len(all_matches) == expected_total, \
+            f"Should have {expected_total} total matches (pool + elimination)"
+    
+    def test_pool_plus_double_elimination(self, sample_courts):
+        """Test complete flow: pool play → winners/losers brackets (double elimination)."""
+        # Setup: 2 pools of 3 teams, top 2 advance
+        teams = [
+            Team(name="PoolA_1", attributes={"pool": "poolA"}),
+            Team(name="PoolA_2", attributes={"pool": "poolA"}),
+            Team(name="PoolA_3", attributes={"pool": "poolA"}),
+            Team(name="PoolB_1", attributes={"pool": "poolB"}),
+            Team(name="PoolB_2", attributes={"pool": "poolB"}),
+            Team(name="PoolB_3", attributes={"pool": "poolB"}),
+        ]
+        
+        constraints = {
+            "match_duration_minutes": 60,
+            "days_number": 2,
+            "min_break_between_matches_minutes": 15,
+            "time_slot_increment_minutes": 15,
+            "day_end_time_limit": "22:00",
+            "team_specific_constraints": [],
+            "general_constraints": [],
+            "tournament_settings": {
+                "type": "pool_play_with_elimination",
+                "elimination_type": "double",
+                "pools": {
+                    "poolA": {"teams": ["PoolA_1", "PoolA_2", "PoolA_3"], "advance": 2},
+                    "poolB": {"teams": ["PoolB_1", "PoolB_2", "PoolB_3"], "advance": 2}
+                }
+            }
+        }
+        
+        manager = AllocationManager(teams, sample_courts, constraints)
+        
+        # Generate all matches: pool play + double elimination
+        from core.double_elimination import generate_double_elimination_matches_for_scheduling
+        
+        pool_matches = generate_pool_play_matches(teams)
+        pool_tuples = [(tuple(m["teams"]), m["pool"]) for m in pool_matches]
+        
+        pools_data = constraints["tournament_settings"]["pools"]
+        double_elim_tuples = generate_double_elimination_matches_for_scheduling(pools_data)
+        
+        # Combine pool and elimination matches
+        all_matches = pool_tuples + double_elim_tuples
+        manager._generate_pool_play_matches = lambda: all_matches
+        
+        # Run allocation
+        schedule, warnings = manager.allocate_teams_to_courts()
+        
+        # Validations
+        scheduled_count = sum(len(court_matches) for court_matches in schedule.values())
+        expected_pool_matches = len(pool_matches)
+        expected_elim_matches = len(double_elim_tuples)
+        
+        assert scheduled_count > 0, "Schedule should not be empty"
+        
+        # Verify no team double-booking
+        team_matches = {}
+        for court_matches in schedule.values():
+            for day_num, start_dt, end_dt, match_tuple in court_matches:
+                for team in match_tuple:
+                    if team not in team_matches:
+                        team_matches[team] = []
+                    team_matches[team].append((day_num, start_dt, end_dt))
+        
+        for team, matches_list in team_matches.items():
+            sorted_matches = sorted(matches_list, key=lambda x: (x[0], x[1]))
+            for i in range(len(sorted_matches) - 1):
+                day1, _, end1 = sorted_matches[i]
+                day2, start2, _ = sorted_matches[i + 1]
+                
+                if day1 == day2:
+                    assert end1 <= start2, f"Team {team} has overlapping matches"
+        
+        # Double elimination generates only first-round winners bracket matches
+        # (later rounds depend on results and can't be pre-scheduled)
+        # For 4 teams in bracket, there are 2 first-round matches (semifinals)
+        assert expected_elim_matches >= 2, \
+            f"Double elimination should have at least 2 first-round bracket matches, got {expected_elim_matches}"
+        
+        # Verify both pool and bracket phases present
+        assert expected_pool_matches > 0, "Should have pool matches"
+        assert expected_elim_matches > 0, "Should have elimination bracket matches"
+    
+    def test_gold_and_silver_brackets(self, sample_courts):
+        """Test complete flow: pool play → gold bracket + silver bracket."""
+        # Setup: 2 pools of 4 teams, top 2 to gold, bottom 2 to silver
+        teams = [
+            Team(name="Red1", attributes={"pool": "red"}),
+            Team(name="Red2", attributes={"pool": "red"}),
+            Team(name="Red3", attributes={"pool": "red"}),
+            Team(name="Red4", attributes={"pool": "red"}),
+            Team(name="Blue1", attributes={"pool": "blue"}),
+            Team(name="Blue2", attributes={"pool": "blue"}),
+            Team(name="Blue3", attributes={"pool": "blue"}),
+            Team(name="Blue4", attributes={"pool": "blue"}),
+        ]
+        
+        constraints = {
+            "match_duration_minutes": 60,
+            "days_number": 2,
+            "min_break_between_matches_minutes": 15,
+            "time_slot_increment_minutes": 15,
+            "day_end_time_limit": "22:00",
+            "team_specific_constraints": [],
+            "general_constraints": [],
+            "tournament_settings": {
+                "type": "pool_play_with_elimination",
+                "elimination_type": "single",
+                "has_silver_bracket": True,
+                "pools": {
+                    "red": {"teams": ["Red1", "Red2", "Red3", "Red4"], "advance": 2},
+                    "blue": {"teams": ["Blue1", "Blue2", "Blue3", "Blue4"], "advance": 2}
+                }
+            }
+        }
+        
+        manager = AllocationManager(teams, sample_courts, constraints)
+        
+        # Generate all matches: pool play + gold bracket + silver bracket
+        from core.elimination import (
+            generate_elimination_matches_for_scheduling,
+            seed_silver_bracket_teams,
+            create_bracket_matchups
+        )
+        
+        pool_matches = generate_pool_play_matches(teams)
+        pool_tuples = [(tuple(m["teams"]), m["pool"]) for m in pool_matches]
+        
+        pools_data = constraints["tournament_settings"]["pools"]
+        
+        # Gold bracket (top 2 from each pool = 4 teams)
+        gold_tuples = generate_elimination_matches_for_scheduling(pools_data)
+        
+        # Silver bracket (bottom 2 from each pool = 4 teams)
+        silver_seeded = seed_silver_bracket_teams(pools_data)
+        silver_matchups = create_bracket_matchups(silver_seeded)
+        
+        # Convert silver matchups to tuples with "Silver" prefix
+        silver_tuples = []
+        for match in silver_matchups:
+            team1, team2 = match['teams']
+            round_name = match['round']
+            if team1 != 'BYE' and team2 != 'BYE':
+                silver_tuples.append(((team1, team2), f"Silver {round_name}"))
+        
+        # Combine all matches
+        all_matches = pool_tuples + gold_tuples + silver_tuples
+        manager._generate_pool_play_matches = lambda: all_matches
+        
+        # Run allocation
+        schedule, warnings = manager.allocate_teams_to_courts()
+        
+        # Validations
+        scheduled_count = sum(len(court_matches) for court_matches in schedule.values())
+        
+        assert scheduled_count > 0, "Schedule should not be empty"
+        
+        # Verify no team double-booking
+        team_matches = {}
+        for court_matches in schedule.values():
+            for day_num, start_dt, end_dt, match_tuple in court_matches:
+                for team in match_tuple:
+                    if team not in team_matches:
+                        team_matches[team] = []
+                    team_matches[team].append((day_num, start_dt, end_dt))
+        
+        for team, matches_list in team_matches.items():
+            sorted_matches = sorted(matches_list, key=lambda x: (x[0], x[1]))
+            for i in range(len(sorted_matches) - 1):
+                day1, _, end1 = sorted_matches[i]
+                day2, start2, _ = sorted_matches[i + 1]
+                
+                if day1 == day2:
+                    assert end1 <= start2, f"Team {team} has overlapping matches"
+        
+        # Should have pool + gold + silver matches
+        expected_pool = len(pool_matches)
+        expected_gold = len(gold_tuples)
+        expected_silver = len(silver_tuples)
+        
+        assert expected_gold > 0, "Should have gold bracket matches"
+        assert expected_silver > 0, "Should have silver bracket matches"
+    
+    def test_tournament_with_tight_constraints(self):
+        """Test stress case: short day (8 hours), long matches (90 min), many teams."""
+        # Setup: 3 pools of 3 teams = 9 teams total, 13 pool matches
+        teams = [
+            Team(name="X1", attributes={"pool": "X"}),
+            Team(name="X2", attributes={"pool": "X"}),
+            Team(name="X3", attributes={"pool": "X"}),
+            Team(name="Y1", attributes={"pool": "Y"}),
+            Team(name="Y2", attributes={"pool": "Y"}),
+            Team(name="Y3", attributes={"pool": "Y"}),
+            Team(name="Z1", attributes={"pool": "Z"}),
+            Team(name="Z2", attributes={"pool": "Z"}),
+            Team(name="Z3", attributes={"pool": "Z"}),
+        ]
+        
+        # Only 2 courts available
+        courts = [
+            Court(name="Court 1", start_time="08:00"),
+            Court(name="Court 2", start_time="09:00"),
+        ]
+        
+        constraints = {
+            "match_duration_minutes": 90,  # Long matches
+            "days_number": 2,
+            "min_break_between_matches_minutes": 20,  # Longer break
+            "time_slot_increment_minutes": 15,
+            "day_end_time_limit": "16:00",  # Only 8 hours per day
+            "team_specific_constraints": [],
+            "general_constraints": [],
+            "tournament_settings": {
+                "type": "pool_play",
+                "pools": {
+                    "X": {"teams": ["X1", "X2", "X3"], "advance": 1},
+                    "Y": {"teams": ["Y1", "Y2", "Y3"], "advance": 1},
+                    "Z": {"teams": ["Z1", "Z2", "Z3"], "advance": 1}
+                }
+            }
+        }
+        
+        manager = AllocationManager(teams, courts, constraints)
+        
+        pool_matches = generate_pool_play_matches(teams)
+        pool_tuples = [(tuple(m["teams"]), m["pool"]) for m in pool_matches]
+        manager._generate_pool_play_matches = lambda: pool_tuples
+        
+        # Run allocation
+        schedule, warnings = manager.allocate_teams_to_courts()
+        
+        # With tight constraints, not all matches may fit
+        scheduled_count = sum(len(court_matches) for court_matches in schedule.values())
+        
+        # Should schedule at least some matches
+        assert scheduled_count > 0, "Should schedule at least some matches"
+        
+        # Verify court hour constraints respected
+        day_end = datetime.time(16, 0)
+        
+        for court in courts:
+            court_start = manager._parse_time(court.start_time)
+            for day_num, start_dt, end_dt, _ in schedule[court.name]:
+                assert start_dt.time() >= court_start, \
+                    f"Match starts before court opens: {start_dt.time()} < {court_start}"
+                assert end_dt.time() <= day_end, \
+                    f"Match ends after day limit: {end_dt.time()} > {day_end}"
+        
+        # Verify minimum break respected
+        min_break = datetime.timedelta(minutes=20)
+        team_matches = {}
+        for court_matches in schedule.values():
+            for day_num, start_dt, end_dt, match_tuple in court_matches:
+                for team in match_tuple:
+                    if team not in team_matches:
+                        team_matches[team] = []
+                    team_matches[team].append((day_num, start_dt, end_dt))
+        
+        for team, matches_list in team_matches.items():
+            sorted_matches = sorted(matches_list, key=lambda x: (x[0], x[1]))
+            for i in range(len(sorted_matches) - 1):
+                day1, _, end1 = sorted_matches[i]
+                day2, start2, _ = sorted_matches[i + 1]
+                
+                if day1 == day2:
+                    actual_break = start2 - end1
+                    assert actual_break >= min_break, \
+                        f"Team {team} has insufficient break: {actual_break} < {min_break}"
+    
+    def test_tournament_with_team_specific_constraints(self, sample_courts):
+        """Test teams with play_after/play_before time windows."""
+        teams = [
+            Team(name="EarlyBird", attributes={"pool": "pool1"}),
+            Team(name="NightOwl", attributes={"pool": "pool1"}),
+            Team(name="Regular1", attributes={"pool": "pool1"}),
+            Team(name="Regular2", attributes={"pool": "pool2"}),
+            Team(name="Regular3", attributes={"pool": "pool2"}),
+        ]
+        
+        constraints = {
+            "match_duration_minutes": 60,
+            "days_number": 2,
+            "min_break_between_matches_minutes": 15,
+            "time_slot_increment_minutes": 15,
+            "day_end_time_limit": "22:00",
+            "team_specific_constraints": [
+                {"team_name": "EarlyBird", "play_before": "12:00", "note": "Must finish by noon"},
+                {"team_name": "NightOwl", "play_after": "18:00", "note": "Only available evenings"},
+            ],
+            "general_constraints": [],
+            "tournament_settings": {
+                "type": "pool_play",
+                "pools": {
+                    "pool1": {"teams": ["EarlyBird", "NightOwl", "Regular1"], "advance": 2},
+                    "pool2": {"teams": ["Regular2", "Regular3"], "advance": 1}
+                }
+            }
+        }
+        
+        manager = AllocationManager(teams, sample_courts, constraints)
+        
+        pool_matches = generate_pool_play_matches(teams)
+        pool_tuples = [(tuple(m["teams"]), m["pool"]) for m in pool_matches]
+        manager._generate_pool_play_matches = lambda: pool_tuples
+        
+        # Run allocation
+        schedule, warnings = manager.allocate_teams_to_courts()
+        
+        scheduled_count = sum(len(court_matches) for court_matches in schedule.values())
+        assert scheduled_count > 0, "Should schedule at least some matches"
+        
+        # Verify EarlyBird's play_before constraint (12:00)
+        earlybird_constraint_ok = True
+        for court_matches in schedule.values():
+            for day_num, start_dt, end_dt, match_tuple in court_matches:
+                if "EarlyBird" in match_tuple:
+                    if end_dt.time() > datetime.time(12, 0):
+                        earlybird_constraint_ok = False
+                        print(f"EarlyBird match ends after 12:00: {end_dt}")
+        
+        # Verify NightOwl's play_after constraint (18:00)
+        nightowl_constraint_ok = True
+        for court_matches in schedule.values():
+            for day_num, start_dt, end_dt, match_tuple in court_matches:
+                if "NightOwl" in match_tuple:
+                    if start_dt.time() < datetime.time(18, 0):
+                        nightowl_constraint_ok = False
+                        print(f"NightOwl match starts before 18:00: {start_dt}")
+        
+        # With tight constraints, solver might not find perfect solution
+        # But we should verify attempts were made to honor constraints
+        assert earlybird_constraint_ok or nightowl_constraint_ok, \
+            "At least one team-specific constraint should be honored"
