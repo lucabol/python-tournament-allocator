@@ -12,7 +12,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from core.elimination import seed_teams_from_pools
+from core.elimination import seed_teams_from_pools, _generate_bracket_order
+from core.double_elimination import generate_double_elimination_bracket, seed_silver_bracket_teams
 
 
 class TestGoldBracketSeeding:
@@ -244,3 +245,216 @@ class TestGoldBracketSeeding:
         # Pool name alphabetical sort should apply
         assert seeded[0][2] == 'PoolA'
         assert seeded[1][2] == 'PoolB'
+
+
+class TestSilverBracketSeeding:
+    """Tests for silver bracket seeding correctness."""
+    
+    def test_silver_seeding_excludes_advancing_teams(self):
+        """Verify that only non-advancing teams are included in silver bracket."""
+        pools = {
+            'Pool A': {
+                'teams': ['Team A1', 'Team A2', 'Team A3', 'Team A4', 'Team A5', 'Team A6'],
+                'advance': 2
+            },
+            'Pool B': {
+                'teams': ['Team B1', 'Team B2', 'Team B3', 'Team B4'],
+                'advance': 2
+            }
+        }
+        
+        # Create standings with teams having played games
+        standings = {
+            'Pool A': [
+                {'team': 'Team A1', 'wins': 5, 'set_diff': 10, 'point_diff': 50, 'matches_played': 5},
+                {'team': 'Team A2', 'wins': 4, 'set_diff': 8, 'point_diff': 40, 'matches_played': 5},
+                {'team': 'Team A3', 'wins': 3, 'set_diff': 3, 'point_diff': 15, 'matches_played': 5},
+                {'team': 'Team A4', 'wins': 2, 'set_diff': -2, 'point_diff': -10, 'matches_played': 5},
+                {'team': 'Team A5', 'wins': 1, 'set_diff': -5, 'point_diff': -25, 'matches_played': 5},
+                {'team': 'Team A6', 'wins': 0, 'set_diff': -14, 'point_diff': -70, 'matches_played': 5}
+            ],
+            'Pool B': [
+                {'team': 'Team B1', 'wins': 3, 'set_diff': 6, 'point_diff': 30, 'matches_played': 3},
+                {'team': 'Team B2', 'wins': 2, 'set_diff': 2, 'point_diff': 10, 'matches_played': 3},
+                {'team': 'Team B3', 'wins': 1, 'set_diff': -3, 'point_diff': -15, 'matches_played': 3},
+                {'team': 'Team B4', 'wins': 0, 'set_diff': -5, 'point_diff': -25, 'matches_played': 3}
+            ]
+        }
+        
+        seeded_teams = seed_silver_bracket_teams(pools, standings)
+        team_names = [team[0] for team in seeded_teams]
+        
+        # Verify advancing teams (top 2 from each pool) are NOT included
+        assert 'Team A1' not in team_names
+        assert 'Team A2' not in team_names
+        assert 'Team B1' not in team_names
+        assert 'Team B2' not in team_names
+        
+        # Verify non-advancing teams ARE included
+        assert 'Team A3' in team_names
+        assert 'Team A4' in team_names
+        assert 'Team A5' in team_names
+        assert 'Team A6' in team_names
+        assert 'Team B3' in team_names
+        assert 'Team B4' in team_names
+        
+        # Should have exactly 6 non-advancing teams total
+        assert len(seeded_teams) == 6
+    
+    def test_silver_seeding_by_finish_position(self):
+        """Verify that teams are seeded by finish position with #3 finishers before #4 finishers."""
+        pools = {
+            'Pool A': {
+                'teams': ['Team A1', 'Team A2', 'Team A3', 'Team A4', 'Team A5'],
+                'advance': 2
+            },
+            'Pool B': {
+                'teams': ['Team B1', 'Team B2', 'Team B3', 'Team B4', 'Team B5'],
+                'advance': 2
+            },
+            'Pool C': {
+                'teams': ['Team C1', 'Team C2', 'Team C3', 'Team C4'],
+                'advance': 2
+            }
+        }
+        
+        # Create standings where teams have equal stats within position
+        standings = {
+            'Pool A': [
+                {'team': 'Team A1', 'wins': 4, 'set_diff': 8, 'point_diff': 40, 'matches_played': 4},
+                {'team': 'Team A2', 'wins': 3, 'set_diff': 4, 'point_diff': 20, 'matches_played': 4},
+                {'team': 'Team A3', 'wins': 2, 'set_diff': 0, 'point_diff': 0, 'matches_played': 4},
+                {'team': 'Team A4', 'wins': 1, 'set_diff': -4, 'point_diff': -20, 'matches_played': 4},
+                {'team': 'Team A5', 'wins': 0, 'set_diff': -8, 'point_diff': -40, 'matches_played': 4}
+            ],
+            'Pool B': [
+                {'team': 'Team B1', 'wins': 4, 'set_diff': 8, 'point_diff': 40, 'matches_played': 4},
+                {'team': 'Team B2', 'wins': 3, 'set_diff': 4, 'point_diff': 20, 'matches_played': 4},
+                {'team': 'Team B3', 'wins': 2, 'set_diff': 0, 'point_diff': 0, 'matches_played': 4},
+                {'team': 'Team B4', 'wins': 1, 'set_diff': -4, 'point_diff': -20, 'matches_played': 4},
+                {'team': 'Team B5', 'wins': 0, 'set_diff': -8, 'point_diff': -40, 'matches_played': 4}
+            ],
+            'Pool C': [
+                {'team': 'Team C1', 'wins': 3, 'set_diff': 6, 'point_diff': 30, 'matches_played': 3},
+                {'team': 'Team C2', 'wins': 2, 'set_diff': 2, 'point_diff': 10, 'matches_played': 3},
+                {'team': 'Team C3', 'wins': 1, 'set_diff': -2, 'point_diff': -10, 'matches_played': 3},
+                {'team': 'Team C4', 'wins': 0, 'set_diff': -6, 'point_diff': -30, 'matches_played': 3}
+            ]
+        }
+        
+        seeded_teams = seed_silver_bracket_teams(pools, standings)
+        
+        # First 3 seeds should be all #3 finishers (one from each pool)
+        third_place_teams = {'Team A3', 'Team B3', 'Team C3'}
+        first_three_seeds = {seeded_teams[0][0], seeded_teams[1][0], seeded_teams[2][0]}
+        assert first_three_seeds == third_place_teams, f"First 3 seeds should be all #3 finishers, got {first_three_seeds}"
+        
+        # Next 3 seeds should be all #4 finishers
+        fourth_place_teams = {'Team A4', 'Team B4', 'Team C4'}
+        next_three_seeds = {seeded_teams[3][0], seeded_teams[4][0], seeded_teams[5][0]}
+        assert next_three_seeds == fourth_place_teams, f"Seeds 4-6 should be all #4 finishers, got {next_three_seeds}"
+        
+        # Last 2 seeds should be #5 finishers (only Pools A and B have 5 teams)
+        fifth_place_teams = {'Team A5', 'Team B5'}
+        last_two_seeds = {seeded_teams[6][0], seeded_teams[7][0]}
+        assert last_two_seeds == fifth_place_teams, f"Last 2 seeds should be all #5 finishers, got {last_two_seeds}"
+        
+        # Total should be 8 teams
+        assert len(seeded_teams) == 8
+    
+    def test_silver_seeding_tiebreakers(self):
+        """Verify that tiebreaker logic (wins > set_diff > point_diff > pool_name) is applied correctly."""
+        pools = {
+            'Pool A': {
+                'teams': ['Team A1', 'Team A2', 'Team A3'],
+                'advance': 2
+            },
+            'Pool B': {
+                'teams': ['Team B1', 'Team B2', 'Team B3'],
+                'advance': 2
+            },
+            'Pool C': {
+                'teams': ['Team C1', 'Team C2', 'Team C3'],
+                'advance': 2
+            }
+        }
+        
+        # All #3 finishers with different stats to test tiebreaker ordering
+        standings = {
+            'Pool A': [
+                {'team': 'Team A1', 'wins': 2, 'set_diff': 4, 'point_diff': 20, 'matches_played': 2},
+                {'team': 'Team A2', 'wins': 1, 'set_diff': 0, 'point_diff': 0, 'matches_played': 2},
+                {'team': 'Team A3', 'wins': 1, 'set_diff': 2, 'point_diff': 10, 'matches_played': 2}  # Best 3rd: wins=1, set_diff=2
+            ],
+            'Pool B': [
+                {'team': 'Team B1', 'wins': 2, 'set_diff': 4, 'point_diff': 20, 'matches_played': 2},
+                {'team': 'Team B2', 'wins': 1, 'set_diff': 0, 'point_diff': 0, 'matches_played': 2},
+                {'team': 'Team B3', 'wins': 1, 'set_diff': 2, 'point_diff': 5, 'matches_played': 2}  # 2nd best 3rd: wins=1, set_diff=2, point_diff=5
+            ],
+            'Pool C': [
+                {'team': 'Team C1', 'wins': 2, 'set_diff': 4, 'point_diff': 20, 'matches_played': 2},
+                {'team': 'Team C2', 'wins': 1, 'set_diff': 0, 'point_diff': 0, 'matches_played': 2},
+                {'team': 'Team C3', 'wins': 1, 'set_diff': 1, 'point_diff': 15, 'matches_played': 2}  # Worst 3rd: wins=1, set_diff=1
+            ]
+        }
+        
+        seeded_teams = seed_silver_bracket_teams(pools, standings)
+        
+        # Verify tiebreaker ordering among #3 finishers
+        # Should be ordered by: wins (all 1), then set_diff (2, 2, 1), then point_diff (10, 5), then pool (A, B, C)
+        assert seeded_teams[0][0] == 'Team A3', f"Seed 1 should be Team A3 (wins=1, set_diff=2, point_diff=10), got {seeded_teams[0][0]}"
+        assert seeded_teams[1][0] == 'Team B3', f"Seed 2 should be Team B3 (wins=1, set_diff=2, point_diff=5), got {seeded_teams[1][0]}"
+        assert seeded_teams[2][0] == 'Team C3', f"Seed 3 should be Team C3 (wins=1, set_diff=1), got {seeded_teams[2][0]}"
+        
+        # Verify seeds are sequential
+        assert seeded_teams[0][1] == 1
+        assert seeded_teams[1][1] == 2
+        assert seeded_teams[2][1] == 3
+    
+    def test_silver_bracket_not_generated_insufficient_teams(self):
+        """Verify that silver bracket requires at least 2 teams to generate."""
+        # Test with only 1 non-advancing team
+        pools = {
+            'Pool A': {
+                'teams': ['Team A1', 'Team A2', 'Team A3'],
+                'advance': 2  # Only 1 non-advancing team
+            }
+        }
+        
+        standings = {
+            'Pool A': [
+                {'team': 'Team A1', 'wins': 2, 'set_diff': 4, 'point_diff': 20, 'matches_played': 2},
+                {'team': 'Team A2', 'wins': 1, 'set_diff': 0, 'point_diff': 0, 'matches_played': 2},
+                {'team': 'Team A3', 'wins': 0, 'set_diff': -4, 'point_diff': -20, 'matches_played': 2}
+            ]
+        }
+        
+        seeded_teams = seed_silver_bracket_teams(pools, standings)
+        
+        # Should only have 1 team
+        assert len(seeded_teams) == 1
+        assert seeded_teams[0][0] == 'Team A3'
+        
+        # Test with no non-advancing teams (all advance)
+        pools_all_advance = {
+            'Pool A': {
+                'teams': ['Team A1', 'Team A2'],
+                'advance': 2  # All teams advance
+            }
+        }
+        
+        standings_all_advance = {
+            'Pool A': [
+                {'team': 'Team A1', 'wins': 1, 'set_diff': 2, 'point_diff': 10, 'matches_played': 1},
+                {'team': 'Team A2', 'wins': 0, 'set_diff': -2, 'point_diff': -10, 'matches_played': 1}
+            ]
+        }
+        
+        seeded_teams_empty = seed_silver_bracket_teams(pools_all_advance, standings_all_advance)
+        
+        # Should have no teams
+        assert len(seeded_teams_empty) == 0
+        
+        # Test with empty pools
+        seeded_teams_no_pools = seed_silver_bracket_teams({}, None)
+        assert len(seeded_teams_no_pools) == 0
