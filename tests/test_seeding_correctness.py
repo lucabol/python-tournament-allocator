@@ -247,6 +247,229 @@ class TestGoldBracketSeeding:
         assert seeded[1][2] == 'PoolB'
 
 
+class TestDoubleEliminationSeeding:
+    """Test seeding correctness in double elimination tournaments."""
+    
+    def _create_8_team_pools_and_standings(self):
+        """Helper to create consistent 8-team test data."""
+        pools = {
+            'Pool A': {
+                'teams': ['Team 1', 'Team 2'],
+                'advance': 2
+            },
+            'Pool B': {
+                'teams': ['Team 3', 'Team 4'],
+                'advance': 2
+            },
+            'Pool C': {
+                'teams': ['Team 5', 'Team 6'],
+                'advance': 2
+            },
+            'Pool D': {
+                'teams': ['Team 7', 'Team 8'],
+                'advance': 2
+            }
+        }
+        
+        standings = {
+            'Pool A': [
+                {'team': 'Team 1', 'wins': 5, 'losses': 0, 'set_diff': 12, 'point_diff': 60, 'matches_played': 5},
+                {'team': 'Team 2', 'wins': 4, 'losses': 1, 'set_diff': 8, 'point_diff': 40, 'matches_played': 5}
+            ],
+            'Pool B': [
+                {'team': 'Team 3', 'wins': 5, 'losses': 0, 'set_diff': 10, 'point_diff': 50, 'matches_played': 5},
+                {'team': 'Team 4', 'wins': 4, 'losses': 1, 'set_diff': 6, 'point_diff': 30, 'matches_played': 5}
+            ],
+            'Pool C': [
+                {'team': 'Team 5', 'wins': 4, 'losses': 1, 'set_diff': 5, 'point_diff': 25, 'matches_played': 5},
+                {'team': 'Team 6', 'wins': 3, 'losses': 2, 'set_diff': 2, 'point_diff': 10, 'matches_played': 5}
+            ],
+            'Pool D': [
+                {'team': 'Team 7', 'wins': 3, 'losses': 2, 'set_diff': 0, 'point_diff': 0, 'matches_played': 5},
+                {'team': 'Team 8', 'wins': 2, 'losses': 3, 'set_diff': -2, 'point_diff': -5, 'matches_played': 5}
+            ]
+        }
+        
+        return pools, standings
+
+    def test_winners_bracket_initial_seeding(self):
+        """
+        Test that winners bracket follows standard single elimination seeding.
+        
+        For an 8-team bracket, the standard seeding order is [1, 8, 4, 5, 2, 7, 3, 6].
+        This ensures:
+        - Seed 1 faces seed 8 (easiest matchup)
+        - Seed 2 faces seed 7 (second easiest)
+        - Seeds are distributed to avoid early clashes between top seeds
+        """
+        pools, standings = self._create_8_team_pools_and_standings()
+        bracket = generate_double_elimination_bracket(pools, standings)
+        
+        # Extract winners bracket first round
+        winners_first_round = list(bracket['winners_bracket'].values())[0]
+        
+        # Verify bracket size
+        assert bracket['bracket_size'] == 8
+        assert bracket['total_winners_rounds'] == 3  # 8 teams = 2^3
+        
+        # Get the expected bracket order
+        expected_order = _generate_bracket_order(8)  # [1, 8, 4, 5, 2, 7, 3, 6]
+        
+        # Verify first round matchups follow standard seeding
+        # The seeded teams from pools are: Team 5 (seed 1), Team 1 (seed 2), 
+        # Team 2 (seed 3), Team 6 (seed 4), Team 3 (seed 5), Team 7 (seed 6),
+        # Team 4 (seed 7), Team 8 (seed 8)
+        
+        # All matches in first round should have 'losers_feed_to' pointing to L1
+        for match in winners_first_round:
+            assert match['losers_feed_to'] == 'L1', "Winners R1 losers should feed to L1"
+        
+        # Verify seeds in each match
+        for match in winners_first_round:
+            seed1, seed2 = match['seeds']
+            # In standard bracket seeding, seed sum should equal bracket_size + 1
+            assert seed1 + seed2 == 9, f"Seeds {seed1} and {seed2} should sum to 9 in 8-team bracket"
+
+    def test_losers_bracket_seed_preservation(self):
+        """
+        Test that losers dropping from winners R1 maintain seed gaps.
+        
+        In the first losers round (L1):
+        - 4 teams drop from winners round 1
+        - They should maintain relative seed order
+        - Losers pair off: (Loser W1-M1 vs Loser W1-M2) and (Loser W1-M3 vs Loser W1-M4)
+        
+        For 8-team bracket with seeds [1,8,4,5,2,7,3,6]:
+        - W1-M1: 1v8 → loser is seed 8
+        - W1-M2: 4v5 → loser is seed 5
+        - W1-M3: 2v7 → loser is seed 7
+        - W1-M4: 3v6 → loser is seed 6
+        
+        L1 should pair:
+        - L1-M1: Loser(1v8) vs Loser(4v5) → seed 8 vs seed 5 (if chalk)
+        - L1-M2: Loser(2v7) vs Loser(3v6) → seed 7 vs seed 6 (if chalk)
+        """
+        pools, standings = self._create_8_team_pools_and_standings()
+        bracket = generate_double_elimination_bracket(pools, standings)
+        
+        # Extract losers bracket first round (L1)
+        losers_first_round = list(bracket['losers_bracket'].values())[0]
+        
+        # Verify L1 has correct structure
+        assert len(losers_first_round) == 2, "L1 should have 2 matches for 8-team bracket"
+        
+        # L1-M1: Losers from W1-M1 and W1-M2 face each other
+        l1_match1 = losers_first_round[0]
+        assert l1_match1['teams'] == ('Loser W1-M1', 'Loser W1-M2')
+        assert l1_match1['match_code'] == 'L1-M1'
+        assert l1_match1['note'] == 'Losers from Winners Round 1'
+        
+        # L1-M2: Losers from W1-M3 and W1-M4 face each other
+        l1_match2 = losers_first_round[1]
+        assert l1_match2['teams'] == ('Loser W1-M3', 'Loser W1-M4')
+        assert l1_match2['match_code'] == 'L1-M2'
+        assert l1_match2['note'] == 'Losers from Winners Round 1'
+        
+        # Verify losers bracket has correct number of rounds
+        # For 8-team bracket: 4 losers rounds (L1, L2, L3, L4)
+        assert bracket['total_losers_rounds'] == 4
+
+    def test_losers_bracket_interleaving(self):
+        """
+        Test that W1 losers and W2 losers interleave correctly.
+        
+        Double elimination alternates between:
+        - Minor rounds (L1, L3, L5...): Only losers bracket teams compete
+        - Major rounds (L2, L4, L6...): Winners bracket losers drop in
+        
+        For 8-team bracket:
+        - L1 (minor): 4 W1 losers → 2 matches → 2 winners
+        - L2 (major): 2 W2 losers + 2 L1 winners → 2 matches
+        - L3 (minor): 2 L2 winners → 1 match
+        - L4 (major): 1 W3 loser + 1 L3 winner → 1 match (determines L champion)
+        """
+        pools, standings = self._create_8_team_pools_and_standings()
+        bracket = generate_double_elimination_bracket(pools, standings)
+        
+        losers_bracket = bracket['losers_bracket']
+        losers_rounds = list(losers_bracket.keys())
+        
+        # Verify we have 4 losers rounds
+        assert len(losers_rounds) == 4
+        
+        # L1 (minor): Winners bracket round 1 losers play each other
+        l1_matches = losers_bracket[losers_rounds[0]]
+        assert len(l1_matches) == 2
+        assert all('Loser W1' in match['teams'][0] for match in l1_matches)
+        assert all('Loser W1' in match['teams'][1] for match in l1_matches)
+        
+        # L2 (major): Winners bracket round 2 losers drop in
+        l2_matches = losers_bracket[losers_rounds[1]]
+        assert len(l2_matches) == 2
+        # Each L2 match should have one W2 loser and one L1 winner
+        for i, match in enumerate(l2_matches):
+            assert f'Loser W2-M{i+1}' in match['teams'][0], f"L2-M{i+1} should have W2 loser"
+            assert f'Winner L1-M{i+1}' in match['teams'][1], f"L2-M{i+1} should have L1 winner"
+        
+        # L3 (minor): L2 winners play each other
+        l3_matches = losers_bracket[losers_rounds[2]]
+        assert len(l3_matches) == 1
+        assert l3_matches[0]['teams'] == ('Winner L2-M1', 'Winner L2-M2')
+        
+        # L4 (major): W3 loser vs L3 winner (losers bracket final)
+        l4_matches = losers_bracket[losers_rounds[3]]
+        assert len(l4_matches) == 1
+        assert l4_matches[0]['teams'] == ('Loser W3-M1', 'Winner L3-M1')
+        assert 'Winners R3 loser vs Losers R3 winner' in l4_matches[0]['note']
+
+    def test_grand_final_participants(self):
+        """
+        Test that grand final structure is correct.
+        
+        Grand Final should:
+        - Pit Winners Bracket Champion vs Losers Bracket Champion
+        - Winners champion is undefeated (0 losses)
+        - Losers champion has exactly 1 loss (from somewhere in winners bracket)
+        - Include bracket reset option if losers champion wins
+        
+        The winners champion has the advantage: they only need to win once,
+        while the losers champion must win twice (GF + BR).
+        """
+        pools, standings = self._create_8_team_pools_and_standings()
+        bracket = generate_double_elimination_bracket(pools, standings)
+        
+        # Verify Grand Final structure
+        grand_final = bracket['grand_final']
+        assert grand_final is not None
+        assert grand_final['teams'] == ('Winners Bracket Champion', 'Losers Bracket Champion')
+        assert grand_final['round'] == 'Grand Final'
+        assert grand_final['match_code'] == 'GF'
+        assert grand_final['is_placeholder'] is True
+        assert 'bracket reset' in grand_final['note'].lower()
+        
+        # Verify Bracket Reset structure
+        bracket_reset = bracket['bracket_reset']
+        assert bracket_reset is not None
+        assert bracket_reset['teams'] == ('Winner GF', 'Loser GF')
+        assert bracket_reset['round'] == 'Bracket Reset'
+        assert bracket_reset['match_code'] == 'BR'
+        assert bracket_reset['is_conditional'] is True
+        assert 'only played if' in bracket_reset['note'].lower()
+        
+        # Verify winners bracket final feeds into GF
+        winners_bracket = bracket['winners_bracket']
+        winners_final = list(winners_bracket.values())[-1]  # Last round
+        assert len(winners_final) == 1  # Finals should have 1 match
+        
+        # Verify losers bracket final feeds into GF
+        losers_bracket = bracket['losers_bracket']
+        losers_final = list(losers_bracket.values())[-1]  # Last round
+        assert len(losers_final) == 1  # Finals should have 1 match
+        
+        # The last winners round should indicate losers feed to GF
+        assert winners_final[0]['losers_feed_to'] == 'GF'
+
+
 class TestSilverBracketSeeding:
     """Tests for silver bracket seeding correctness."""
     
