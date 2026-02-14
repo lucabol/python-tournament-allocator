@@ -239,3 +239,123 @@
 **What:** Removed `assert b'Print View' in response.data` line from `TestEnhancedDashboard::test_dashboard_shows_export_bar` (was verifying the print page nav link existed). No dedicated test classes/methods for print route existed to remove. Added `TestInstaPage::test_insta_page_shows_bracket_data` to verify bracket rendering on insta page when pools are configured.
 **Why:** Print page nav link is gone; the assertion would always fail. New test documents bracket rendering behavior on insta page.
 **Impact:** All 268 tests pass. No print-route failures because route was already removed upstream.
+
+---
+
+## Model Selection & Performance Optimization (2026-02-13 to 2026-02-14, consolidated)
+
+### User model selection directives (consolidated)
+**By:** Luca Bolognese (via Copilot)
+**What:** Evolution of model selection preferences across session:
+1. (2026-02-13 12:08) Use Opus 4.6 (fast mode) for all team members and tasks
+2. (2026-02-13 15:05) Revert to default model selection for each team member — remove session-wide override
+3. (2026-02-13 15:06) Re-apply claude-opus-4.6-fast for all team members (preference confirmed)
+**Why:** User experimentation with model speed/quality tradeoff. Final decision: claude-opus-4.6-fast preferred over default per-role selection.
+
+### Fast test subset via pytest `slow` marker (2026-02-13)
+**By:** Hockney
+**What:** Added `@pytest.mark.slow` to 2 tests in `TestLargeTournament` (test_integration.py) that hit 60-second CP-SAT solver timeout. Created `pytest.ini` with marker registration. Fast subset runs via `pytest tests/ -m "not slow"` (~21s, 274/276 tests). Full suite: `pytest tests/` (~137s, 276 tests).
+**Why:** Full suite takes 2+ minutes almost entirely due to OR-Tools solver tests. For small changes (UI, templates), the wait is unnecessary friction. Fast subset covers 99% of tests including all route, model, bracket, and auth tests.
+
+### Always use fast tests unless changing scheduling algorithm (2026-02-14, consolidated)
+**By:** Luca Bolognese (via Copilot)
+**What:** Team guideline — run `pytest -m "not slow"` for non-scheduling changes. Only run full suite (`pytest tests/`) when allocation/scheduling code in `src/core/allocation.py` is modified.
+**Why:** User request — fast feedback loop for 95% of changes. Captured for team memory.
+
+---
+
+## Result Clearing User Experience (2026-02-13 to 2026-02-14, consolidated)
+
+### Clear result button API contract (2026-02-14)
+**By:** Fenster
+**What:** Tracking page clear buttons (✕) call `POST /api/clear-result` with JSON `{"match_key": "<key>"}`. Backend removes result from `results.yaml` and returns `{"success": true}`.
+**Why:** Tournament managers need to correct mistakes. Frontend ready; backend implementation required.
+
+### Result clearing via empty score submission (2026-02-13)
+**By:** McManus
+**What:** Score input endpoints (`/api/results/pool`, `/api/results/bracket`) now detect when all scores are empty and delete the result instead of rejecting. Partial input (one filled, one empty) still returns 400 error.
+**Why:** Simpler UX — users clear results by deleting both scores naturally, no separate button needed.
+
+### Clear result buttons removed from all result tracking UIs (2026-02-14)
+**By:** Fenster
+**What:** Removed all "Clear" (✕) buttons and JavaScript (`clearResult`, `clearBracketResult`) from tracking.html, sbracket.html, dbracket.html. Users now clear by deleting both score values.
+**Why:** User request (Luca) — the explicit clear button added visual clutter. The natural workflow is already clearing scores anyway. The backend `/api/clear-result` endpoint remains for programmatic use.
+
+---
+
+## Azure Deployment & Infrastructure (2026-02-14, consolidated & expanded)
+
+### Azure app name uniqueness via subscription prefix (2026-02-14)
+**By:** McManus
+**What:** Changed default app name from hardcoded "tournament-allocator" to `tournament-allocator-{8-char-subscription-id-prefix}`. Auto-generated, deterministic, globally unique. Users can override via `AZURE_APP_NAME` in `.env`.
+**Why:** Azure requires globally unique app names. The hardcoded name was already taken, causing deployment collisions.
+
+### PowerShell Azure CLI existence checks use $LASTEXITCODE (2026-02-14)
+**By:** McManus
+**What:** Resource existence checks for App Service Plan and Web App now use `$LASTEXITCODE` after `az ... show` commands instead of try/catch blocks. Pattern: `az <cmd> 2>$null; $exists = ($LASTEXITCODE -eq 0)`.
+**Why:** PowerShell doesn't automatically throw exceptions on non-zero exit codes from external commands. Try/catch blocks don't catch CLI failures, causing false positives (script thinks resources exist when they don't). Checking `$LASTEXITCODE` is the correct pattern.
+
+### Azure Oryx build timing — build settings before deploy (2026-02-14)
+**By:** McManus
+**What:** Split app settings into build-time and runtime groups:
+1. **Build-time** (`SCM_DO_BUILD_DURING_DEPLOYMENT=true`) — set BEFORE `az webapp deploy`
+2. **Runtime** (`TOURNAMENT_DATA_DIR`, `SECRET_KEY`, startup command) — set AFTER deploy
+**Why:** Kudu checks build flag during zip extraction; setting it after deploy is too late. Oryx never runs → missing Python packages → ModuleNotFoundError. Splitting prevents race conditions and ensures build artifacts exist before runtime settings trigger restarts.
+
+### GitHub Actions deployment incompatible with Azure B1 tier (2026-02-14, consolidated)
+**By:** Keaton
+**What:** GitHub Actions auto-deployment using `azure/webapps-deploy` action does NOT work on B1 (Basic) tier. The action assumes deployment slots are available (requires Standard tier+). Manual deployments via `deploy.ps1` continue to work fine.
+**Why:** B1 tier doesn't support slots. Multiple workaround attempts failed due to action's internal assumptions. To enable GitHub Actions, upgrade to Standard tier (~$55/month vs ~$13/month for B1).
+**Impact:** GitHub Actions CI/CD currently disabled. Use `deploy.ps1` for deployments.
+
+### GitHub Actions deployment via deploygh.ps1 (2026-02-14)
+**By:** Keaton
+**What:** Created `deploygh.ps1` script that provisions App Service and configures GitHub Actions for automatic deployment on git push. Generates `.github/workflows/azure-deployment.yml`, sets up publish profile credentials as GitHub secrets, configures same runtime settings as `deploy.ps1`.
+**Why:** Manual deployment requires running script every time code changes. GitHub Actions automation enables zero-touch deployments on push. Script is idempotent and follows Azure best practices.
+
+---
+
+## Admin User & Deployment Security (2026-02-14)
+
+### Admin user automatic initialization (2026-02-14)
+**By:** McManus
+**What:** Admin user now auto-created on fresh deployment and ensured to exist on every startup. Password sourced from `ADMIN_PASSWORD` environment variable (defaults to "admin"). Implementation: new `_ensure_admin_user_exists()` helper (idempotent), updated `_migrate_to_admin_user()` to read env var, modified `ensure_tournament_structure()` migration logic, added `ADMIN_PASSWORD` app setting to `deploy.ps1`.
+**Why:** Fresh Azure deploys had no way to access the app (no users existed). Zero-friction deployment pattern. Admin credentials displayed in deployment output so deployer knows how to log in immediately.
+**Security:** Password never hardcoded in source. Env var pattern matches existing `SECRET_KEY` handling. First-deploy only — won't overwrite password on subsequent deploys.
+
+---
+
+## UI & Frontend Patterns (2026-02-14, consolidated)
+
+### Tournament page button colors use existing CSS class modifiers (2026-02-14)
+**By:** Fenster
+**What:** Tournaments page buttons styled using existing `.btn-*` classes: Switch → `.btn-success` (green), Clone → `.btn-primary` (blue), Delete → `.btn-danger` (red). No new CSS added.
+**Why:** Project already has proper `.btn-success`, `.btn-primary`, `.btn-danger` with hover states and dark mode support. Reusing classes is more maintainable than inline styles, keeps template consistent.
+
+### Dark mode uses CSS custom properties with [data-theme="dark"] selector (2026-02-14)
+**By:** Fenster
+**What:** Dark mode implemented client-side via CSS custom properties. `:root` defines light colors, `[data-theme="dark"]` overrides them. Frontend script applies saved theme from localStorage before rendering. Theme toggle in navbar. New CSS with hardcoded colors must include dark overrides.
+**Why:** CSS variables allow entire app to switch without JS DOM manipulation. Head script prevents FOUC on dark-mode page loads. Pattern enforces discipline — agents adding new UI must add dark overrides or risk visual inconsistencies.
+
+### Auto-activate first tournament on navigation (2026-02-14)
+**By:** Fenster
+**What:** When user has tournaments but none is set active (session expired or corrupted tournaments.yaml), `set_active_tournament()` before_request hook automatically activates the first tournament. Updates both tournaments.yaml and session, continues normal request.
+**Why:** User-friendly recovery from stale session state. Prevents "no tournaments exist" redirects when tours actually exist. Safe pattern — validates directory exists before activating.
+
+---
+
+## Tournament CRUD Operations (2026-02-13 to 2026-02-14)
+
+### Clone tournament uses shutil.copytree (2026-02-13)
+**By:** McManus
+**What:** `POST /api/tournaments/clone` endpoint copies entire source tournament directory (all YAML, CSV, logos, awards) using `shutil.copytree()` to new slug directory. Patches `tournament_name` in cloned constraints.yaml. Added to `tournament_endpoints` whitelist.
+**Why:** `copytree` is simplest — no need to maintain list of copy-able files. Future file types automatically included in clones. No special handling needed.
+
+---
+
+## Decisions From User Directives (2026-02-13)
+
+### Track all features in CHANGELOG.md (2026-02-13)
+**By:** Luca Bolognese (via Copilot directive)
+**What:** All features tracked in `CHANGELOG.md` following semantic versioning conventions.
+**Why:** User request — centralized feature documentation for users and stakeholders.

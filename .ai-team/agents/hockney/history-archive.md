@@ -1,27 +1,11 @@
-# Project Context
+# History Archive — Hockney
 
-- **Owner:** Luca Bolognese (lucabol@microsoft.com)
-- **Project:** Python Flask tournament scheduling and management web application
-- **Stack:** Python 3.11+, Flask, Jinja2, pandas, numpy, OR-Tools CP-SAT, PyYAML, pytest
-- **Created:** 2026-02-11
+Archived entries from 2026-02-11 to 2026-02-13 (before 2 weeks).
 
-## Core Context
-
-Hockney is responsible for the pytest test suite covering all routes, models, business logic, and bracket generation. Key testing patterns and conventions:
-
-- **Test organization**: Files in `tests/` map to modules in `src/` — `test_app.py` for Flask routes, `test_models.py` for data models, `test_allocation.py` for scheduling, `test_double_elimination.py` and `test_single_elimination.py` for brackets.
-- **Fixture pattern**: `conftest.py` provides shared fixtures (`sample_teams`, `sample_courts`, `basic_constraints`, `client`, `temp_data_dir`). Monkeypatch file constants in fixtures using `monkeypatch.setattr` — do NOT modify module level directly.
-- **Slow tests**: `@pytest.mark.slow` marks long-running tests (60s+ CP-SAT solver). Fast subset runs via `pytest tests/ -m "not slow"` (~21s). Full suite for scheduling changes only.
-- **Admin test helper**: Use `TestSiteExportImport._login_as_admin()` for admin-gated endpoint tests — canonical pattern for escalated auth testing.
-- **Template assertions**: Tests checking template content use `b'text' in response.data` byte-string assertions.
-- **Bracket testing**: Double/single elimination tests inspect placeholder team names, losers_feed_to attributes, and match_code values to validate routing and structure.
-- **API endpoint naming**: Routes tested with `client.get(url)` or `client.post(url, ...)`. Status codes checked before data parsing (`assert response.status_code == 200`).
-
-## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
-- **2026-02-14 — Fast test subset via `@pytest.mark.slow` marker**
+- **2026-02-11 — Multi-tournament test suite created (`tests/test_tournaments.py`)**
   - 17 proactive tests across 6 test classes written from design spec before implementation.
   - Classes: `TestTournamentCreation` (5), `TestTournamentDeletion` (4), `TestTournamentSwitch` (2), `TestTournamentMigration` (3), `TestTournamentIsolation` (2), `TestTournamentList` (1).
   - Tests expect module-level attrs `TOURNAMENTS_DIR` and `TOURNAMENTS_REGISTRY` on `app` module, plus routes at `/tournaments`, `/api/tournaments/create`, `/api/tournaments/delete`, `/api/tournaments/switch`.
@@ -146,53 +130,3 @@ Hockney is responsible for the pytest test suite covering all routes, models, bu
   - All 8 routing tests pass, bringing total test count to 53 in `test_double_elimination.py`.
   - Key learning: For 4-team brackets, losers rounds are named "Losers Semifinal" and "Losers Final" (not "Losers Round 1/2"). For 8+ teams, early rounds use numbered names.
 
-- **2026-02-13 — Comprehensive bracket structure validation tests added (`tests/test_double_elimination.py`)**
-  - Added 8 tests across 2 new test classes validating bracket structure formulas and losers bracket patterns:
-    - `TestBracketStructureFormulas` (5 tests): Validates 32-team bracket (5 winners/8 losers rounds), match count formulas (2N-2 or 2N-1) for 4, 8, 16, and 32 teams.
-    - `TestLosersBracketPattern` (3 tests): Validates minor/major round alternation for 8-team and 16-team brackets, verifies placeholder team notes reference correct winners/losers rounds, validates match count halving pattern per round.
-  - Tests follow Wikipedia specification for double elimination brackets: minor rounds (even indices: 0, 2, 4...) have only losers bracket teams compete, major rounds (odd indices: 1, 3, 5...) have winners bracket losers drop down.
-  - Note format validation: "Losers from Winners Round 1" for minor rounds, "Winners R{N} loser vs Losers R{M} winner" for major rounds, "Losers Round {N} winners" for next minor rounds.
-  - All 53 double elimination tests pass (45 existing + 8 new).
-
-- **2026-02-14 — Edge case tests added to double elimination test suite (`tests/test_double_elimination.py`)**
-  - Added 17 comprehensive edge case tests across extended and new test classes:
-    - Extended `TestEdgeCases` with 5 new tests: 3 teams (1 bye), 5 teams (3 byes), 7 teams (1 bye), 32 teams (large bracket), 64 teams (very large bracket). Validates bracket size rounding, bye placement, and structure generation for small and large tournaments.
-    - New `TestPoolSeedingVariations` class (5 tests): Multiple pools with different advance counts, single pool all teams advance, many pools one team each, many pools two per pool, uneven pool sizes with proportional advances. Validates seeding order follows pool placement rules (#1 seeds first, then #2 seeds, etc.).
-    - New `TestMatchCodeFormat` class (7 tests): Winners bracket W{round}-M{number} format, losers bracket L{round}-M{number} format, GF/BR codes, silver bracket S prefix (SW/SL/SGF/SBR), uniqueness validation, sequential numbering. Ensures all match codes follow correct format specification.
-  - All 17 new tests pass. Total double elimination test count: 102 tests (99 passing, 3 pre-existing failures in TestGrandFinalMechanics and TestRealisticTournamentScenarios not part of this task).
-  - Test coverage now includes: minimal brackets (2-3 teams), small brackets (4-8 teams), medium brackets (16 teams), large brackets (32-64 teams), various pool configurations, and complete match code format validation.
-
-- **2026-02-13 — Seeding distribution tests added (`tests/test_double_elimination.py :: TestSeedingDistribution`)**
-  - Added 7 comprehensive tests validating seeding distribution and bye placement in double elimination brackets:
-    - `test_seeding_distribution_32_teams_top_2_seeds_opposite_halves`: Validates seeds 1-2 appear in opposite halves (first half: matches 0-7, second half: matches 8-15) for 32-team bracket.
-    - `test_seeding_distribution_32_teams_top_4_seeds_different_quarters`: Validates seeds 1-4 appear in different quarters (4 matches per quarter) for 32-team bracket.
-    - `test_seeding_distribution_16_teams_quarter_distribution`: Validates seeds 1-4 appear in different quarters (2 matches per quarter) for 16-team bracket.
-    - `test_bye_placement_top_seeds_get_byes`: Verifies seed 1 receives the bye in a 3-team bracket (1 bye).
-    - `test_bye_count_validation_multiple_byes`: Validates correct bye count for 3, 5, 7, and 9 team brackets (1, 3, 1, and 7 byes respectively).
-    - `test_bye_placement_top_seeds_only`: Verifies seeds 1, 2, 3 receive byes in a 5-team bracket (3 byes).
-    - `test_bye_no_scheduling_conflicts`: Verifies bye matches are excluded from `generate_double_elimination_matches_for_scheduling()` output.
-  - Implemented `_find_seed_in_first_round()` helper method that searches first round matches for a specific seed, returning `(match_index, position_in_match)` tuple.
-  - Tests validate against standard tournament bracket order generated by `_generate_bracket_order()` function, which ensures proper seeding distribution.
-  - All 7 tests pass. Total double elimination test count now 102 (60 pass, 3 pre-existing failures unrelated to seeding tests).
-
-- **2026-02-13 — Grand final and bracket reset mechanics tests added (`tests/test_double_elimination.py :: TestGrandFinalMechanics`)**
-  - Added 19 comprehensive tests covering grand final and bracket reset behavior:
-    - **Grand final validation** (6 tests): Always present for 2+ teams, correct placeholder team names ("Winners Bracket Champion", "Losers Bracket Champion"), match code 'GF' or with prefix, round name "Grand Final", match number always 1, note explains bracket reset condition.
-    - **Bracket reset validation** (7 tests): Always present for valid brackets, `is_conditional` flag set to True, placeholder teams reference grand final result, match code 'BR' or with prefix, round name "Bracket Reset", match number always 1, note explains it's only played if losers bracket champion wins GF.
-    - **Match code format consistency** (6 tests): Winners bracket follows W{round}-M{match} format, losers bracket follows L{round}-M{match} format, grand final uses 'GF', bracket reset uses 'BR', silver bracket prefix test (SGF, SBR), empty bracket edge case.
-  - All tests validate against the implementation's prefix parameter for silver bracket support.
-  - Tests verify placeholder resolution logic, ensuring teams reference correct match codes.
-  - All 102 double elimination tests pass (83 existing + 19 new).
-
-- **2026-02-13 — Realistic tournament scenario integration tests added (`tests/test_double_elimination.py :: TestRealisticTournamentScenarios`)**
-  - Added 6 comprehensive integration tests validating complete tournament workflows with realistic scenarios:
-    - `test_beach_volleyball_tournament`: Beach volleyball setup (6 teams, 3 pools of 2, top 2 from each advance). Validates complete bracket structure, placeholder format, seeding order (all 1st places then all 2nd places), bracket rounds up to 8, winners bracket (3 rounds), losers bracket (4 rounds), and grand final/bracket reset structure.
-    - `test_large_multi_pool_tournament`: Large tournament (24 teams, 4 pools of 6, top 3 from each advance). Validates 12 teams advance, bracket rounds to 16 with 4 byes, seeding respects finishing positions, winners bracket (4 rounds), losers bracket (6 rounds), alternating minor/major pattern.
-    - `test_uneven_pool_sizes`: Mixed pool configuration (Pool A: 4 teams with 2 advancing, Pool B: 6 teams with 3 advancing, Pool C: 5 teams with 2 advancing). Validates 7 teams advance, bracket rounds to 8 with 1 bye, seeding order groups by finishing position across pools, top seed gets the bye.
-    - `test_complete_placeholder_resolution`: Validates all placeholder team names reference valid matches from previous rounds. Walks through entire bracket verifying no dangling or circular references. Validates Winner/Loser placeholder format references existing match codes. Confirms losers bracket receives correct winners bracket losers (L1 from W1, L2 from W2+L1 winners).
-    - `test_seeding_consistency_across_scenarios`: Tests seeding order consistency across 3 different pool configurations (2 pools with 1 each, 3 pools with 2 each, 2 pools with different advance counts). Validates 1st places always come first, then 2nd places, then 3rd places, sorted alphabetically by pool name within each position.
-    - `test_bracket_structure_integrity`: Validates bracket structure integrity for 4-team bracket. Verifies correct match counts per round (winners: 2 matches then 1, losers: 1 match then 1), proper progression, all matches have required fields (teams, match_code), match codes have correct prefixes (W/L), grand final and bracket reset structure.
-  - Tests follow existing patterns from `TestDoubleEliminationIntegration` but cover more realistic scenarios with varied pool sizes and advance counts.
-  - Key validation patterns: seeding order verification, placeholder format checking, round count formulas, match count per round, structural integrity of bracket connections.
-  - All 6 tests pass. Total double elimination test count: 102 tests (all passing).
-  - Tests address requirements from test plan: realistic tournaments (beach volleyball, large multi-pool), uneven pool sizes, complete placeholder resolution validation, seeding consistency verification.

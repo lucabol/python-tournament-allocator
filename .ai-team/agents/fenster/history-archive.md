@@ -1,28 +1,6 @@
-# Project Context
+# History Archive — Fenster
 
-- **Owner:** Luca Bolognese (lucabol@microsoft.com)
-- **Project:** Python Flask tournament scheduling and management web application
-- **Stack:** Python 3.11+, Flask, Jinja2, pandas, numpy, OR-Tools CP-SAT, PyYAML, pytest
-- **Created:** 2026-02-11
-
-## Core Context
-
-Fenster is responsible for all Jinja2 templates, CSS styling, and client-side JavaScript UI patterns in the Flask application. Key patterns maintained across all templates:
-
-- **CSS class patterns**: Buttons use `.btn` + modifier (`.btn-primary`, `.btn-danger`, `.btn-success`, `.btn-secondary`) + size (`.btn-sm`, `.btn-xs`, `.btn-lg`). Cards use `.card`, sections use `.section`. Tables use `.data-table`. Inline forms use `.inline-form`. Flash messages use `.alert .alert-{category}`.
-- **Template structure**: Pages use `page-header` div with `h1`, flash messages block, then `section` blocks. Forms follow POST-redirect pattern. Delete buttons use `onsubmit="return confirm(...)"`.
-- **Navbar**: Uses `.nav-brand` + `.nav-links` with `request.endpoint` checks for active state. Tournament name shown dynamically in brand area via `tournament_name` context variable. Includes 🌙/☀️ dark mode toggle and hamburger menu (mobile).
-- **New tournament UI**: `tournaments.html` with create form, tournament list table, active badge, switch/delete actions. Added `.active-tournament`, `.badge`, `.badge-active` CSS classes. Button colors use existing `.btn-success`, `.btn-primary`, `.btn-danger` classes.
-- **Public live mode**: `live.html` uses Jinja conditionals (`public_mode`, `public_username`, `public_slug`) to build dynamic AJAX/SSE URLs for public vs authenticated access. URL variables declared at top of `<script>` block, before `DOMContentLoaded`.
-- **Export/Import pattern**: Hidden file input triggered by visible button, auto-submits on change via `onchange` handler. Confirm dialog before submit, reset input value on cancel. Used in both `index.html` (single tournament) and `tournaments.html` (all tournaments). IDs must be unique across page.
-- **Admin-only sections**: Use `{% if current_user == 'admin' %}` conditional. Site-level admin actions use `section-danger-zone` class (red border, light red background) and `prompt()`-based confirmation requiring typed word (e.g., "REPLACE", "DELETE").
-- **Danger zone pattern**: `.section-danger-zone` — red border + `#fef2f2` background, stacks with `.section`. Reusable for destructive admin UI.
-- **Dark mode**: Client-side CSS custom properties via `:root` (light theme) and `[data-theme="dark"]` overrides. Theme persists in localStorage. Head script applies before rendering to prevent FOUC. All new UI with hardcoded colors needs dark overrides.
-- **Mobile responsive**: Hamburger menu (☰) visible below 768px, toggles `.nav-open` on `.nav-links` for vertical dropdown. QR code rendering for live URL sharing with fallback copy-to-clipboard.
-
-## Learnings
-
-<!-- Append new learnings below. Each entry is something lasting about the project. -->
+Archived entries from 2026-02-11 to 2026-02-13 (before 2 weeks).
 
 ### 2026-02-13: Awards feature frontend
 - **What**: Created `awards.html` template with add-award form (name/player inputs + image picker grid), current awards list with delete buttons, and all JS for API interaction. Added Awards nav link in `base.html` between Print and Live. Added read-only Awards section to `live_content.html` as a collapsible `<details>` block. Created 10 SVG award icons in `src/static/awards/` (trophy, medals, star, crown, flame, volleyball, target, thumbs-up). Added CSS classes: `.awards-grid`, `.award-card`, `.award-card-img`, `.award-card-info`, `.image-picker`, `.image-picker-item`, `.award-form`.
@@ -43,6 +21,12 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 - **What**: Added a "Show Test Buttons" checkbox to Settings (`constraints.html`) and wrapped Test buttons in `teams.html`, `courts.html`, `tracking.html`, and `dbracket.html` with `{% if show_test_buttons %}`. The `show_test_buttons` variable is injected globally via the context processor (loads from constraints). Default is `False`.
 - **Pattern**: Checkbox follows the Silver Bracket checkbox pattern (same CSS class, `updateSetting()` JS call, help tooltip). Context processor injects the value so templates don't need `constraints` passed explicitly.
 
+### 2026-02-13: Awards feature frontend (duplicate session)
+- **What**: Created `awards.html` template with add-award form (name/player inputs + image picker grid), current awards list with delete buttons, and all JS for API interaction. Added Awards nav link in `base.html` between Print and Live. Added read-only Awards section to `live_content.html` as a collapsible `<details>` block. Created 10 SVG award icons in `src/static/awards/` (trophy, medals, star, crown, flame, volleyball, target, thumbs-up). Added CSS classes: `.awards-grid`, `.award-card`, `.award-card-img`, `.award-card-info`, `.image-picker`, `.image-picker-item`, `.award-form`.
+- **Image source pattern**: Images starting with `custom-` load from `/api/awards/image/{filename}`, others from `/static/awards/{filename}`. This dual-source pattern is used in both `awards.html` and `live_content.html`.
+- **API endpoints expected by frontend**: `api_awards_samples` (GET), `api_awards_add` (POST), `api_awards_delete` (POST), `api_awards_upload_image` (POST), `api_awards_image` (GET, takes `filename` param). McManus needs to implement these in `app.py`.
+- **Template variable**: `awards` — list of `[{id, name, player, image}, ...]`. Needs to be injected by the route handler and context processor (for live pages).
+
 ### 2026-02-13: Instagram-friendly tournament summary page
 - **What**: Created `insta.html` — a phone-screenshot-optimized "story card" layout for sharing tournament results on Instagram. Added "Insta" nav link in `base.html` between Awards and Live. Route (`/insta`) and endpoint whitelisting were already in place; only the template was missing.
 - **Design approach**: Self-contained inline `<style>` block (same pattern as `print.html`). Dark gradient background (deep purple to midnight blue), white/light text, max-width 480px centered. All styles use `insta-` prefix to avoid collisions with existing CSS.
@@ -51,3 +35,13 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 - **Data source**: Uses `_get_live_data()` — same context as the live page. Template variables: `constraints`, `bracket_data`, `silver_bracket_data`, `standings`, `pools`, `awards`.
 
 ### 2026-02-13: Instagram page session completed
+- **Session overview**: McManus added `/insta` route reusing `_get_live_data()`, Fenster created `insta.html` template with vibrant gradient card layout and added nav link, Hockney wrote 4 tests in `TestInstaPage` class.
+- **Test results**: All 267 tests pass.
+- **Commit**: 04da995 (pushed)
+- **Design pattern**: Inline styles + `insta-` prefixed classes follow the `print.html` precedent for self-contained pages. This pattern is now established for future single-page-layout features.
+
+### 2026-02-13: Bracket results added to insta.html + Print page removed
+- **What**: Added condensed bracket results section to `insta.html` between Pool Standings and Awards. Covers Gold Bracket (winners bracket, losers bracket, grand final, bracket reset) and Silver Bracket (same structure). Deleted `print.html` template, removed Print nav link from `base.html`, and replaced broken `print_view` references in `index.html` with links to the Insta page.
+- **Bracket display pattern**: Compact inline layout — each match is `Team A v Team B` with winner highlighted in green (`insta-winner` class). Scores shown as `X / Y` on the right. Byes are skipped. No match codes or playability indicators. Uses `insta-bracket-match`, `insta-bracket-round`, `insta-bracket-sub`, `insta-grand-final`, `insta-match-done`, `insta-winner`, `insta-vs`, `insta-score` CSS classes.
+- **Print page removal**: `print.html` was deleted, its nav link removed from `base.html`, and its `url_for('print_view')` references in `index.html` were updated to point to `url_for('insta')`. The `print_view` route had already been removed from `app.py` by another agent.
+- **Test results**: All 268 tests pass.
