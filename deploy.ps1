@@ -43,7 +43,16 @@ if (-not $env:AZURE_SUBSCRIPTION_ID) {
 $subscriptionId = $env:AZURE_SUBSCRIPTION_ID
 $resourceGroup = if ($env:AZURE_RESOURCE_GROUP) { $env:AZURE_RESOURCE_GROUP } else { "tournament-allocator-rg" }
 $location = if ($env:AZURE_LOCATION) { $env:AZURE_LOCATION } else { "eastus" }
-$appName = if ($env:AZURE_APP_NAME) { $env:AZURE_APP_NAME } else { "tournament-allocator" }
+
+# Generate globally unique app name by default using subscription ID prefix
+# Azure App Service names must be globally unique across ALL Azure
+if ($env:AZURE_APP_NAME) {
+    $appName = $env:AZURE_APP_NAME
+} else {
+    $subPrefix = $subscriptionId.Substring(0, [Math]::Min(8, $subscriptionId.Length))
+    $appName = "tournament-allocator-$subPrefix"
+}
+
 $appServicePlan = if ($env:AZURE_APP_SERVICE_PLAN) { $env:AZURE_APP_SERVICE_PLAN } else { "tournament-allocator-plan" }
 $appServiceSku = if ($env:AZURE_APP_SERVICE_SKU) { $env:AZURE_APP_SERVICE_SKU } else { "B1" }
 
@@ -101,15 +110,11 @@ if (-not $rgExists) {
 
 # Create App Service Plan (Linux, Python) if missing
 Write-Host "Ensuring App Service Plan '$appServicePlan' exists..." -ForegroundColor Yellow
-$planExists = $false
-try {
-    az appservice plan show --name $appServicePlan --resource-group $resourceGroup --output none
-    $planExists = $true
-} catch {
-    $planExists = $false
-}
+az appservice plan show --name $appServicePlan --resource-group $resourceGroup --output none 2>$null
+$planExists = ($LASTEXITCODE -eq 0)
 
 if (-not $planExists) {
+    Write-Host "Creating App Service Plan..." -ForegroundColor Yellow
     az appservice plan create `
         --name $appServicePlan `
         --resource-group $resourceGroup `
@@ -122,15 +127,11 @@ if (-not $planExists) {
 
 # Create Web App if missing
 Write-Host "Ensuring Web App '$appName' exists..." -ForegroundColor Yellow
-$appExists = $false
-try {
-    az webapp show --name $appName --resource-group $resourceGroup --output none
-    $appExists = $true
-} catch {
-    $appExists = $false
-}
+az webapp show --name $appName --resource-group $resourceGroup --output none 2>$null
+$appExists = ($LASTEXITCODE -eq 0)
 
 if (-not $appExists) {
+    Write-Host "Creating Web App..." -ForegroundColor Yellow
     az webapp create `
         --name $appName `
         --resource-group $resourceGroup `
@@ -162,6 +163,16 @@ $stagedRequirements = Join-Path $stagingDir "requirements.txt"
 $requirements | Set-Content $stagedRequirements
 
 Compress-Archive -Path (Join-Path $stagingDir "*") -DestinationPath $zipFile
+
+# Enable Oryx build BEFORE deployment — this setting tells Azure's Kudu/Oryx
+# to install dependencies from requirements.txt during the zip deployment.
+# This MUST be set before the deploy, not after.
+Write-Host "Enabling Oryx remote build..." -ForegroundColor Yellow
+az webapp config appsettings set `
+    --name $appName `
+    --resource-group $resourceGroup `
+    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true `
+    --output none
 
 # Deploy with retry logic — Kudu may be slow to respond on first deploy
 # NOTE: az webapp deploy returns exit code 0 even on 502, so we capture output to detect failures.
@@ -204,9 +215,11 @@ while (-not $deploySuccess -and $deployAttempt -lt $deployMaxRetries) {
     }
 }
 
-# Configure app AFTER deploy succeeds — each config change triggers a container restart,
-# and on first deploy the Oryx remote build needs to complete before the container can boot.
-# Setting config before deploy caused a race: container restarts before build artifacts exist.
+# Configure runtime settings AFTER deploy succeeds.
+# The startup command and TOURNAMENT_DATA_DIR are runtime settings that trigger
+# container restarts. We set these after deploy to ensure build artifacts exist
+# before the first restart. Note: SCM_DO_BUILD_DURING_DEPLOYMENT was set BEFORE
+# the deploy because it controls Oryx build behavior during zip extraction.
 
 # Configure startup command for Flask
 Write-Host "Configuring startup command..." -ForegroundColor Yellow
@@ -216,12 +229,12 @@ az webapp config set `
     --startup-file "startup.sh" `
     --output none
 
-# Enable Oryx build and set app settings
-Write-Host "Setting app settings..." -ForegroundColor Yellow
+# Set runtime app settings
+Write-Host "Setting runtime app settings..." -ForegroundColor Yellow
 az webapp config appsettings set `
     --name $appName `
     --resource-group $resourceGroup `
-    --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true DISABLE_COLLECTSTATIC=true TOURNAMENT_DATA_DIR=/home/data `
+    --settings DISABLE_COLLECTSTATIC=true TOURNAMENT_DATA_DIR=/home/data `
     --output none
 
 # Set SECRET_KEY for Flask session security — only on first deploy.
@@ -232,6 +245,18 @@ if (-not $existingKey) {
     az webapp config appsettings set --name $appName --resource-group $resourceGroup --settings SECRET_KEY="$(New-Guid)" --output none
 } else {
     Write-Host "SECRET_KEY already set, skipping (preserves user sessions)." -ForegroundColor DarkGray
+}
+
+# Set ADMIN_PASSWORD for admin user creation — only on first deploy.
+# Can be customized via ADMIN_PASSWORD in .env file (optional).
+$existingAdminPassword = az webapp config appsettings list --name $appName --resource-group $resourceGroup --query "[?name=='ADMIN_PASSWORD'].value" -o tsv
+if (-not $existingAdminPassword) {
+    $adminPassword = if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { "admin" }
+    Write-Host "Setting ADMIN_PASSWORD (first deploy)..." -ForegroundColor Yellow
+    az webapp config appsettings set --name $appName --resource-group $resourceGroup --settings ADMIN_PASSWORD="$adminPassword" --output none
+    Write-Host "  Admin user will be created with username 'admin' and configured password." -ForegroundColor DarkGray
+} else {
+    Write-Host "ADMIN_PASSWORD already set, skipping." -ForegroundColor DarkGray
 }
 
 # Wait for config changes to propagate (config changes trigger async container restarts)
@@ -255,6 +280,15 @@ try {
 Write-Host ""
 Write-Host "=== Deployment Complete ===" -ForegroundColor Green
 Write-Host "App URL: $url" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Admin Login:" -ForegroundColor Yellow
+Write-Host "  Username: admin" -ForegroundColor Cyan
+if ($env:ADMIN_PASSWORD) {
+    Write-Host "  Password: (from ADMIN_PASSWORD in .env)" -ForegroundColor Cyan
+} else {
+    Write-Host "  Password: admin (default)" -ForegroundColor Cyan
+}
+Write-Host "  Note: Change the password after first login for security." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "To view logs: az webapp log tail --name $appName --resource-group $resourceGroup"
 if ($latestDeploymentId) {

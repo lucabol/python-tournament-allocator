@@ -233,15 +233,16 @@ def ensure_tournament_structure():
     """Migrate to user-scoped tournament structure.
 
     Handles three cases:
-    1. Already migrated (users.yaml exists) → no-op
+    1. Already migrated (users.yaml exists) → no-op (ensures admin user exists)
     2. Multi-tournament exists (tournaments.yaml) but no auth → migrate to admin user
     3. Legacy flat files (no tournaments.yaml) → migrate flat→tournaments→admin
-    4. Fresh install → create empty users.yaml
+    4. Fresh install → create admin user
     """
     os.makedirs(TOURNAMENTS_DIR, exist_ok=True)
 
-    # Already auth-migrated
+    # Already auth-migrated — ensure admin user exists
     if os.path.exists(USERS_FILE):
+        _ensure_admin_user_exists()
         return
 
     # Case 2: Multi-tournament structure exists — migrate to admin user
@@ -273,21 +274,96 @@ def ensure_tournament_structure():
         _migrate_to_admin_user()
         return
 
-    # Case 4: Fresh install
-    save_users([])
+    # Case 4: Fresh install — create admin user
+    _migrate_to_admin_user()
+
+
+def _create_default_tournament_files(tournament_dir: str, tournament_name: str = 'Default Tournament'):
+    """Create minimal tournament files. Called before get_default_constraints() is available."""
+    os.makedirs(tournament_dir, exist_ok=True)
+    
+    # Minimal constraints file
+    constraints = {
+        'tournament_name': tournament_name,
+        'match_duration_minutes': 30,
+        'days_number': 1,
+        'min_break_between_matches_minutes': 0,
+        'day_end_time_limit': '22:00',
+        'bracket_type': 'double',
+        'scoring_format': 'single_set',
+        'pool_in_same_court': True,
+        'silver_bracket_enabled': True,
+        'pool_to_bracket_delay_minutes': 0,
+        'show_test_buttons': False
+    }
+    with open(os.path.join(tournament_dir, 'constraints.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(constraints, f, default_flow_style=False)
+    
+    # Empty files
+    with open(os.path.join(tournament_dir, 'teams.yaml'), 'w', encoding='utf-8') as f:
+        f.write('')
+    with open(os.path.join(tournament_dir, 'courts.csv'), 'w', encoding='utf-8', newline='') as f:
+        f.write('court_name,start_time,end_time\n')
+
+
+def _ensure_admin_user_exists():
+    """Ensure admin user exists with configured password. Idempotent."""
+    from werkzeug.security import generate_password_hash
+    users = load_users()
+    admin_exists = any(u['username'] == 'admin' for u in users)
+    
+    if not admin_exists:
+        admin_password = os.environ.get('ADMIN_PASSWORD', 'admin')
+        admin_dir = os.path.join(USERS_DIR, 'admin')
+        admin_tournaments_dir = os.path.join(admin_dir, 'tournaments')
+        default_dir = os.path.join(admin_tournaments_dir, 'default')
+        
+        # Create default tournament
+        _create_default_tournament_files(default_dir, 'Default Tournament')
+        
+        # Create admin's tournament registry
+        admin_reg = os.path.join(admin_dir, 'tournaments.yaml')
+        with open(admin_reg, 'w', encoding='utf-8') as f:
+            yaml.dump({
+                'active': 'default',
+                'tournaments': [{'slug': 'default', 'name': 'Default Tournament',
+                                 'created': datetime.now().isoformat()}]
+            }, f, default_flow_style=False)
+        
+        # Add admin to users list
+        users.append({
+            'username': 'admin',
+            'password_hash': generate_password_hash(admin_password),
+            'created': datetime.now().isoformat()
+        })
+        save_users(users)
+        logging.getLogger(__name__).info(
+            f'Created admin user. Password from ADMIN_PASSWORD env var (default: admin)')
 
 
 def _migrate_to_admin_user():
     """Migrate existing multi-tournament structure to an admin user."""
     from werkzeug.security import generate_password_hash
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin')
     admin_dir = os.path.join(USERS_DIR, 'admin')
     admin_tournaments_dir = os.path.join(admin_dir, 'tournaments')
     os.makedirs(admin_tournaments_dir, exist_ok=True)
 
-    # Copy tournament registry
-    shutil.copy2(TOURNAMENTS_FILE, os.path.join(admin_dir, 'tournaments.yaml'))
+    # Copy tournament registry if it exists
+    if os.path.exists(TOURNAMENTS_FILE):
+        shutil.copy2(TOURNAMENTS_FILE, os.path.join(admin_dir, 'tournaments.yaml'))
+    else:
+        # Fresh install — create default tournament
+        default_dir = os.path.join(admin_tournaments_dir, 'default')
+        _create_default_tournament_files(default_dir, 'Default Tournament')
+        with open(os.path.join(admin_dir, 'tournaments.yaml'), 'w', encoding='utf-8') as f:
+            yaml.dump({
+                'active': 'default',
+                'tournaments': [{'slug': 'default', 'name': 'Default Tournament',
+                                 'created': datetime.now().isoformat()}]
+            }, f, default_flow_style=False)
 
-    # Copy tournament data dirs
+    # Copy tournament data dirs if they exist
     if os.path.isdir(TOURNAMENTS_DIR):
         for item in os.listdir(TOURNAMENTS_DIR):
             src_path = os.path.join(TOURNAMENTS_DIR, item)
@@ -299,11 +375,11 @@ def _migrate_to_admin_user():
     # Create admin user
     save_users([{
         'username': 'admin',
-        'password_hash': generate_password_hash('admin'),
+        'password_hash': generate_password_hash(admin_password),
         'created': datetime.now().isoformat()
     }])
     logging.getLogger(__name__).info(
-        'Migrated existing tournaments to admin user. Default password: admin')
+        f'Migrated existing tournaments to admin user. Password from ADMIN_PASSWORD env var (default: admin)')
 
 
 ensure_tournament_structure()

@@ -81,3 +81,10 @@
 - **What**: Removed all "Clear" (✕) buttons from `tracking.html` (pool play), `sbracket.html` (single elimination), and `dbracket.html` (double elimination). Also removed the associated JavaScript functions `clearResult()` and `clearBracketResult()` from all three templates. Users now clear results by deleting both score values in the input boxes and letting the auto-save trigger.
 - **Why**: User preference — wanted fewer UI elements and a more natural workflow. Clearing both scores is already the mental model for "resetting" a match, so no need for a separate button.
 - **Impact**: Cleaner UI with less visual clutter on completed matches. The backend `/api/clear-result` endpoint still exists but is no longer called from the frontend. Score inputs remain fully functional — deletion and auto-save (debounced 500ms) work exactly as before.
+
+### 2026-02-14: Dashboard QR code fix — uses current URL context
+- **What**: Fixed the QR code generation on the Dashboard page (`index.html` line 246) to use the current URL instead of hardcoding the `/live` route.
+- **Problem**: The original code read `var liveUrl = window.location.origin + '{{ url_for("live") }}';` which always encoded a static `/live` path, ignoring tournament context. This broke in multi-tournament scenarios where the user navigates via context.
+- **Solution**: Changed to `qr.addData(window.location.href);` — matching the pattern already established in `live.html`. This automatically encodes the full current URL including any query parameters or context.
+- **Files modified**: `src/templates/index.html` (removed hardcoded URL construction, now uses `window.location.href`).
+- **Test results**: App imports successfully; no syntax errors.

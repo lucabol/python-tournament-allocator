@@ -459,11 +459,14 @@ class TestTournamentMigration:
         with app_module.app.test_client() as c:
             c.get('/tournaments')
 
-        # users.yaml should be created (fresh install — no admin, just empty)
+        # users.yaml should be created with admin user (fresh install creates admin)
         assert users_file.exists()
         import yaml as _yaml
         users_data = _yaml.safe_load(users_file.read_text())
-        assert users_data == {'users': []}
+        assert users_data['users']
+        assert len(users_data['users']) == 1
+        assert users_data['users'][0]['username'] == 'admin'
+        assert 'password_hash' in users_data['users'][0]
 
 
 # ---------------------------------------------------------------------------

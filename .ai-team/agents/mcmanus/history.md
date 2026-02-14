@@ -140,3 +140,43 @@
 - **Files changed**: `src/app.py` (lines 2716-2877: `save_pool_result`, `save_bracket_result`)
 - **Tests**: All 276 tests pass.
 
+### 2026-02-14: Fixed deploy.ps1 resource existence checks
+- **Problem**: Try/catch blocks around `az appservice plan show` and `az webapp show` didn't properly detect when resources were missing. PowerShell doesn't throw exceptions on non-zero exit codes automatically, so the script thought resources existed when they didn't.
+- **Fix**: Replace try/catch pattern with explicit `$LASTEXITCODE` checks after running `az ... show` commands. Redirect stderr to `$null` to suppress error messages, then check `$LASTEXITCODE -eq 0` to determine existence.
+- **Pattern**: For Azure CLI commands that fail when resources don't exist, use: `az <command> 2>$null; $exists = ($LASTEXITCODE -eq 0)`.
+- **Files changed**: `deploy.ps1` (lines 102-121 for App Service Plan, lines 123-142 for Web App)
+
+### 2026-02-14: Fixed global app name collision in deploy.ps1
+- **Problem**: Azure App Service names must be globally unique across ALL of Azure. The hardcoded default "tournament-allocator" was already taken, causing deployment failures with conflicting error messages.
+- **Fix**: Default app name now auto-generates as `tournament-allocator-{first-8-chars-of-subscription-id}`. This is deterministic (same subscription = same name), readable, and globally unique.
+- **Pattern**: `$subPrefix = $subscriptionId.Substring(0, [Math]::Min(8, $subscriptionId.Length))` then `$appName = "tournament-allocator-$subPrefix"`.
+- **Override**: Users can still set `AZURE_APP_NAME` in `.env` if they want a custom name.
+- **Files changed**: `deploy.ps1` (lines 42-52)
+
+### 2026-02-14: Fixed Azure Oryx build — SCM_DO_BUILD_DURING_DEPLOYMENT timing issue
+- **Problem**: App crashed on startup with `ModuleNotFoundError: No module named 'yaml'` despite requirements.txt being in the deployment package. The error `WARNING: Could not find package directory /home/site/wwwroot/__oryx_packages__` indicated Oryx build system never ran.
+- **Root cause**: `SCM_DO_BUILD_DURING_DEPLOYMENT=true` was being set AFTER `az webapp deploy`, but this setting controls BUILD behavior during zip extraction, not runtime behavior. Setting it after the deploy meant Oryx never installed dependencies.
+- **Fix**: Split app settings into two groups:
+  1. **Build-time setting** (`SCM_DO_BUILD_DURING_DEPLOYMENT=true`) — set BEFORE `az webapp deploy` at line 171
+  2. **Runtime settings** (`DISABLE_COLLECTSTATIC`, `TOURNAMENT_DATA_DIR`, `SECRET_KEY`) — set AFTER deploy at lines 234-246
+- **Why this works**: When `az webapp deploy` uploads the zip with `--type zip`, Azure's Kudu service checks `SCM_DO_BUILD_DURING_DEPLOYMENT`. If true, it invokes Oryx to detect `requirements.txt` and run `pip install`. If false/unset, it just extracts the zip without building.
+- **Pattern**: For Azure Python deploys:
+  - Set `SCM_DO_BUILD_DURING_DEPLOYMENT=true` as the first app setting (before any deploy)
+  - requirements.txt must be at zip root (not in a subdirectory)
+  - Runtime-only settings (startup command, env vars) can be set after to avoid triggering restarts mid-build
+- **Files changed**: `deploy.ps1` (lines 167-175, 218-238)
+- **Deployment order now**: Create resources → Enable Oryx build → Upload & build → Configure startup → Set runtime settings → Wait for propagation
+
+### 2026-02-14: Admin user automatic creation on deployment
+- **Problem**: On fresh deploys to Azure, no admin user existed, requiring manual database manipulation to create one.
+- **Solution**: Modified `ensure_tournament_structure()` to always create an admin user on fresh installs and ensure it exists on every app startup. Admin password is configurable via `ADMIN_PASSWORD` environment variable (defaults to "admin").
+- **Changes**:
+  1. `_ensure_admin_user_exists()` — new helper that checks if admin exists and creates with default tournament if missing. Idempotent.
+  2. `_migrate_to_admin_user()` — updated to read `ADMIN_PASSWORD` env var and handle fresh installs (no tournaments.yaml).
+  3. `ensure_tournament_structure()` — case 1 now calls `_ensure_admin_user_exists()` instead of no-op, case 4 calls `_migrate_to_admin_user()` instead of creating empty users.yaml.
+  4. `deploy.ps1` — added `ADMIN_PASSWORD` app setting on first deploy (lines 252-261), added admin credentials to deployment completion message (lines 268-273).
+- **Security**: Password sourced from env var, never hardcoded. Default is "admin" but can be customized in `.env` file via `ADMIN_PASSWORD=<secure-password>`.
+- **Behavior**: Admin user is created with username "admin" and a default tournament on first startup. Re-running deploy.ps1 is idempotent — won't recreate admin if already exists.
+- **Files changed**: `src/app.py` (lines 232-348), `deploy.ps1` (lines 240-273), `tests/test_tournaments.py` (lines 460-469)
+- **Tests**: All 276 tests pass. Updated `test_fresh_install` to expect admin user creation instead of empty users list.
+
