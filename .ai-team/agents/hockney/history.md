@@ -21,6 +21,16 @@ Hockney is responsible for the pytest test suite covering all routes, models, bu
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- **2026-02-14 — Reusable schedule validation helpers**
+  - Created `tests/test_helpers_validation.py` with 3 validation functions + 24 tests for Phase 2 schedule validity testing.
+  - `validate_no_premature_scheduling(schedule, dependencies, match_codes)` — Checks teams aren't scheduled before prerequisite matches complete. Requires match_codes dict mapping teams tuple to match code string.
+  - `validate_team_availability(schedule, team_name)` — Detects double-booking (overlapping matches for same team on same day).
+  - `validate_bracket_dependencies(schedule, bracket_structure)` — Validates bracket matches scheduled after their dependencies complete.
+  - All helpers return `List[str]` of violations (empty = valid). Pure functions, no side effects.
+  - Test coverage: valid cases (pass), invalid cases (catch violations), edge cases (back-to-back, midnight crossing, large schedules, multiple overlaps).
+  - Schedule format: `Dict[str, List[Tuple]]` where each tuple is `(day, start_dt, end_dt, teams)`.
+  - Usage example in module docstring shows how to integrate into Phase 2 tests.
+
 - **2026-02-14 — Fast test subset via `@pytest.mark.slow` marker**
   - 17 proactive tests across 6 test classes written from design spec before implementation.
   - Classes: `TestTournamentCreation` (5), `TestTournamentDeletion` (4), `TestTournamentSwitch` (2), `TestTournamentMigration` (3), `TestTournamentIsolation` (2), `TestTournamentList` (1).
@@ -196,3 +206,42 @@ Hockney is responsible for the pytest test suite covering all routes, models, bu
   - Key validation patterns: seeding order verification, placeholder format checking, round count formulas, match count per round, structural integrity of bracket connections.
   - All 6 tests pass. Total double elimination test count: 102 tests (all passing).
   - Tests address requirements from test plan: realistic tournaments (beach volleyball, large multi-pool), uneven pool sizes, complete placeholder resolution validation, seeding consistency verification.
+
+## 2026-02-14: Double Elimination Seeding Tests
+
+### Key Learnings
+
+**Double Elimination Architecture:**
+- Winners bracket uses standard single-elimination seeding (bracket_order algorithm)
+- Losers bracket alternates minor (losers-only) and major (dropout) rounds
+- For 8-team bracket: 3 winners rounds, 4 losers rounds, Grand Final, Bracket Reset
+- Seed preservation property: seed1 + seed2 = bracket_size + 1 for all first-round matchups
+
+**Bracket Structure Formulas:**
+- Winners rounds: log2(bracket_size)
+- Losers rounds: 2 * (winners_rounds - 1)
+- First losers round: bracket_size/2 teams (all W1 losers)
+- Pattern: L1 minor (W1 losers pair off), L2 major (W2 losers drop in), L3 minor, L4 major
+
+**Test Design Patterns:**
+- Helper methods for complex fixtures reduce duplication
+- Pool configuration must yield correct advancing team count (8 teams = 4 pools × 2 advance)
+- Seeding depends on pool standings: position first, then wins/set_diff/point_diff tiebreakers
+- Validate both structure (match counts, round names) and routing (losers_feed_to references)
+
+**Implementation Files:**
+- `src/core/double_elimination.py`: Main bracket generation logic
+- `src/core/elimination.py`: Shared seeding functions (_generate_bracket_order, seed_teams_from_pools)
+- Test pattern: verify structural properties, not just team names (seeds, match codes, feed patterns)
+
+- **2026-02-14 — Court constraint validation tests for bracket scheduling (`tests/test_schedule_validity.py`)**
+  - Created new test file with `TestCourtConstraintsInBrackets` class containing 3 test methods.
+  - `test_bracket_respects_court_hours`: Validates matches scheduled within court `start_time` to `end_time` bounds. Tests both invalid case (match at 23:00 when court closes at 22:00) and valid case (match at 21:00).
+  - `test_minimum_break_on_same_court`: Validates gap between consecutive matches on same court meets `min_break_between_matches_minutes` constraint (default: 15). Tests both invalid case (back-to-back with 0-minute gap) and valid case (15-minute gap).
+  - `test_no_court_double_booking`: Validates no overlapping matches on same court using overlap formula `max(start1, start2) < min(end1, end2)`. Tests both overlap detection (09:00-09:30 vs 09:15-09:45) and non-overlap case.
+  - All 3 tests use datetime objects for precise time calculations, following the same patterns as `AllocationManager._check_court_availability()` in `src/core/allocation.py`.
+  - Tests are pure validation logic (no fixtures, no file I/O) — they verify constraint checking formulas in isolation.
+  - All tests pass in < 1 second (0.18s total for all 3).
+  - Court model: `Court(name="Court 1", start_time="08:00", end_time="22:00")` from `src/core/models.py`.
+  - Constraint source: `min_break_between_matches_minutes` from `constraints.yaml` (default: 15, configurable via constraints form).
+
