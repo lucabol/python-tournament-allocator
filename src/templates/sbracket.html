@@ -101,25 +101,6 @@
 </div>
 {% endif %}
 
-<div class="bracket-stats">
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.total_teams }}</div>
-        <div class="stat-label">Teams Advancing</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.bracket_size }}</div>
-        <div class="stat-label">Bracket Size</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.total_rounds }}</div>
-        <div class="stat-label">Rounds</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ bracket_data.byes }}</div>
-        <div class="stat-label">First Round Byes</div>
-    </div>
-</div>
-
 {# --- Mobile: hierarchical bracket view --- #}
 <details class="m-drill-down m-bracket-parent mobile-only" open>
     <summary>🥇 Gold Bracket</summary>
@@ -261,25 +242,6 @@
     🥈 Silver Champion: <strong>{{ silver_bracket_data.champion }}</strong>
 </div>
 {% endif %}
-
-<div class="bracket-stats">
-    <div class="stat-card">
-        <div class="stat-value">{{ silver_bracket_data.total_teams }}</div>
-        <div class="stat-label">Teams</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ silver_bracket_data.bracket_size }}</div>
-        <div class="stat-label">Bracket Size</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ silver_bracket_data.total_rounds }}</div>
-        <div class="stat-label">Rounds</div>
-    </div>
-    <div class="stat-card">
-        <div class="stat-value">{{ silver_bracket_data.byes }}</div>
-        <div class="stat-label">First Round Byes</div>
-    </div>
-</div>
 
 {# --- Mobile: hierarchical silver bracket view --- #}
 <details class="m-drill-down m-bracket-parent mobile-only">
