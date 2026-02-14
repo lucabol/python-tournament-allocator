@@ -17,9 +17,29 @@ Hockney is responsible for the pytest test suite covering all routes, models, bu
 - **Bracket testing**: Double/single elimination tests inspect placeholder team names, losers_feed_to attributes, and match_code values to validate routing and structure.
 - **API endpoint naming**: Routes tested with `client.get(url)` or `client.post(url, ...)`. Status codes checked before data parsing (`assert response.status_code == 200`).
 
-## Learnings
+## Learnings (Recent: < 2 weeks)
 
-<!-- Append new learnings below. Each entry is something lasting about the project. -->
+### 2026-02-14: Bracket scheduling validation tests Phase 2 complete
+- **Summary:** Implemented 12 comprehensive bracket scheduling constraint tests across 3 test classes validating Phase 2 test architecture
+- **Tests added:**
+  1. TestBracketPhaseTransitions (3 tests) — Pool-to-bracket timing: est_pool_to_bracket_delay_enforced, est_bracket_starts_after_pools_complete, est_no_placeholders_in_scheduled_bracket
+  2. est_schedule_validity.py (3 tests) — Court constraints: est_bracket_respects_court_hours, est_minimum_break_on_same_court, est_no_court_double_booking
+  3. TestGrandFinalScheduling (3 tests) — Grand final timing: GF waits for both finals, bracket reset conditional, timing constraints
+- **Helper utilities:** Created 3 reusable validation functions in est_helpers_validation.py with 24 comprehensive test cases
+- **Execution:** All 12 Phase 2 tests pass in <2 seconds; full test suite (274 tests) passes in ~21s with \pytest -m "not slow"\
+- **Next:** Phase 3 integration tests already implemented and passing — Phase 2 completes the bracket scheduling validation pyramid
+
+### 2026-02-14: Azure backup/restore testing complete
+- **Coverage:** Created 67 comprehensive tests across 3 files (`test_backup_script.py`, `test_restore_script.py`, `test_backup_restore_integration.py`)
+- **Backup workflow tests (26):** Azure CLI checks, App Service verification, remote tar download, ZIP creation, exit code validation, timestamped filename generation
+- **Restore workflow tests (31):** ZIP validation (required files, directory traversal), pre-restore backup, stop/start App Service sequence, remote extraction, validation checks, --force and --no-backup flags
+- **Integration tests (10):** Round-trip tests, corrupted ZIP handling, multi-user data preservation, realistic large tournament data, failure rollback scenarios
+- **Mocking pattern:** All Azure CLI calls mocked via `unittest.mock.patch('subprocess.run')` — no actual Azure operations
+- **Exit codes:** 0=success, 1=CLI error, 2=connection error, 3=operation failed, 4=validation failed
+- **Security:** Directory traversal detection, absolute path rejection in ZIP files
+- **Key learning:** Proper tar archive sizing (BytesIO content) prevents OSError on extraction
+
+📌 Team update (2026-02-14): Keaton removed admin configuration from deployment. CLI-based backup/restore strategy is now the primary approach for data persistence on Azure (McManus). All backup/restore operations covered by 67 comprehensive tests.
 
 - **2026-02-14 — Reusable schedule validation helpers**
   - Created `tests/test_helpers_validation.py` with 3 validation functions + 24 tests for Phase 2 schedule validity testing.
