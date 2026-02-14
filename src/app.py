@@ -2027,7 +2027,7 @@ def api_generate_random_bracket_results():
                     if match.get('is_playable') and not match.get('is_bye'):
                         team1, team2 = match['teams']
                         match_number = match['match_number']
-                        match_key = f"silver_winners_{round_name}_{match_number}"
+                        match_key = f"silver_{round_name}_{match_number}"
                         
                         if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
                             winner_score = 21
