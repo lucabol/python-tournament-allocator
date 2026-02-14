@@ -1,0 +1,42 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Create deployment package
+        run: |
+          mkdir deploy-package
+          cp -r src deploy-package/
+          cp startup.sh deploy-package/
+          cp requirements.txt deploy-package/
+          
+          # Add gunicorn to requirements if not present
+          if ! grep -q "gunicorn" deploy-package/requirements.txt; then
+            echo "gunicorn" >> deploy-package/requirements.txt
+          fi
+          
+          cd deploy-package
+          zip -r ../deploy.zip .
+      
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: 'bvtournament'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: deploy.zip
