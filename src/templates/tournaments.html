@@ -90,22 +90,6 @@
     </form>
 </section>
 
-{% if current_user == 'admin' %}
-<section class="section section-danger-zone">
-    <h2>🔒 Site Administration (Admin Only)</h2>
-    <p style="margin-bottom: 0.75rem; color: var(--text-muted);">These actions affect <strong>all users and all tournaments</strong> on this site.</p>
-    <div class="actions-bar" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-        <a href="{{ url_for('api_export_site') }}" class="btn btn-success btn-sm">💾 Export Site Backup</a>
-        <button onclick="document.getElementById('import-site-file').click()" class="btn btn-danger btn-sm">📂 Import Site Backup</button>
-    </div>
-    <div class="alert alert-error" style="margin-top: 0.75rem;">
-        ⚠️ <strong>Import warning:</strong> Importing a site backup will <strong>REPLACE ALL data</strong> on this site (all users, all tournaments). This cannot be undone.
-    </div>
-    <form id="import-site-form" method="POST" action="{{ url_for('api_import_site') }}" enctype="multipart/form-data" style="display:none">
-        <input type="file" id="import-site-file" name="file" accept=".zip" onchange="confirmSiteImport(this)">
-    </form>
-</section>
-{% endif %}
 
 <script>
 function cloneTournament(form, originalName) {
@@ -121,19 +105,6 @@ function confirmImport(input) {
         document.getElementById('import-all-form').submit();
     } else {
         input.value = '';
-    }
-}
-
-function confirmSiteImport(input) {
-    if (!input.files.length) return;
-    var typed = prompt('This will REPLACE ALL data on the site (all users, all tournaments). This cannot be undone.\n\nType REPLACE to confirm:');
-    if (typed === 'REPLACE') {
-        document.getElementById('import-site-form').submit();
-    } else {
-        input.value = '';
-        if (typed !== null) {
-            alert('Import cancelled — you must type exactly "REPLACE" to proceed.');
-        }
     }
 }
 </script>

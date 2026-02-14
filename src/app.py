@@ -164,9 +164,7 @@ def login_required(f):
     return decorated_function
 
 
-def is_admin() -> bool:
-    """Check if the current session user is admin."""
-    return session.get('user') == 'admin'
+
 
 
 def _slugify(name: str) -> str:
@@ -230,52 +228,8 @@ def _get_exportable_files() -> dict:
 
 
 def ensure_tournament_structure():
-    """Migrate to user-scoped tournament structure.
-
-    Handles three cases:
-    1. Already migrated (users.yaml exists) → no-op (ensures admin user exists)
-    2. Multi-tournament exists (tournaments.yaml) but no auth → migrate to admin user
-    3. Legacy flat files (no tournaments.yaml) → migrate flat→tournaments→admin
-    4. Fresh install → create admin user
-    """
+    """Ensure user tournament structure directories exist."""
     os.makedirs(TOURNAMENTS_DIR, exist_ok=True)
-
-    # Already auth-migrated — ensure admin user exists
-    if os.path.exists(USERS_FILE):
-        _ensure_admin_user_exists()
-        return
-
-    # Case 2: Multi-tournament structure exists — migrate to admin user
-    if os.path.exists(TOURNAMENTS_FILE):
-        _migrate_to_admin_user()
-        return
-
-    # Case 3: Legacy flat files (pre-multi-tournament era)
-    legacy_files = ['teams.yaml', 'courts.csv', 'constraints.yaml',
-                    'results.yaml', 'schedule.yaml', 'print_settings.yaml']
-    has_legacy = any(os.path.exists(os.path.join(DATA_DIR, f)) for f in legacy_files)
-
-    if has_legacy:
-        # First: flat files → tournaments/default
-        default_dir = os.path.join(TOURNAMENTS_DIR, 'default')
-        os.makedirs(default_dir, exist_ok=True)
-        for f in legacy_files:
-            src = os.path.join(DATA_DIR, f)
-            if os.path.exists(src):
-                shutil.copy2(src, os.path.join(default_dir, f))
-        for logo in glob.glob(os.path.join(DATA_DIR, 'logo.*')):
-            shutil.copy2(logo, os.path.join(default_dir, os.path.basename(logo)))
-        save_tournaments({
-            'active': 'default',
-            'tournaments': [{'slug': 'default', 'name': 'Default Tournament',
-                             'created': datetime.now().isoformat()}]
-        })
-        # Then: tournaments → admin user
-        _migrate_to_admin_user()
-        return
-
-    # Case 4: Fresh install — create admin user
-    _migrate_to_admin_user()
 
 
 def _create_default_tournament_files(tournament_dir: str, tournament_name: str = 'Default Tournament'):
@@ -306,80 +260,7 @@ def _create_default_tournament_files(tournament_dir: str, tournament_name: str =
         f.write('court_name,start_time,end_time\n')
 
 
-def _ensure_admin_user_exists():
-    """Ensure admin user exists with configured password. Idempotent."""
-    from werkzeug.security import generate_password_hash
-    users = load_users()
-    admin_exists = any(u['username'] == 'admin' for u in users)
-    
-    if not admin_exists:
-        admin_password = os.environ.get('ADMIN_PASSWORD', 'admin')
-        admin_dir = os.path.join(USERS_DIR, 'admin')
-        admin_tournaments_dir = os.path.join(admin_dir, 'tournaments')
-        default_dir = os.path.join(admin_tournaments_dir, 'default')
-        
-        # Create default tournament
-        _create_default_tournament_files(default_dir, 'Default Tournament')
-        
-        # Create admin's tournament registry
-        admin_reg = os.path.join(admin_dir, 'tournaments.yaml')
-        with open(admin_reg, 'w', encoding='utf-8') as f:
-            yaml.dump({
-                'active': 'default',
-                'tournaments': [{'slug': 'default', 'name': 'Default Tournament',
-                                 'created': datetime.now().isoformat()}]
-            }, f, default_flow_style=False)
-        
-        # Add admin to users list
-        users.append({
-            'username': 'admin',
-            'password_hash': generate_password_hash(admin_password),
-            'created': datetime.now().isoformat()
-        })
-        save_users(users)
-        logging.getLogger(__name__).info(
-            f'Created admin user. Password from ADMIN_PASSWORD env var (default: admin)')
 
-
-def _migrate_to_admin_user():
-    """Migrate existing multi-tournament structure to an admin user."""
-    from werkzeug.security import generate_password_hash
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin')
-    admin_dir = os.path.join(USERS_DIR, 'admin')
-    admin_tournaments_dir = os.path.join(admin_dir, 'tournaments')
-    os.makedirs(admin_tournaments_dir, exist_ok=True)
-
-    # Copy tournament registry if it exists
-    if os.path.exists(TOURNAMENTS_FILE):
-        shutil.copy2(TOURNAMENTS_FILE, os.path.join(admin_dir, 'tournaments.yaml'))
-    else:
-        # Fresh install — create default tournament
-        default_dir = os.path.join(admin_tournaments_dir, 'default')
-        _create_default_tournament_files(default_dir, 'Default Tournament')
-        with open(os.path.join(admin_dir, 'tournaments.yaml'), 'w', encoding='utf-8') as f:
-            yaml.dump({
-                'active': 'default',
-                'tournaments': [{'slug': 'default', 'name': 'Default Tournament',
-                                 'created': datetime.now().isoformat()}]
-            }, f, default_flow_style=False)
-
-    # Copy tournament data dirs if they exist
-    if os.path.isdir(TOURNAMENTS_DIR):
-        for item in os.listdir(TOURNAMENTS_DIR):
-            src_path = os.path.join(TOURNAMENTS_DIR, item)
-            if os.path.isdir(src_path):
-                dest_path = os.path.join(admin_tournaments_dir, item)
-                if not os.path.exists(dest_path):
-                    shutil.copytree(src_path, dest_path)
-
-    # Create admin user
-    save_users([{
-        'username': 'admin',
-        'password_hash': generate_password_hash(admin_password),
-        'created': datetime.now().isoformat()
-    }])
-    logging.getLogger(__name__).info(
-        f'Migrated existing tournaments to admin user. Password from ADMIN_PASSWORD env var (default: admin)')
 
 
 ensure_tournament_structure()
@@ -1135,7 +1016,6 @@ def set_active_tournament():
                             'api_clone_tournament',
                             'api_switch_tournament', 'logout', 'api_export_tournament',
                             'api_import_tournament', 'api_export_user', 'api_import_user',
-                            'api_export_site', 'api_import_site',
                             'api_delete_account', 'awards', 'insta'}
     if request.endpoint not in tournament_endpoints:
         flash('Please create a tournament first.', 'info')
@@ -1210,8 +1090,6 @@ def logout():
 def api_delete_account():
     """Delete the currently logged-in user's account and all their data."""
     username = session.get('user')
-    if username == 'admin':
-        return jsonify({'success': False, 'error': 'Admin account cannot be deleted.'}), 403
 
     with _data_lock:
         users = load_users()
@@ -3577,113 +3455,6 @@ def api_import_user():
 
     flash('User tournaments imported successfully.', 'success')
     return redirect(url_for('tournaments'))
-
-
-@app.route('/api/export/site')
-@login_required
-def api_export_site():
-    """Export entire site data (all users, all tournaments) as a downloadable ZIP. Admin only."""
-    if not is_admin():
-        flash('Admin access required.', 'error')
-        return redirect(url_for('index')), 403
-
-    # Derive site root from USERS_FILE location (works in both prod and test)
-    site_root = os.path.dirname(USERS_FILE)
-
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(site_root):
-            # Skip unwanted directories in-place
-            dirs[:] = [d for d in dirs if d not in ('__pycache__',)]
-
-            for fname in files:
-                if fname.endswith('.pyc') or fname == '.lock':
-                    continue
-                full_path = os.path.join(root, fname)
-                arcname = os.path.relpath(full_path, site_root)
-                # Safety: skip if relpath escapes
-                if arcname.startswith('..'):
-                    continue
-                zf.write(full_path, arcname)
-
-    buffer.seek(0)
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    return send_file(
-        buffer,
-        mimetype='application/zip',
-        as_attachment=True,
-        download_name=f'site_export_{timestamp}.zip',
-    )
-
-
-@app.route('/api/import/site', methods=['POST'])
-@login_required
-def api_import_site():
-    """Import full site data from an uploaded ZIP. Admin only. Full replace."""
-    if not is_admin():
-        flash('Admin access required.', 'error')
-        return redirect(url_for('index')), 403
-
-    file = request.files.get('file')
-    if not file or file.filename == '':
-        flash('No file selected.', 'error')
-        return redirect(url_for('tournaments'))
-
-    file_bytes = file.read()
-    if len(file_bytes) > MAX_SITE_UPLOAD_SIZE:
-        flash('File too large (max 50 MB).', 'error')
-        return redirect(url_for('tournaments'))
-
-    if not zipfile.is_zipfile(io.BytesIO(file_bytes)):
-        flash('Uploaded file is not a valid ZIP archive.', 'error')
-        return redirect(url_for('tournaments'))
-
-    with zipfile.ZipFile(io.BytesIO(file_bytes), 'r') as zf:
-        names = zf.namelist()
-
-        # Security: reject entries with path traversal
-        for name in names:
-            if '..' in name or name.startswith('/') or name.startswith('\\'):
-                flash('ZIP contains unsafe file paths. Import aborted.', 'error')
-                return redirect(url_for('tournaments'))
-
-        # Must contain users.yaml at the root
-        if 'users.yaml' not in names:
-            flash('ZIP does not contain users.yaml. Not a valid site export.', 'error')
-            return redirect(url_for('tournaments'))
-
-        # Derive site root from USERS_FILE location
-        site_root = os.path.dirname(USERS_FILE)
-
-        # Full replace: remove existing site data
-        users_dir = os.path.join(site_root, 'users')
-        if os.path.isdir(users_dir):
-            shutil.rmtree(users_dir)
-
-        for remove_name in ('users.yaml', '.secret_key'):
-            remove_path = os.path.join(site_root, remove_name)
-            if os.path.exists(remove_path):
-                os.remove(remove_path)
-
-        # Extract all files into site root with safe names
-        for name in names:
-            # Skip directories (they get created by extracting files)
-            if name.endswith('/'):
-                continue
-            # Extra safety: normalize and reject traversal
-            normalized = os.path.normpath(name)
-            if normalized.startswith('..') or os.path.isabs(normalized):
-                continue
-
-            dest = os.path.join(site_root, normalized)
-            os.makedirs(os.path.dirname(dest), exist_ok=True)
-            with zf.open(name) as src, open(dest, 'wb') as dst:
-                dst.write(src.read())
-
-    # Clear session and force re-login since all user data changed
-    session.clear()
-    flash('Site data imported successfully. Please log in again.', 'success')
-    return redirect(url_for('login_page'))
 
 
 @app.route('/tournaments')

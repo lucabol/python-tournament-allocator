@@ -84,6 +84,20 @@ The script handles resource creation, zip deployment with retry, and configurati
 | `TOURNAMENT_DATA_DIR` | No | `./data` | Directory for tournament data files |
 | `SECRET_KEY` | No | Auto-generated | Flask session signing key |
 
+## Backup & Restore
+
+For Azure deployments, use CLI scripts to backup and restore tournament data:
+
+```bash
+# Backup to local ZIP
+python scripts/backup.py --app-name <app> --resource-group <rg>
+
+# Restore from backup
+python scripts/restore.py backup.zip --app-name <app> --resource-group <rg>
+```
+
+See [docs/CLI_BACKUP_RESTORE.md](docs/CLI_BACKUP_RESTORE.md) for detailed usage, automation examples (scheduled backups, CI/CD), and disaster recovery procedures.
+
 ## Documentation
 
 See [USER_GUIDE.md](USER_GUIDE.md) for a complete walkthrough of all features.

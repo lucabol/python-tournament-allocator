@@ -247,18 +247,6 @@ if (-not $existingKey) {
     Write-Host "SECRET_KEY already set, skipping (preserves user sessions)." -ForegroundColor DarkGray
 }
 
-# Set ADMIN_PASSWORD for admin user creation — only on first deploy.
-# Can be customized via ADMIN_PASSWORD in .env file (optional).
-$existingAdminPassword = az webapp config appsettings list --name $appName --resource-group $resourceGroup --query "[?name=='ADMIN_PASSWORD'].value" -o tsv
-if (-not $existingAdminPassword) {
-    $adminPassword = if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { "admin" }
-    Write-Host "Setting ADMIN_PASSWORD (first deploy)..." -ForegroundColor Yellow
-    az webapp config appsettings set --name $appName --resource-group $resourceGroup --settings ADMIN_PASSWORD="$adminPassword" --output none
-    Write-Host "  Admin user will be created with username 'admin' and configured password." -ForegroundColor DarkGray
-} else {
-    Write-Host "ADMIN_PASSWORD already set, skipping." -ForegroundColor DarkGray
-}
-
 # Wait for config changes to propagate (config changes trigger async container restarts)
 Write-Host "Waiting for config changes to propagate..." -ForegroundColor Yellow
 Start-Sleep -Seconds 15
@@ -280,15 +268,6 @@ try {
 Write-Host ""
 Write-Host "=== Deployment Complete ===" -ForegroundColor Green
 Write-Host "App URL: $url" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Admin Login:" -ForegroundColor Yellow
-Write-Host "  Username: admin" -ForegroundColor Cyan
-if ($env:ADMIN_PASSWORD) {
-    Write-Host "  Password: (from ADMIN_PASSWORD in .env)" -ForegroundColor Cyan
-} else {
-    Write-Host "  Password: admin (default)" -ForegroundColor Cyan
-}
-Write-Host "  Note: Change the password after first login for security." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "To view logs: az webapp log tail --name $appName --resource-group $resourceGroup"
 if ($latestDeploymentId) {
