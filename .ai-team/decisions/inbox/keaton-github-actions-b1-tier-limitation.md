@@ -1,0 +1,5 @@
+### 2026-02-14: GitHub Actions deployment incompatible with Azure B1 tier
+**By:** Keaton
+**What:** GitHub Actions auto-deployment using `azure/webapps-deploy` action does NOT work on B1 (Basic) App Service tier. The action internally defaults to `slot-name: production`, which requires Standard tier or higher. Manual deployments via `deploy.ps1` continue to work fine.
+**Why:** The `azure/webapps-deploy@v2` and `@v3` actions have a design flaw where they assume deployment slots are available, even when using publish profiles for the main app. B1 tier doesn't support slots, causing deployment failures with "Publish profile is invalid for app-name and slot-name" errors. Multiple workarounds were attempted (v3 upgrade, removing app-name, Azure Login) but all fail due to the action's internal slot assumptions.
+**Impact:** GitHub Actions CI/CD is currently disabled. Use `deploy.ps1` for deployments. To enable GitHub Actions, upgrade to Standard tier (S1+) which costs ~10x more than B1 (~$55/month vs ~$13/month).

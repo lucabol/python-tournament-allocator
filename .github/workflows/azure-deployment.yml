@@ -1,46 +1,55 @@
-name: Deploy to Azure App Service
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - name: Create deployment package
-        run: |
-          mkdir deploy-package
-          cp -r src deploy-package/
-          cp startup.sh deploy-package/
-          cp requirements.txt deploy-package/
-          
-          # Add gunicorn to requirements if not present
-          if ! grep -q "gunicorn" deploy-package/requirements.txt; then
-            echo "gunicorn" >> deploy-package/requirements.txt
-          fi
-          
-          cd deploy-package
-          zip -r ../deploy.zip .
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: 'bvtournament'
-          package: deploy.zip
+# DISABLED: Azure deployment workflow
+# 
+# This workflow is disabled because the application is running on Azure B1 tier,
+# which does not support deployment slots. The workflow was designed to use
+# deployment slots for zero-downtime deployments, but B1 tier limitations
+# prevent this feature from working.
+#
+# To re-enable: Remove the comment markers below and uncomment the full workflow.
+# Consider this only if the app is upgraded to a higher tier (Standard or Premium)
+# that supports deployment slots.
+#
+# DISABLED WORKFLOW:
+# 
+# name: Deploy to Azure App Service
+# 
+# on:
+#   push:
+#     branches:
+#       - main
+#   workflow_dispatch:
+# 
+# jobs:
+#   build-and-deploy:
+#     runs-on: ubuntu-latest
+#     
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+#       
+#       - name: Set up Python
+#         uses: actions/setup-python@v5
+#         with:
+#           python-version: '3.11'
+#       
+#       - name: Create deployment package
+#         run: |
+#           mkdir deploy-package
+#           cp -r src deploy-package/
+#           cp startup.sh deploy-package/
+#           cp requirements.txt deploy-package/
+#           
+#           # Add gunicorn to requirements if not present
+#           if ! grep -q "gunicorn" deploy-package/requirements.txt; then
+#             echo "gunicorn" >> deploy-package/requirements.txt
+#           fi
+#           
+#           cd deploy-package
+#           zip -r ../deploy.zip .
+#       
+#       - name: Deploy to Azure Web App
+#         uses: azure/webapps-deploy@v2
+#         with:
+#           app-name: 'bvtournament'
+#           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+#           package: deploy.zip
