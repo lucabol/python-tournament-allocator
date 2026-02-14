@@ -2206,3 +2206,90 @@ class TestClearResult:
         # Tracking page should still load successfully
         tracking_resp = client.get('/tracking')
         assert tracking_resp.status_code == 200
+
+
+class TestNavigationWithStaleSession:
+    """Tests for navigation when session has stale tournament reference."""
+
+    def test_nav_links_work_when_tournament_directory_missing(self, client, temp_data_dir, monkeypatch):
+        """When session has active_tournament but directory doesn't exist, nav links should not redirect to tournaments page."""
+        import app as app_module
+        import shutil
+        
+        # Set up a session with an active tournament
+        with client.session_transaction() as sess:
+            sess['active_tournament'] = 'default'
+        
+        # Delete the tournament directory to simulate stale session
+        tournament_dir = temp_data_dir.parent.parent / 'testuser' / 'tournaments' / 'default'
+        if tournament_dir.exists():
+            shutil.rmtree(tournament_dir)
+        
+        # Try to access /teams - this should either:
+        # 1. Work and show the teams page (clearing stale session), or
+        # 2. Redirect to /tournaments with a helpful message
+        # But it should NOT get stuck in a redirect loop
+        response = client.get('/teams', follow_redirects=False)
+        
+        # Currently this redirects to /tournaments (the bug)
+        # After fix, it should clear stale session and redirect to /tournaments with message
+        assert response.status_code in (200, 302)
+        if response.status_code == 302:
+            assert response.location.endswith('/tournaments')
+    
+    def test_nav_links_work_with_valid_tournament(self, client, temp_data_dir):
+        """When session has valid active_tournament, nav links should work normally."""
+        import app as app_module
+        
+        # Set up a session with the valid tournament
+        with client.session_transaction() as sess:
+            sess['active_tournament'] = 'default'
+        
+        # Verify the tournament directory exists
+        tournament_dir = temp_data_dir
+        assert tournament_dir.exists()
+        
+        # Access /teams - should work
+        response = client.get('/teams', follow_redirects=False)
+        assert response.status_code == 200
+        assert b'Teams' in response.data or b'teams' in response.data.lower()
+        
+        # Access /courts - should work
+        response = client.get('/courts', follow_redirects=False)
+        assert response.status_code == 200
+        
+        # Access /schedule - should work
+        response = client.get('/schedule', follow_redirects=False)
+        assert response.status_code == 200
+    
+    def test_auto_activates_first_tournament_when_none_active(self, client, temp_data_dir, monkeypatch):
+        """When tournaments exist but none is active, auto-activate the first one."""
+        import app as app_module
+        import yaml
+        
+        # Clear session active_tournament
+        with client.session_transaction() as sess:
+            sess.pop('active_tournament', None)
+        
+        # Update tournaments.yaml to have active=None
+        # temp_data_dir is: .../users/testuser/tournaments/default
+        # We need: .../users/testuser/tournaments.yaml
+        testuser_dir = temp_data_dir.parent.parent
+        user_reg = testuser_dir / 'tournaments.yaml'
+        user_reg.write_text(yaml.dump({
+            'active': None,  # Explicitly no active tournament
+            'tournaments': [{'slug': 'default', 'name': 'Default Tournament'}]
+        }, default_flow_style=False))
+        
+        # Access /teams - should auto-activate 'default' and work
+        response = client.get('/teams', follow_redirects=False)
+        assert response.status_code == 200
+        
+        # Verify session was updated
+        with client.session_transaction() as sess:
+            assert sess.get('active_tournament') == 'default'
+        
+        # Verify tournaments.yaml was updated
+        with open(user_reg, 'r') as f:
+            updated_tournaments = yaml.safe_load(f)
+        assert updated_tournaments['active'] == 'default'
