@@ -1837,20 +1837,27 @@ def api_generate_random_results():
 def api_generate_random_bracket_results():
     """Generate random results for all playable bracket matches."""
     import random
-    from core.double_elimination import generate_double_bracket_with_results
-    from core.elimination import seed_silver_bracket_teams
     
     pools = load_teams()
     results = load_results()
     # Clear previous bracket results to regenerate fresh
     bracket_results = {}
     constraints = load_constraints()
+    bracket_type = constraints.get('bracket_type', 'double')
     
     # Get standings for seeding
     standings = calculate_pool_standings(pools, results)
     
+    # Import the appropriate bracket generation function
+    if bracket_type == 'double':
+        from core.double_elimination import generate_double_bracket_with_results
+        bracket_generator = generate_double_bracket_with_results
+    else:
+        from core.elimination import generate_bracket_with_results
+        bracket_generator = generate_bracket_with_results
+    
     # Generate bracket to find playable matches
-    bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+    bracket_data = bracket_generator(pools, standings, bracket_results)
     
     if not bracket_data:
         return jsonify({'success': False, 'error': 'No bracket data'})
@@ -1859,118 +1866,193 @@ def api_generate_random_bracket_results():
     # Keep generating results until no more playable matches
     while updated:
         updated = False
-        bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+        bracket_data = bracket_generator(pools, standings, bracket_results)
         
-        # Process winners bracket
-        for round_name, matches in bracket_data.get('winners_bracket', {}).items():
-            for match in matches:
-                if match.get('is_playable') and not match.get('is_bye'):
-                    team1, team2 = match['teams']
-                    match_number = match['match_number']
-                    match_key = f"winners_{round_name}_{match_number}"
-                    
-                    if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
-                        winner_score = 21
-                        loser_score = random.randint(10, 19)
+        # For double elimination: Process winners bracket, losers bracket, grand final, bracket reset
+        # For single elimination: Process rounds
+        if bracket_type == 'double':
+            # Process winners bracket
+            for round_name, matches in bracket_data.get('winners_bracket', {}).items():
+                for match in matches:
+                    if match.get('is_playable') and not match.get('is_bye'):
+                        team1, team2 = match['teams']
+                        match_number = match['match_number']
+                        match_key = f"winners_{round_name}_{match_number}"
                         
-                        if random.random() < 0.5:
-                            sets = [[winner_score, loser_score]]
-                            winner, loser = team1, team2
-                        else:
-                            sets = [[loser_score, winner_score]]
-                            winner, loser = team2, team1
-                        
-                        bracket_results[match_key] = {
-                            'sets': sets,
-                            'winner': winner,
-                            'loser': loser,
-                            'completed': True
-                        }
-                        updated = True
-        
-        # Process losers bracket
-        for round_name, matches in bracket_data.get('losers_bracket', {}).items():
-            for match in matches:
-                if match.get('is_playable'):
-                    team1, team2 = match['teams']
-                    match_number = match['match_number']
-                    match_key = f"losers_{round_name}_{match_number}"
-                    
-                    if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
-                        winner_score = 21
-                        loser_score = random.randint(10, 19)
-                        
-                        if random.random() < 0.5:
-                            sets = [[winner_score, loser_score]]
-                            winner, loser = team1, team2
-                        else:
-                            sets = [[loser_score, winner_score]]
-                            winner, loser = team2, team1
-                        
-                        bracket_results[match_key] = {
-                            'sets': sets,
-                            'winner': winner,
-                            'loser': loser,
-                            'completed': True
-                        }
-                        updated = True
-        
-        # Process grand final
-        gf = bracket_data.get('grand_final')
-        if gf and gf.get('is_playable'):
-            team1, team2 = gf['teams']
-            match_key = "grand_final_Grand Final_1"
+                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                            winner_score = 21
+                            loser_score = random.randint(10, 19)
+                            
+                            if random.random() < 0.5:
+                                sets = [[winner_score, loser_score]]
+                                winner, loser = team1, team2
+                            else:
+                                sets = [[loser_score, winner_score]]
+                                winner, loser = team2, team1
+                            
+                            bracket_results[match_key] = {
+                                'sets': sets,
+                                'winner': winner,
+                                'loser': loser,
+                                'completed': True
+                            }
+                            updated = True
             
-            if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
-                winner_score = 21
-                loser_score = random.randint(10, 19)
-                
-                if random.random() < 0.5:
-                    sets = [[winner_score, loser_score]]
-                    winner, loser = team1, team2
-                else:
-                    sets = [[loser_score, winner_score]]
-                    winner, loser = team2, team1
-                
-                bracket_results[match_key] = {
-                    'sets': sets,
-                    'winner': winner,
-                    'loser': loser,
-                    'completed': True
-                }
-                updated = True
-        
-        # Process bracket reset if needed
-        br = bracket_data.get('bracket_reset')
-        if br and br.get('needs_reset') and br.get('is_playable'):
-            team1, team2 = br['teams']
-            match_key = "bracket_reset_Bracket Reset_1"
+            # Process losers bracket
+            for round_name, matches in bracket_data.get('losers_bracket', {}).items():
+                for match in matches:
+                    if match.get('is_playable'):
+                        team1, team2 = match['teams']
+                        match_number = match['match_number']
+                        match_key = f"losers_{round_name}_{match_number}"
+                        
+                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                            winner_score = 21
+                            loser_score = random.randint(10, 19)
+                            
+                            if random.random() < 0.5:
+                                sets = [[winner_score, loser_score]]
+                                winner, loser = team1, team2
+                            else:
+                                sets = [[loser_score, winner_score]]
+                                winner, loser = team2, team1
+                            
+                            bracket_results[match_key] = {
+                                'sets': sets,
+                                'winner': winner,
+                                'loser': loser,
+                                'completed': True
+                            }
+                            updated = True
             
-            if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
-                winner_score = 21
-                loser_score = random.randint(10, 19)
+            # Process grand final
+            gf = bracket_data.get('grand_final')
+            if gf and gf.get('is_playable'):
+                team1, team2 = gf['teams']
+                match_key = "grand_final_Grand Final_1"
                 
-                if random.random() < 0.5:
-                    sets = [[winner_score, loser_score]]
-                    winner, loser = team1, team2
-                else:
-                    sets = [[loser_score, winner_score]]
-                    winner, loser = team2, team1
+                if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                    winner_score = 21
+                    loser_score = random.randint(10, 19)
+                    
+                    if random.random() < 0.5:
+                        sets = [[winner_score, loser_score]]
+                        winner, loser = team1, team2
+                    else:
+                        sets = [[loser_score, winner_score]]
+                        winner, loser = team2, team1
+                    
+                    bracket_results[match_key] = {
+                        'sets': sets,
+                        'winner': winner,
+                        'loser': loser,
+                        'completed': True
+                    }
+                    updated = True
+            
+            # Process bracket reset if needed
+            br = bracket_data.get('bracket_reset')
+            if br and br.get('needs_reset') and br.get('is_playable'):
+                team1, team2 = br['teams']
+                match_key = "bracket_reset_Bracket Reset_1"
                 
-                bracket_results[match_key] = {
-                    'sets': sets,
-                    'winner': winner,
-                    'loser': loser,
-                    'completed': True
-                }
-                updated = True
+                if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                    winner_score = 21
+                    loser_score = random.randint(10, 19)
+                    
+                    if random.random() < 0.5:
+                        sets = [[winner_score, loser_score]]
+                        winner, loser = team1, team2
+                    else:
+                        sets = [[loser_score, winner_score]]
+                        winner, loser = team2, team1
+                    
+                    bracket_results[match_key] = {
+                        'sets': sets,
+                        'winner': winner,
+                        'loser': loser,
+                        'completed': True
+                    }
+                    updated = True
+        else:
+            # Single elimination: Process rounds
+            for round_name, matches in bracket_data.get('rounds', {}).items():
+                for match in matches:
+                    if match.get('is_playable') and not match.get('is_bye'):
+                        team1, team2 = match['teams']
+                        match_number = match['match_number']
+                        match_key = f"winners_{round_name}_{match_number}"
+                        
+                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                            winner_score = 21
+                            loser_score = random.randint(10, 19)
+                            
+                            if random.random() < 0.5:
+                                sets = [[winner_score, loser_score]]
+                                winner, loser = team1, team2
+                            else:
+                                sets = [[loser_score, winner_score]]
+                                winner, loser = team2, team1
+                            
+                            bracket_results[match_key] = {
+                                'sets': sets,
+                                'winner': winner,
+                                'loser': loser,
+                                'completed': True
+                            }
+                            updated = True
     
     results['bracket'] = bracket_results
     save_results(results)
     
-    # Now generate Silver bracket results if enabled
-    constraints = load_constraints()
-    if constraints.get('silver_bracket_enabled', False):
+    # Now generate Silver bracket results if enabled (only for single elimination)
+    if bracket_type == 'single' and constraints.get('silver_bracket_enabled', False):
+        from core.elimination import generate_silver_bracket_with_results as generate_silver_single_bracket
+        
+        # Reload results with Gold bracket filled
+        results = load_results()
+        bracket_results = results.get('bracket', {})
+        
+        updated = True
+        while updated:
+            updated = False
+            silver_bracket_data = generate_silver_single_bracket(pools, standings, bracket_results)
+            
+            if not silver_bracket_data:
+                break
+            
+            # Process silver rounds (single elimination structure)
+            for round_name, matches in silver_bracket_data.get('rounds', {}).items():
+                for match in matches:
+                    if match.get('is_playable') and not match.get('is_bye'):
+                        team1, team2 = match['teams']
+                        match_number = match['match_number']
+                        match_key = f"silver_winners_{round_name}_{match_number}"
+                        
+                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                            winner_score = 21
+                            loser_score = random.randint(10, 19)
+                            
+                            if random.random() < 0.5:
+                                sets = [[winner_score, loser_score]]
+                                winner, loser = team1, team2
+                            else:
+                                sets = [[loser_score, winner_score]]
+                                winner, loser = team2, team1
+                            
+                            bracket_results[match_key] = {
+                                'sets': sets,
+                                'winner': winner,
+                                'loser': loser,
+                                'completed': True
+                            }
+                            updated = True
+        
+        results['bracket'] = bracket_results
+        save_results(results)
+    
+    # Generate Silver bracket for double elimination if enabled
+    elif bracket_type == 'double' and constraints.get('silver_bracket_enabled', False):
         from core.double_elimination import generate_silver_double_bracket_with_results
         
         # Reload results with Gold bracket filled
