@@ -95,7 +95,7 @@
     <h2>🔒 Site Administration (Admin Only)</h2>
     <p style="margin-bottom: 0.75rem; color: var(--text-muted);">These actions affect <strong>all users and all tournaments</strong> on this site.</p>
     <div class="actions-bar" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-        <a href="{{ url_for('api_export_site') }}" class="btn btn-secondary btn-sm">💾 Export Site Backup</a>
+        <a href="{{ url_for('api_export_site') }}" class="btn btn-success btn-sm">💾 Export Site Backup</a>
         <button onclick="document.getElementById('import-site-file').click()" class="btn btn-danger btn-sm">📂 Import Site Backup</button>
     </div>
     <div class="alert alert-error" style="margin-top: 0.75rem;">
