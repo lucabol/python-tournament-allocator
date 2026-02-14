@@ -1103,6 +1103,16 @@ def set_active_tournament():
     tournaments = load_tournaments()
     active_slug = session.get('active_tournament', tournaments.get('active'))
 
+    # Auto-activate first tournament if none is active but tournaments exist
+    if not active_slug and tournaments.get('tournaments'):
+        first_slug = tournaments['tournaments'][0]['slug']
+        tournament_path = os.path.join(g.user_tournaments_dir, first_slug)
+        if os.path.isdir(tournament_path):
+            active_slug = first_slug
+            tournaments['active'] = first_slug
+            save_tournaments(tournaments)
+            session['active_tournament'] = first_slug
+
     if active_slug:
         tournament_path = os.path.join(g.user_tournaments_dir, active_slug)
         if os.path.isdir(tournament_path):
