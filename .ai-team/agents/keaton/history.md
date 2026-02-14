@@ -37,3 +37,15 @@
 - **Current status:** GitHub Actions deployment NOT working on B1 tier due to action's slot assumptions
 - **Recommended solution:** Use `deploy.ps1` for manual deployments until upgrading to Standard tier or action is fixed
 - **Alternative:** Upgrade App Service to Standard tier (S1+) to support deployment slots
+
+### Azure App Service backup script (2026-02-14)
+- **Script:** `scripts/backup.py` for backing up `/home/data` from Azure App Service
+- **Method:** Uses `az webapp ssh` to create remote tar archive, downloads via SSH stdout redirection, extracts locally, creates timestamped ZIP
+- **Target data:** `/home/data` directory containing `users.yaml`, `.secret_key`, and `users/*` tournament directories
+- **Output:** `backups/azure-backup-YYYYMMDD-HHMMSS.zip` (configurable via `--output`)
+- **Prerequisites:** Azure CLI installed, `az login` authenticated
+- **Exit codes:** 0=success, 1=CLI/auth failure, 2=connection failure, 3=backup write failure
+- **Limitation:** Requires `tar` command available (native on Linux/macOS, needs WSL or Git Bash on Windows)
+- **Usage:** `python scripts/backup.py --app-name <webapp> --resource-group <rg>`
+
+📌 **Team update (2026-02-14):** Azure backup/restore workflow coordinated with Fenster — backup uses SSH tar streaming; restore uses base64-chunked upload with app stop. See decisions.md for full architecture.

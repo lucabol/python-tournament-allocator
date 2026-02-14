@@ -51,3 +51,11 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 - **Data source**: Uses `_get_live_data()` — same context as the live page. Template variables: `constraints`, `bracket_data`, `silver_bracket_data`, `standings`, `pools`, `awards`.
 
 ### 2026-02-13: Instagram page session completed
+
+### 2026-02-13: Azure restore script implementation
+- **What**: Created `scripts/restore.py` for restoring data to Azure App Service from backup ZIP. Script validates ZIP structure (requires `users.yaml`, `.secret_key`), creates pre-restore backup (calls `backup.py`), stops App Service, uploads ZIP via base64-encoded chunks through `az webapp ssh`, extracts remotely to `/home/data`, validates files, restarts app. Exit codes: 0 (success), 1 (invalid ZIP/Azure CLI), 2 (connection failed), 3 (restore failed), 4 (validation failed).
+- **Azure CLI patterns**: Uses `az webapp ssh --command` for remote execution. Binary uploads split into base64 chunks to avoid command length limits. App stop/start via `az webapp stop/start`. Remote validation with `test -f` commands.
+- **Safety features**: Pre-restore backup saved to `backups/pre-restore-YYYYMMDD-HHMMSS.zip` (unless `--no-backup`). Typed confirmation prompt (must type "RESTORE"). App Service stopped during restore to prevent corruption. Validation after extraction. Cleanup of temp files.
+- **File structure**: Backup restores to `/home/data` on Azure (set via `TOURNAMENT_DATA_DIR` env var in `deploy.ps1`). This directory is persistent across deploys (`/home` mount survives, `/home/site/wwwroot` is replaced).
+
+📌 **Team update (2026-02-14):** Azure backup/restore workflow coordinated with Keaton — backup uses SSH tar streaming; restore uses base64-chunked upload with app stop. See decisions.md for full architecture.

@@ -1,4 +1,0 @@
-### 2026-02-14: Grand final scheduling validation tests
-**By:** Hockney
-**What:** Added `TestGrandFinalScheduling` class with 3 tests validating grand final and bracket reset timing dependencies in double elimination tournaments. Tests cover: (1) Grand Final must be scheduled after BOTH Winners Final AND Losers Final complete, (2) Bracket reset conditionally scheduled only if losers champ wins Grand Final, (3) Bracket reset timing constraints (respects min break, scheduled immediately after GF).
-**Why:** Double elimination grand finals have complex timing dependencies that weren't explicitly tested. These tests validate timing constraints at the scheduling logic level, not just bracket structure. Ensures schedulers (human or automated) respect the rule: "Grand Final can't start until both finals complete" and "Bracket reset only happens if losers champ wins GF." Tests execute in 0.10s and use pure validation logic (no fixtures, no file I/O).

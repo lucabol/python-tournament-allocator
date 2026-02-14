@@ -295,3 +295,14 @@ eeds_reset = gf_winner and gf_winner == losers_champion.
 - All tests validate correctness, not just "no errors"
 - Combined execution time: ~20 seconds (acceptable for integration tests)
 
+
+### 2026-02-14: Bracket scheduling validation tests Phase 2 complete
+- **Summary:** Implemented 12 comprehensive bracket scheduling constraint tests across 3 test classes validating Phase 2 test architecture
+- **Tests added:**
+  1. TestBracketPhaseTransitions (3 tests) — Pool-to-bracket timing: 	est_pool_to_bracket_delay_enforced, 	est_bracket_starts_after_pools_complete, 	est_no_placeholders_in_scheduled_bracket
+  2. 	est_schedule_validity.py (3 tests) — Court constraints: 	est_bracket_respects_court_hours, 	est_minimum_break_on_same_court, 	est_no_court_double_booking
+  3. TestGrandFinalScheduling (3 tests) — Grand final timing: GF waits for both finals, bracket reset conditional, timing constraints
+- **Helper utilities:** Created 3 reusable validation functions in 	est_helpers_validation.py with 24 comprehensive test cases
+- **Execution:** All 12 Phase 2 tests pass in <2 seconds; full test suite (274 tests) passes in ~21s with \pytest -m "not slow"\
+- **Next:** Phase 3 integration tests already implemented and passing — Phase 2 completes the bracket scheduling validation pyramid
+

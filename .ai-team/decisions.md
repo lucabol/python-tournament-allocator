@@ -359,3 +359,63 @@
 **By:** Luca Bolognese (via Copilot directive)
 **What:** All features tracked in `CHANGELOG.md` following semantic versioning conventions.
 **Why:** User request — centralized feature documentation for users and stakeholders.
+
+---
+
+## Git Workflow & User Directives (2026-02-14)
+
+### User directive on git workflow
+**By:** Luca Bolognese (via Copilot)
+**Date:** 2026-02-14
+**What:** Always check in your changes, but push them just if they are small changes non dangerous
+**Why:** User request — captured for team memory. Preference for cautious pushing strategy: commit locally always, but only push to remote when changes are small and safe.
+
+---
+
+## Azure Data Management Scripts (2026-02-14)
+
+### Azure restore script implementation approach
+**By:** Fenster
+**Date:** 2026-02-14
+**What:** Created `scripts/restore.py` for restoring Tournament Allocator data to Azure App Service from backup ZIP. Script uses base64-encoded chunked upload through `az webapp ssh` to transfer files, stops the app during restore to prevent corruption, and validates remotely after extraction. Pre-restore backup is created automatically (calls `backup.py`) unless `--no-backup` flag is used. Requires `users.yaml` and `.secret_key` in backup ZIP. Typed confirmation prompt (must type "RESTORE") unless `--force` flag.
+**Why:** Azure App Service's `az webapp ssh` has command-length limits, making direct binary uploads unreliable. Base64 encoding with 50KB chunks solves this. Stopping the app during restore prevents file corruption from concurrent writes. Pre-restore backup provides rollback capability. ZIP validation before upload catches corrupt backups early. Remote validation after extraction ensures data integrity.
+
+### Azure backup uses SSH tar streaming approach
+**By:** Keaton
+**Date:** 2026-02-14
+**What:** `scripts/backup.py` uses `az webapp ssh` to create a remote tar archive of `/home/data`, downloads it via SSH stdout redirection, extracts locally, and creates a timestamped ZIP. This approach avoids Kudu/SCM APIs and works directly with the Linux container filesystem.
+**Why:** Azure App Service on Linux mounts persistent storage at `/home/`, but doesn't provide a direct API for bulk directory downloads. The `az webapp ssh` command gives direct shell access to the container. By creating a tar archive remotely and streaming it through SSH stdout, we can download the entire directory structure in one operation without needing to know the file tree in advance. This is more reliable than FTP (which Azure is deprecating) and simpler than recursively downloading files via Kudu API.
+**Trade-offs:**
+- Requires `tar` command available locally (native on Linux/macOS, needs WSL/Git Bash on Windows)
+- Backup is point-in-time only (no incremental support)
+- Depends on SSH access being enabled (default on Linux App Service)
+
+---
+
+## Test Architecture & Coverage (2026-02-14)
+
+### Bracket scheduling validation — Phase 2 test suite
+**By:** Hockney
+**Date:** 2026-02-14
+**What:** Implemented comprehensive bracket scheduling validation tests across 3 areas:
+1. **Bracket phase transitions** (`TestBracketPhaseTransitions`) — 3 tests validating pool-to-bracket timing constraints, enforcing `pool_to_bracket_delay_minutes` and ensuring bracket starts after pools complete
+2. **Court constraints for bracket** (`tests/test_schedule_validity.py`) — 3 tests validating bracket matches respect court hours, minimum breaks, and no court double-booking
+3. **Grand final scheduling** (`TestGrandFinalScheduling`) — 3 tests validating complex timing dependencies: Grand Final must wait for both Winners Final AND Losers Final; Bracket reset conditional on losers champ winning GF
+**Why:** Bracket scheduling must respect the same court and timing constraints as pool play. Grand finals have complex interdependencies not previously tested. Phase 2 establishes foundational test coverage for bracket constraints before Phase 3 integration tests.
+**Test execution:** 12 Phase 2 tests total, all passing in <2 seconds.
+**Key Constraint:** `pool_to_bracket_delay_minutes` from `constraints.yaml` (default: 0).
+
+### Schedule validation helper functions
+**By:** Hockney
+**Date:** 2026-02-14
+**What:** Created three reusable schedule validation helpers in `tests/test_helpers_validation.py`:
+1. **validate_no_premature_scheduling(schedule, dependencies, match_codes)** — Validates teams aren't scheduled before prerequisite matches complete
+2. **validate_team_availability(schedule, team_name)** — Validates teams aren't double-booked (no overlapping matches)
+3. **validate_bracket_dependencies(schedule, bracket_structure)** — Validates bracket match dependencies are respected
+
+Each helper returns `List[str]` of clear, actionable violation messages (empty list = valid).
+**Why:** Phase 2 schedule validity tests and upcoming Phase 3 integration tests need common validation logic. Helpers eliminate duplication and provide reusable, well-tested validation building blocks. All helpers are pure functions with comprehensive test coverage (24 tests covering valid/invalid/edge cases).
+**API Design Notes:**
+- `validate_no_premature_scheduling` requires `match_codes` dict mapping teams tuple to match code
+- Schedule format: `Dict[str, List[Tuple[int, datetime, datetime, Tuple[str, str]]]]` (court name → list)
+- All helpers handle edge cases: empty schedules, missing matches, cross-day dependencies, midnight crossing
