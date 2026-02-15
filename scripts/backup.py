@@ -25,10 +25,31 @@ from datetime import datetime
 from pathlib import Path
 
 
+def run_az_command(args, **kwargs):
+    """
+    Run an Azure CLI command with proper shell handling for Windows.
+    
+    On Windows, subprocess needs shell=True to find az.cmd in PATH.
+    """
+    use_shell = sys.platform.startswith('win')
+    
+    if use_shell:
+        # On Windows, convert list to string command
+        if isinstance(args, list):
+            # Properly quote arguments that contain spaces
+            cmd = ' '.join(f'"{arg}"' if ' ' in str(arg) else str(arg) for arg in args)
+        else:
+            cmd = args
+        return subprocess.run(cmd, shell=True, **kwargs)
+    else:
+        # On Unix, use list form
+        return subprocess.run(args, **kwargs)
+
+
 def check_azure_cli():
     """Verify Azure CLI is installed and user is authenticated."""
     try:
-        result = subprocess.run(
+        result = run_az_command(
             ['az', '--version'],
             capture_output=True,
             text=True,
@@ -42,7 +63,7 @@ def check_azure_cli():
         return False
 
     try:
-        result = subprocess.run(
+        result = run_az_command(
             ['az', 'account', 'show'],
             capture_output=True,
             text=True,
@@ -61,7 +82,7 @@ def check_azure_cli():
 def verify_app_service(app_name: str, resource_group: str) -> bool:
     """Check if the App Service exists and is accessible."""
     try:
-        result = subprocess.run(
+        result = run_az_command(
             ['az', 'webapp', 'show', '--name', app_name, '--resource-group', resource_group],
             capture_output=True,
             text=True,
@@ -94,7 +115,7 @@ def download_data_directory(app_name: str, resource_group: str, temp_dir: str) -
     # Create tar on remote server
     tar_command = f"tar -czf {remote_tar} -C /home data 2>/dev/null && echo SUCCESS"
     try:
-        result = subprocess.run(
+        result = run_az_command(
             ['az', 'webapp', 'ssh', '--name', app_name, '--resource-group', resource_group],
             input=tar_command + '\nexit\n',
             capture_output=True,
@@ -122,7 +143,7 @@ def download_data_directory(app_name: str, resource_group: str, temp_dir: str) -
     # We'll use a different approach: run cat on the remote tar and redirect to local file
     download_command = f"cat {remote_tar}"
     try:
-        result = subprocess.run(
+        result = run_az_command(
             ['az', 'webapp', 'ssh', '--name', app_name, '--resource-group', resource_group],
             input=download_command + '\nexit\n',
             capture_output=True,

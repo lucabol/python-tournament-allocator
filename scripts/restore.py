@@ -27,6 +27,27 @@ import json
 from datetime import datetime
 
 
+def run_az_command(args, **kwargs):
+    """
+    Run an Azure CLI command with proper shell handling for Windows.
+    
+    On Windows, subprocess needs shell=True to find az.cmd in PATH.
+    """
+    use_shell = sys.platform.startswith('win')
+    
+    if use_shell:
+        # On Windows, convert list to string command
+        if isinstance(args, list):
+            # Properly quote arguments that contain spaces
+            cmd = ' '.join(f'"{arg}"' if ' ' in str(arg) else str(arg) for arg in args)
+        else:
+            cmd = args
+        return subprocess.run(cmd, shell=True, **kwargs)
+    else:
+        # On Unix, use list form
+        return subprocess.run(args, **kwargs)
+
+
 def error(message: str, code: int = 1):
     """Print error and exit."""
     print(f"❌ ERROR: {message}", file=sys.stderr)
@@ -36,7 +57,7 @@ def error(message: str, code: int = 1):
 def run_az(command: list, capture_output: bool = True, check: bool = True) -> subprocess.CompletedProcess:
     """Run Azure CLI command."""
     cmd = ['az'] + command
-    result = subprocess.run(cmd, capture_output=capture_output, text=True, check=False)
+    result = run_az_command(cmd, capture_output=capture_output, text=True, check=False)
     if check and result.returncode != 0:
         error(f"Azure CLI command failed: {' '.join(cmd)}\n{result.stderr}", code=2)
     return result
@@ -45,7 +66,7 @@ def run_az(command: list, capture_output: bool = True, check: bool = True) -> su
 def check_azure_cli():
     """Verify Azure CLI is installed and authenticated."""
     # Check installation
-    result = subprocess.run(['az', '--version'], capture_output=True, check=False)
+    result = run_az_command(['az', '--version'], capture_output=True, check=False)
     if result.returncode != 0:
         error("Azure CLI not found. Install from: https://aka.ms/azure-cli")
     
