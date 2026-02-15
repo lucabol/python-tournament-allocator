@@ -3558,6 +3558,7 @@ def api_admin_import():
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_location = os.path.join(BASE_DIR, 'backups', f'pre-restore-{timestamp}')
         os.makedirs(backup_location, exist_ok=True)
+        app.logger.info(f'Pre-restore backup will be saved to: {backup_location}')
         
         # Backup existing data
         if os.path.exists(DATA_DIR):
