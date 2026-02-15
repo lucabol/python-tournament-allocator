@@ -21,6 +21,8 @@ Exit codes:
 import os
 import sys
 import requests
+import argparse
+import zipfile
 from dotenv import load_dotenv
 from datetime import datetime
 from pathlib import Path
@@ -45,6 +47,56 @@ def validate_config():
         return False
     
     return True
+
+
+def inspect_backup_contents(zip_path):
+    """Inspect ZIP and extract user/tournament structure."""
+    user_tournaments = {}
+    
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            for name in zf.namelist():
+                # Look for pattern: users/{username}/tournaments/{slug}/
+                # Note: Flask export uses relpath from DATA_DIR, so no 'data/' prefix
+                parts = name.split('/')
+                if len(parts) >= 4 and parts[0] == 'users' and parts[2] == 'tournaments':
+                    username = parts[1]
+                    slug = parts[3]
+                    
+                    if username not in user_tournaments:
+                        user_tournaments[username] = set()
+                    
+                    if slug:  # Not empty (could be a directory marker)
+                        user_tournaments[username].add(slug)
+        
+        # Convert sets to sorted lists
+        return {user: sorted(list(tournaments)) for user, tournaments in user_tournaments.items()}
+    
+    except Exception as e:
+        print(f"⚠️  Warning: Could not inspect backup contents: {e}", file=sys.stderr)
+        return {}
+
+
+def show_backup_contents(zip_path):
+    """Display user and tournament list from backup."""
+    contents = inspect_backup_contents(zip_path)
+    
+    if not contents:
+        print("   No user data found in backup")
+        return
+    
+    print(f"\n📋 Backup Contents:")
+    user_count = len(contents)
+    total_tournaments = sum(len(tournaments) for tournaments in contents.values())
+    print(f"   Users: {user_count}")
+    print(f"   Total tournaments: {total_tournaments}")
+    print()
+    
+    for username in sorted(contents.keys()):
+        tournaments = contents[username]
+        print(f"   • {username} ({len(tournaments)} tournament{'s' if len(tournaments) != 1 else ''})")
+        for slug in tournaments:
+            print(f"     - {slug}")
 
 
 def download_backup():
@@ -115,6 +167,10 @@ def download_backup():
 
 def main():
     """Main entry point."""
+    parser = argparse.ArgumentParser(description='Download backup from Tournament Allocator')
+    parser.add_argument('--verbose', action='store_true', help='Show list of users and tournaments in backup')
+    args = parser.parse_args()
+    
     print("=== Tournament Allocator Backup ===\n")
     
     # Validate configuration
@@ -126,6 +182,10 @@ def main():
     
     if result is None:
         return 1
+    
+    # Show contents if verbose
+    if args.verbose:
+        show_backup_contents(result)
     
     return 0
 

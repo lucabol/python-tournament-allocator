@@ -48,6 +48,11 @@
 - **Routes**: `GET /api/export/user` and `POST /api/import/user`. Both require `@login_required`.
 - **Export**: Reads `g.user_tournaments_file` to discover slugs, zips all tournament data (standard files + logos) into `<slug>/` subdirectories with `tournaments.yaml` at the root. Returns `user_export_{timestamp}.zip`.
 - **Import**: Validates ZIP, reads `tournaments.yaml` from the root, extracts only `ALLOWED_IMPORT_NAMES` files and logos per slug into `g.user_tournaments_dir/<slug>/`. Merges the imported `tournaments.yaml` additively — new slugs are added, existing slugs get name/created updated, tournaments not in ZIP are preserved.
+
+### 2026-02-12: Backup/restore scripts enhanced with content inspection
+- **scripts/backup.py**: Added `--verbose` flag that inspects downloaded ZIP and shows list of users and their tournaments. Uses `zipfile` to parse `data/users/{username}/tournaments/{slug}/` structure.
+- **scripts/restore.py**: Always shows backup contents (users and tournaments) before the restore confirmation prompt. Helps operators verify what they're about to restore.
+- **Pattern**: Both scripts share `inspect_backup_contents()` logic that parses ZIP directory structure into a `{username: [slugs]}` dict. Output is formatted as a tree with counts.
 - **Whitelist**: Added `api_export_user` and `api_import_user` to the `tournament_endpoints` guard set in `before_request`.
 - **Pattern**: Logo handling replicates the per-tournament pattern (glob for `logo.*`, delete old, extract new). Security checks mirror existing import route (path traversal, size limit).
 
@@ -210,3 +215,18 @@
 - **Verification**: No `/tmp` or `tempfile` usage exists in `src/` or `scripts/` directories. The `scripts/backup.py` also correctly uses `backups_dir = script_dir / 'backups'` (line 78).
 - **Result**: Pre-backup files are stored at `{project_root}/backups/pre-restore-{timestamp}/` — exactly what the user requested.
 - **Files checked**: `src/app.py`, `scripts/backup.py`, `scripts/restore.py`
+- **Enhancement**: Added logging statement at line 3561 to make backup location explicit in logs: `app.logger.info(f'Pre-restore backup will be saved to: {backup_location}')`
+
+### 2026-02-15: Client-side pre-restore backup for restore.py
+- **Feature**: `scripts/restore.py` now creates a full backup BEFORE restoring uploaded data.
+- **Behavior**: Before uploading the restore ZIP, the script calls `GET /api/admin/export` to download the current state from the server, saves it to `backups/tournament-backup-{timestamp}.zip` locally, then proceeds with the restore upload. If the pre-restore backup fails, the restore is aborted.
+- **Implementation**: Replaced `save_backup_info()` (which wrote a text file) with `download_pre_restore_backup()` (which downloads the full ZIP from the server). Function follows same pattern as `scripts/backup.py` — calls export API, streams response, saves to backups/ directory with timestamp.
+- **Pattern**: Uses same export route (`/api/admin/export`), same file naming (`tournament-backup-{timestamp}.zip`), same error handling as `backup.py`. Integrated into `upload_restore()` as first step — restore aborts if download fails.
+- **Files changed**: `scripts/restore.py` (replaced text-based tracking with full backup download)
+
+### 2026-02-15: One-time data migration in startup.sh
+- **Problem**: When `TOURNAMENT_DATA_DIR=/home/data` was deployed, existing user data remained in the old location `/home/site/wwwroot/data`. Azure backups correctly targeted the new location but found it empty.
+- **Fix**: Added migration logic in `startup.sh` that runs before Flask starts. Checks if: (1) new location is empty (ignoring `.lock` file), (2) old location exists with `users/` directory. If both true, moves all files from old to new location.
+- **Idempotency**: Uses `find` to count non-`.lock` files in target. Safe to run repeatedly — won't move if target already has data.
+- **Pattern**: Shell-based migration (not Python) ensures it runs before the application code. Uses `mv` to relocate (not copy) to preserve disk space.
+- **Files changed**: `startup.sh` (lines 16-25)

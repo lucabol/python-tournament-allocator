@@ -21,6 +21,7 @@ Exit codes:
 import os
 import sys
 import requests
+import zipfile
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -79,10 +80,63 @@ def validate_file(file_path):
     return True
 
 
+def inspect_backup_contents(zip_path):
+    """Inspect ZIP and extract user/tournament structure."""
+    user_tournaments = {}
+    
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            for name in zf.namelist():
+                # Look for pattern: users/{username}/tournaments/{slug}/
+                # Note: Flask export uses relpath from DATA_DIR, so no 'data/' prefix
+                parts = name.split('/')
+                if len(parts) >= 4 and parts[0] == 'users' and parts[2] == 'tournaments':
+                    username = parts[1]
+                    slug = parts[3]
+                    
+                    if username not in user_tournaments:
+                        user_tournaments[username] = set()
+                    
+                    if slug:  # Not empty (could be a directory marker)
+                        user_tournaments[username].add(slug)
+        
+        # Convert sets to sorted lists
+        return {user: sorted(list(tournaments)) for user, tournaments in user_tournaments.items()}
+    
+    except Exception as e:
+        print(f"⚠️  Warning: Could not inspect backup contents: {e}", file=sys.stderr)
+        return {}
+
+
+def show_backup_contents(zip_path):
+    """Display user and tournament list from backup."""
+    contents = inspect_backup_contents(zip_path)
+    
+    if not contents:
+        print("\n📋 Backup Contents: No user data found")
+        return
+    
+    print(f"\n📋 Backup Contents:")
+    user_count = len(contents)
+    total_tournaments = sum(len(tournaments) for tournaments in contents.values())
+    print(f"   Users: {user_count}")
+    print(f"   Total tournaments: {total_tournaments}")
+    print()
+    
+    for username in sorted(contents.keys()):
+        tournaments = contents[username]
+        print(f"   • {username} ({len(tournaments)} tournament{'s' if len(tournaments) != 1 else ''})")
+        for slug in tournaments:
+            print(f"     - {slug}")
+
+
 def confirm_restore(file_path):
     """Show confirmation prompt before restore."""
     file_size = os.path.getsize(file_path)
     file_size_mb = file_size / 1024 / 1024
+    
+    # Show backup contents first
+    show_backup_contents(file_path)
     
     print("\n⚠️  WARNING: This will replace ALL data on the App Service.")
     print(f"   Target: {APP_NAME}.azurewebsites.net")
