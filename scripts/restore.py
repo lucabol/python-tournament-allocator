@@ -2,7 +2,7 @@
 """
 HTTP-based Tournament Allocator Restore Tool
 
-Uploads backup ZIP to Flask /api/admin/import endpoint via HTTP.
+Downloads current state as backup, then uploads restore ZIP to Flask /api/admin/import endpoint.
 
 Usage:
     python scripts/restore.py backup.zip
@@ -99,10 +99,82 @@ def confirm_restore(file_path):
     return True
 
 
+def download_pre_restore_backup():
+    """Download current state from server before restoring."""
+    from datetime import datetime
+    
+    url = f"https://{APP_NAME}.azurewebsites.net/api/admin/export"
+    headers = {'Authorization': f'Bearer {API_KEY}'}
+    
+    print(f"\n💾 Creating pre-restore backup...")
+    
+    try:
+        response = requests.get(url, headers=headers, stream=True, timeout=120)
+        
+        # Handle errors
+        if response.status_code == 401:
+            print("❌ Error: Authentication failed (401 Unauthorized)", file=sys.stderr)
+            print("   Check your BACKUP_API_KEY in .env file", file=sys.stderr)
+            return False
+        
+        if response.status_code == 500:
+            print("❌ Error: Server error (500 Internal Server Error)", file=sys.stderr)
+            print("   Check app logs for details", file=sys.stderr)
+            return False
+        
+        if response.status_code != 200:
+            print(f"❌ Error: Unexpected response ({response.status_code})", file=sys.stderr)
+            print(f"   Response: {response.text}", file=sys.stderr)
+            return False
+        
+        # Create backups directory if needed
+        script_dir = Path(__file__).parent.parent
+        backups_dir = script_dir / 'backups'
+        backups_dir.mkdir(exist_ok=True)
+        
+        # Generate timestamped filename
+        timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+        output_path = backups_dir / f'tournament-backup-{timestamp}.zip'
+        
+        # Save response content
+        with open(output_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        # Get file size
+        file_size = os.path.getsize(output_path)
+        
+        print(f"   ✅ Pre-restore backup saved: {output_path.relative_to(script_dir)}")
+        print(f"   Size: {file_size / 1024 / 1024:.2f} MB")
+        
+        return True
+        
+    except requests.exceptions.Timeout:
+        print("❌ Error: Request timed out after 120 seconds", file=sys.stderr)
+        print("   The server may be unresponsive", file=sys.stderr)
+        return False
+    
+    except requests.exceptions.ConnectionError as e:
+        print("❌ Error: Connection failed", file=sys.stderr)
+        print(f"   Could not connect to {url}", file=sys.stderr)
+        print(f"   Details: {e}", file=sys.stderr)
+        return False
+    
+    except Exception as e:
+        print(f"❌ Error: Unexpected error during backup", file=sys.stderr)
+        print(f"   {e}", file=sys.stderr)
+        return False
+
+
 def upload_restore(file_path):
     """Upload backup ZIP to Flask API for restore."""
     url = f"https://{APP_NAME}.azurewebsites.net/api/admin/import"
     headers = {'Authorization': f'Bearer {API_KEY}'}
+    
+    # Create pre-restore backup BEFORE uploading
+    if not download_pre_restore_backup():
+        print("❌ Failed to create pre-restore backup. Aborting restore.", file=sys.stderr)
+        return False
     
     print(f"\n📤 Uploading backup to {APP_NAME}.azurewebsites.net...")
     
@@ -145,8 +217,8 @@ def upload_restore(file_path):
         try:
             result = response.json()
             print("✅ Restore completed successfully!")
-            print(f"   Backup saved to: {result.get('backup_location', 'unknown')}")
             print(f"   Message: {result.get('message', 'Data restored')}")
+            
             return True
             
         except ValueError:
