@@ -19,6 +19,55 @@ Hockney is responsible for the pytest test suite covering all routes, models, bu
 
 ## Learnings (Recent: < 2 weeks)
 
+### 2026-02-15: HTTP Backup/Restore Test Coverage
+
+**What I did:** Wrote comprehensive test coverage (19 tests total) for the upcoming HTTP backup/restore implementation (API key-secured routes for site-wide export/import).
+
+**Test structure:**
+- `tests/test_http_backup_restore.py` — 18 new tests:
+  - `TestBackupKeyDecorator` (6 tests) — Auth decorator validation, timing attack resistance
+  - `TestAdminExport` (5 tests) — ZIP export, structure validation, filename format
+  - `TestAdminImport` (7 tests) — ZIP import, validation, security (path traversal, corruption, size limits)
+- `tests/test_integration.py::TestBackupRestoreRoundtrip` (1 test) — Full lifecycle roundtrip test
+
+**Key patterns established:**
+- API key auth via `Authorization: Bearer <key>` header (no session required)
+- Decorator uses `hmac.compare_digest` for timing attack resistance
+- Export filename: `tournament-backup-YYYYMMDD_HHMMSS.zip`
+- Import validates ZIP structure (must contain `users.yaml`), rejects path traversal (`..`, absolute paths)
+- Import creates pre-restore backup before modifying data
+- Size limits enforced via `MAX_SITE_UPLOAD_SIZE` constant
+- ZIP skip patterns: `__pycache__`, `.pyc`, `.lock`
+
+**Test fixtures:**
+- `temp_data_dir` — Isolated file system with multi-user tournament structure
+- Monkeypatching `BACKUP_API_KEY` and `DATA_DIR` for test isolation
+- Sample ZIP creation for import tests (valid, invalid, malicious)
+
+**Integration test validates:**
+1. Create multi-user tournament data (2 users, 2 tournaments)
+2. Export to ZIP via `/api/admin/export`
+3. Destructive modifications (delete user, modify teams)
+4. Import ZIP via `/api/admin/import`
+5. Verify full data restoration (users, tournaments, teams, courts)
+
+**Why these tests matter:**
+- The HTTP backup/restore routes don't exist yet — these tests are written **ahead of implementation** (TDD)
+- Tests currently fail with `AttributeError: 'BACKUP_API_KEY'` — expected until implementation is added
+- Tests define the contract: what security, validation, and data integrity the implementation must provide
+- Timing attack test prevents subtle auth vulnerabilities (constant-time comparison)
+- Roundtrip test validates the most critical property: data survives the export → import cycle
+
+**Coverage targets:**
+- Decorator: auth success/failure, edge cases (empty key, missing header), timing resistance
+- Export: success path, content validation, file structure
+- Import: success path, validation (structure, path traversal, corruption, size), pre-restore backup
+- Integration: full lifecycle with realistic multi-user data
+
+**Files touched:**
+- Created: `tests/test_http_backup_restore.py` (18 test cases, ~450 lines)
+- Modified: `tests/test_integration.py` (added `TestBackupRestoreRoundtrip` class, 1 test case)
+
 ### 2026-02-14: Bracket scheduling validation tests Phase 2 complete
 - **Summary:** Implemented 12 comprehensive bracket scheduling constraint tests across 3 test classes validating Phase 2 test architecture
 - **Tests added:**

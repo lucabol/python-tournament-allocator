@@ -696,3 +696,205 @@ class TestFullTournamentIntegration:
         # But we should verify attempts were made to honor constraints
         assert earlybird_constraint_ok or nightowl_constraint_ok, \
             "At least one team-specific constraint should be honored"
+
+
+class TestBackupRestoreRoundtrip:
+    """Integration test for backup/restore HTTP endpoints."""
+    
+    def test_backup_restore_roundtrip(self, tmp_path, monkeypatch):
+        """
+        End-to-end test: create data → export → modify → import → verify restore.
+        
+        This test validates the full backup/restore lifecycle:
+        1. Create tournament data (users, tournaments, teams)
+        2. Export to ZIP via /api/admin/export
+        3. Modify data in-place (delete a user, change tournament)
+        4. Import ZIP via /api/admin/import
+        5. Verify original data is fully restored
+        """
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+        from app import app
+        import app as app_module
+        import yaml
+        import zipfile
+        import io
+        
+        # Setup: Create temporary data directory with original data
+        data_dir = tmp_path / "data"
+        users_dir = data_dir / "users"
+        
+        # Create user1 with tournament
+        user1_dir = users_dir / "user1"
+        user1_tournaments_dir = user1_dir / "tournaments"
+        user1_default = user1_tournaments_dir / "default"
+        user1_default.mkdir(parents=True)
+        
+        # Original tournament data for user1
+        user1_teams = user1_default / "teams.yaml"
+        user1_teams.write_text(yaml.dump({
+            'pool1': {'teams': ['Team Alpha', 'Team Beta'], 'advance': 2},
+            'pool2': {'teams': ['Team Gamma'], 'advance': 1}
+        }, default_flow_style=False))
+        
+        user1_courts = user1_default / "courts.csv"
+        user1_courts.write_text("court_name,start_time,end_time\nCourt A,08:00,18:00\nCourt B,09:00,19:00\n")
+        
+        user1_reg = user1_dir / "tournaments.yaml"
+        user1_reg.write_text(yaml.dump({
+            'active': 'default',
+            'tournaments': [{'slug': 'default', 'name': 'Original Tournament', 'created': '2026-01-01T10:00:00'}]
+        }, default_flow_style=False))
+        
+        # Create user2 with tournament
+        user2_dir = users_dir / "user2"
+        user2_tournaments_dir = user2_dir / "tournaments"
+        user2_tourney = user2_tournaments_dir / "summer2026"
+        user2_tourney.mkdir(parents=True)
+        
+        user2_teams = user2_tourney / "teams.yaml"
+        user2_teams.write_text(yaml.dump({
+            'poolX': {'teams': ['Team X1', 'Team X2', 'Team X3'], 'advance': 2}
+        }, default_flow_style=False))
+        
+        user2_courts = user2_tourney / "courts.csv"
+        user2_courts.write_text("court_name,start_time,end_time\nCourt X,10:00,20:00\n")
+        
+        user2_reg = user2_dir / "tournaments.yaml"
+        user2_reg.write_text(yaml.dump({
+            'active': 'summer2026',
+            'tournaments': [{'slug': 'summer2026', 'name': 'Summer Tournament', 'created': '2026-06-01T12:00:00'}]
+        }, default_flow_style=False))
+        
+        # Create users.yaml
+        users_file = data_dir / "users.yaml"
+        original_users_data = {
+            'users': [
+                {'username': 'user1', 'password_hash': 'hash_user1', 'created': '2026-01-01T00:00:00'},
+                {'username': 'user2', 'password_hash': 'hash_user2', 'created': '2026-06-01T00:00:00'}
+            ]
+        }
+        users_file.write_text(yaml.dump(original_users_data, default_flow_style=False))
+        
+        # Monkeypatch app to use temp directory
+        monkeypatch.setattr(app_module, 'DATA_DIR', str(data_dir))
+        monkeypatch.setattr(app_module, 'USERS_DIR', str(users_dir))
+        monkeypatch.setattr(app_module, 'USERS_FILE', str(users_file))
+        monkeypatch.setenv('BACKUP_API_KEY', 'integration-test-key')
+        monkeypatch.setattr(app_module, 'BACKUP_API_KEY', 'integration-test-key')
+        
+        # Configure test client
+        app.config['TESTING'] = True
+        client = app.test_client()
+        
+        # STEP 2: Export to ZIP
+        export_response = client.get('/api/admin/export',
+                                    headers={'Authorization': 'Bearer integration-test-key'})
+        
+        assert export_response.status_code == 200, "Export should succeed"
+        assert export_response.mimetype == 'application/zip', "Export should return ZIP"
+        
+        # Save exported ZIP
+        backup_zip = io.BytesIO(export_response.data)
+        
+        # Verify export contains expected files
+        with zipfile.ZipFile(backup_zip, 'r') as zf:
+            exported_names = zf.namelist()
+            assert 'users.yaml' in exported_names, "Export should contain users.yaml"
+            assert any('users/user1/tournaments/default/teams.yaml' in name for name in exported_names), \
+                "Export should contain user1's tournament data"
+            assert any('users/user2/tournaments/summer2026/teams.yaml' in name for name in exported_names), \
+                "Export should contain user2's tournament data"
+        
+        # STEP 3: Modify data in-place
+        # Delete user2 entirely
+        import shutil
+        if user2_dir.exists():
+            shutil.rmtree(user2_dir)
+        
+        # Modify user1's tournament name and teams
+        user1_teams.write_text(yaml.dump({
+            'pool1': {'teams': ['MODIFIED Team'], 'advance': 1}
+        }, default_flow_style=False))
+        
+        user1_reg.write_text(yaml.dump({
+            'active': 'default',
+            'tournaments': [{'slug': 'default', 'name': 'MODIFIED Tournament', 'created': '2026-01-02T00:00:00'}]
+        }, default_flow_style=False))
+        
+        # Update users.yaml (remove user2)
+        users_file.write_text(yaml.dump({
+            'users': [
+                {'username': 'user1', 'password_hash': 'hash_user1', 'created': '2026-01-01T00:00:00'}
+            ]
+        }, default_flow_style=False))
+        
+        # Verify modifications took effect
+        with open(users_file, 'r') as f:
+            modified_users = yaml.safe_load(f)
+        assert len(modified_users['users']) == 1, "User2 should be deleted"
+        assert not user2_dir.exists(), "User2 directory should be deleted"
+        
+        with open(user1_teams, 'r') as f:
+            modified_teams = yaml.safe_load(f)
+        assert 'MODIFIED Team' in modified_teams['pool1']['teams'], "User1's teams should be modified"
+        
+        # STEP 4: Import ZIP (restore from backup)
+        backup_zip.seek(0)  # Reset buffer position
+        import_response = client.post('/api/admin/import',
+                                     data={'file': (backup_zip, 'backup.zip')},
+                                     headers={'Authorization': 'Bearer integration-test-key'},
+                                     content_type='multipart/form-data')
+        
+        assert import_response.status_code == 200, f"Import should succeed, got {import_response.status_code}: {import_response.data}"
+        
+        # STEP 5: Verify original data is restored
+        
+        # Check users.yaml restored
+        with open(users_file, 'r') as f:
+            restored_users = yaml.safe_load(f)
+        
+        assert len(restored_users['users']) == 2, "Both users should be restored"
+        assert any(u['username'] == 'user1' for u in restored_users['users']), "user1 should be restored"
+        assert any(u['username'] == 'user2' for u in restored_users['users']), "user2 should be restored"
+        
+        # Check user1's tournament data restored
+        assert user1_teams.exists(), "user1's teams file should be restored"
+        with open(user1_teams, 'r') as f:
+            restored_user1_teams = yaml.safe_load(f)
+        
+        assert 'Team Alpha' in restored_user1_teams['pool1']['teams'], "user1's original teams should be restored"
+        assert 'Team Beta' in restored_user1_teams['pool1']['teams'], "user1's original teams should be restored"
+        assert 'MODIFIED Team' not in str(restored_user1_teams), "Modified data should be overwritten"
+        
+        with open(user1_reg, 'r') as f:
+            restored_user1_reg = yaml.safe_load(f)
+        assert restored_user1_reg['tournaments'][0]['name'] == 'Original Tournament', \
+            "user1's tournament name should be restored"
+        
+        # Check user1's courts restored
+        assert user1_courts.exists(), "user1's courts file should be restored"
+        with open(user1_courts, 'r') as f:
+            courts_content = f.read()
+        assert 'Court A' in courts_content, "user1's courts should be restored"
+        assert 'Court B' in courts_content, "user1's courts should be restored"
+        
+        # Check user2's tournament data restored
+        assert user2_dir.exists(), "user2 directory should be restored"
+        assert user2_tourney.exists(), "user2's tournament directory should be restored"
+        assert user2_teams.exists(), "user2's teams file should be restored"
+        
+        with open(user2_teams, 'r') as f:
+            restored_user2_teams = yaml.safe_load(f)
+        assert 'Team X1' in restored_user2_teams['poolX']['teams'], "user2's teams should be restored"
+        
+        with open(user2_reg, 'r') as f:
+            restored_user2_reg = yaml.safe_load(f)
+        assert restored_user2_reg['tournaments'][0]['name'] == 'Summer Tournament', \
+            "user2's tournament name should be restored"
+        
+        # Verify file structure integrity
+        assert user2_courts.exists(), "user2's courts file should be restored"
+        with open(user2_courts, 'r') as f:
+            user2_courts_content = f.read()
+        assert 'Court X' in user2_courts_content, "user2's courts should be restored"
