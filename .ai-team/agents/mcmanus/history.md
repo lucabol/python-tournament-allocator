@@ -182,3 +182,15 @@
 
 
 📌 Team update (2026-02-14): Hockney created comprehensive test coverage for backup/restore scripts. Keaton removed admin configuration from deploy.ps1 — deployment script now fully aligned with CLI-based backup/restore architecture.
+
+### 2026-02-14: HTTP backup/restore routes with API key auth
+- **Routes**: `GET /api/admin/export` and `POST /api/admin/import`. Both require API key via `@require_backup_key` decorator.
+- **Decorator**: `require_backup_key()` reads `BACKUP_API_KEY` from environment, validates `Authorization: Bearer <token>` header using `hmac.compare_digest()` for timing-attack-safe comparison. Returns 401 JSON if missing/invalid, 500 if server not configured.
+- **Export**: Walks entire `DATA_DIR` recursively, zips all files (skips `.lock`, `.pyc`, `__pycache__`), returns as attachment with timestamp filename `tournament-backup-{timestamp}.zip`.
+- **Import**: Accepts ZIP upload via multipart/form-data, validates ZIP structure (must contain `tournaments.yaml` or `users.yaml`), backs up existing `DATA_DIR` to `backups/pre-restore-{timestamp}/`, extracts uploaded ZIP to `DATA_DIR` with path traversal protection, returns JSON with success flag and backup location.
+- **Security**: Path traversal checks (rejects `..`, `/`, `\`), ZIP validation, size limit (50MB via `MAX_SITE_UPLOAD_SIZE`), timing-attack-safe key comparison.
+- **Pattern**: Export mirrors user export route (same ZIP compression, same skip patterns). Import mirrors user import route (same validation, same path traversal checks) but operates on entire `DATA_DIR` instead of user subdirectory.
+- **Key differences from user routes**: User routes back up/restore `data/users/{username}/tournaments/`, admin routes back up/restore entire `data/` directory. User routes use session auth, admin routes use API key. User routes return HTML redirects, admin routes return JSON responses.
+- **Files changed**: `src/app.py` (added `hmac` import, `require_backup_key()` decorator, `api_admin_export()`, `api_admin_import()`)
+- **Test script**: `test_backup_routes.py` provided for local testing — verifies auth (valid/invalid key, missing header), export returns valid ZIP, import validation (missing file, invalid ZIP).
+- **Documentation**: `docs/http-backup-api.md` created with full API documentation, security features, testing workflow, Azure deployment instructions.
