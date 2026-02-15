@@ -76,6 +76,8 @@ Optional `.env` variables: `AZURE_RESOURCE_GROUP`, `AZURE_LOCATION`, `AZURE_APP_
 
 The script handles resource creation, zip deployment with retry, and configuration. Production uses Gunicorn via `startup.sh`. Data persists in `/home/data` on Azure (outside wwwroot).
 
+**Security**: The deployment script auto-generates an `ADMIN_API_KEY` for backup/restore operations if not already set. This key is stored in Azure App Settings and written to the local `.env` file.
+
 ## Environment Variables
 
 | Variable | Required | Default | Description |
@@ -83,20 +85,23 @@ The script handles resource creation, zip deployment with retry, and configurati
 | `AZURE_SUBSCRIPTION_ID` | Yes (deploy) | — | Azure subscription for deployment |
 | `TOURNAMENT_DATA_DIR` | No | `./data` | Directory for tournament data files |
 | `SECRET_KEY` | No | Auto-generated | Flask session signing key |
+| `ADMIN_API_KEY` | No (deploy auto-generates) | — | API key for backup/restore operations |
 
 ## Backup & Restore
 
-For Azure deployments, use CLI scripts to backup and restore tournament data:
+For Azure deployments, use HTTP-based scripts to backup and restore tournament data:
 
 ```bash
 # Backup to local ZIP
-python scripts/backup.py --app-name <app> --resource-group <rg>
+python scripts/backup.py
 
 # Restore from backup
-python scripts/restore.py backup.zip --app-name <app> --resource-group <rg>
+python scripts/restore.py path/to/backup.zip
 ```
 
-See [docs/CLI_BACKUP_RESTORE.md](docs/CLI_BACKUP_RESTORE.md) for detailed usage, automation examples (scheduled backups, CI/CD), and disaster recovery procedures.
+No Azure CLI installation required. The scripts use HTTP API routes with API key authentication. The API key is auto-generated during deployment.
+
+See [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md) for detailed usage, security notes, automation examples (scheduled backups, CI/CD), and disaster recovery procedures.
 
 ## Documentation
 
