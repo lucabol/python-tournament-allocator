@@ -1,323 +1,212 @@
 #!/usr/bin/env python3
 """
-Restore Tournament Allocator data from backup ZIP to Azure App Service.
+HTTP-based Tournament Allocator Restore Tool
+
+Uploads backup ZIP to Flask /api/admin/import endpoint via HTTP.
 
 Usage:
-    python scripts/restore.py backup.zip --app-name <webapp> --resource-group <rg>
-    python scripts/restore.py backup.zip --app-name <webapp> --resource-group <rg> --force
-    python scripts/restore.py backup.zip --app-name <webapp> --resource-group <rg> --no-backup
+    python scripts/restore.py backup.zip
+    python scripts/restore.py  # Will prompt for file path
 
-Requirements:
-    - Azure CLI installed and authenticated (run 'az login' first)
-    - Backup ZIP created by backup.py
+Configuration:
+    Requires .env file or environment variables:
+    - BACKUP_API_KEY: API key for authentication
+    - AZURE_APP_NAME: App Service name (e.g., 'tournament-allocator')
 
-Safety:
-    - Creates pre-restore backup automatically (unless --no-backup)
-    - Stops App Service during restore to prevent data corruption
-    - Validates ZIP structure before uploading
-    - Validates restored files remotely after extraction
+Exit codes:
+    0: Success
+    1: Configuration error or restore failed
 """
 
-import argparse
 import os
 import sys
-import zipfile
-import subprocess
-import json
-from datetime import datetime
+import requests
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Configuration
+API_KEY = os.getenv('BACKUP_API_KEY')
+APP_NAME = os.getenv('AZURE_APP_NAME')
 
 
-def run_az_command(args, **kwargs):
-    """
-    Run an Azure CLI command with proper shell handling for Windows.
+def validate_config():
+    """Validate required configuration is present."""
+    if not API_KEY:
+        print("❌ Error: BACKUP_API_KEY not found in .env file or environment", file=sys.stderr)
+        print("   Add BACKUP_API_KEY=your-key-here to .env file", file=sys.stderr)
+        return False
     
-    On Windows, subprocess needs shell=True to find az.cmd in PATH.
-    """
-    use_shell = sys.platform.startswith('win')
+    if not APP_NAME:
+        print("❌ Error: AZURE_APP_NAME not found in .env file or environment", file=sys.stderr)
+        print("   Add AZURE_APP_NAME=your-app-name to .env file", file=sys.stderr)
+        return False
     
-    if use_shell:
-        # On Windows, convert list to string command
-        if isinstance(args, list):
-            # Properly quote arguments that contain spaces
-            cmd = ' '.join(f'"{arg}"' if ' ' in str(arg) else str(arg) for arg in args)
-        else:
-            cmd = args
-        return subprocess.run(cmd, shell=True, **kwargs)
+    return True
+
+
+def get_backup_file_path():
+    """Get backup file path from CLI arg or prompt."""
+    if len(sys.argv) > 1:
+        # Path provided as CLI argument
+        return sys.argv[1]
     else:
-        # On Unix, use list form
-        return subprocess.run(args, **kwargs)
+        # Prompt user
+        return input("Enter path to backup ZIP file: ").strip()
 
 
-def error(message: str, code: int = 1):
-    """Print error and exit."""
-    print(f"❌ ERROR: {message}", file=sys.stderr)
-    sys.exit(code)
-
-
-def run_az(command: list, capture_output: bool = True, check: bool = True) -> subprocess.CompletedProcess:
-    """Run Azure CLI command."""
-    cmd = ['az'] + command
-    result = run_az_command(cmd, capture_output=capture_output, text=True, check=False)
-    if check and result.returncode != 0:
-        error(f"Azure CLI command failed: {' '.join(cmd)}\n{result.stderr}", code=2)
-    return result
-
-
-def check_azure_cli():
-    """Verify Azure CLI is installed and authenticated."""
-    # Check installation
-    result = run_az_command(['az', '--version'], capture_output=True, check=False)
-    if result.returncode != 0:
-        error("Azure CLI not found. Install from: https://aka.ms/azure-cli")
+def validate_file(file_path):
+    """Validate backup file exists and is readable."""
+    path = Path(file_path)
     
-    # Check authentication
-    result = run_az(['account', 'show'], check=False)
-    if result.returncode != 0:
-        error("Not authenticated with Azure. Run 'az login' first.")
+    if not path.exists():
+        print(f"❌ Error: File not found: {file_path}", file=sys.stderr)
+        return False
+    
+    if not path.is_file():
+        print(f"❌ Error: Not a file: {file_path}", file=sys.stderr)
+        return False
+    
+    if not file_path.endswith('.zip'):
+        print(f"⚠️  Warning: File does not have .zip extension: {file_path}")
+        response = input("Continue anyway? (yes/no): ").strip().lower()
+        if response != 'yes':
+            print("Restore cancelled.")
+            return False
+    
+    return True
 
 
-def validate_zip_structure(zip_path: str):
-    """Validate ZIP contains required files."""
-    if not os.path.exists(zip_path):
-        error(f"Backup file not found: {zip_path}")
+def confirm_restore(file_path):
+    """Show confirmation prompt before restore."""
+    file_size = os.path.getsize(file_path)
+    file_size_mb = file_size / 1024 / 1024
     
-    print(f"📦 Validating backup structure: {zip_path}")
+    print("\n⚠️  WARNING: This will replace ALL data on the App Service.")
+    print(f"   Target: {APP_NAME}.azurewebsites.net")
+    print(f"   Source: {file_path}")
+    print(f"   Size: {file_size_mb:.2f} MB")
+    print()
     
-    required_files = ['users.yaml', '.secret_key']
+    response = input("Type 'RESTORE' to continue: ").strip()
+    
+    if response != 'RESTORE':
+        print("Restore cancelled.")
+        return False
+    
+    return True
+
+
+def upload_restore(file_path):
+    """Upload backup ZIP to Flask API for restore."""
+    url = f"https://{APP_NAME}.azurewebsites.net/api/admin/import"
+    headers = {'Authorization': f'Bearer {API_KEY}'}
+    
+    print(f"\n📤 Uploading backup to {APP_NAME}.azurewebsites.net...")
     
     try:
-        with zipfile.ZipFile(zip_path, 'r') as zf:
-            names = zf.namelist()
+        # Open file and prepare multipart upload
+        with open(file_path, 'rb') as f:
+            files = {'file': (os.path.basename(file_path), f, 'application/zip')}
             
-            # Check required files
-            missing = [f for f in required_files if f not in names]
-            if missing:
-                error(f"Invalid backup ZIP. Missing required files: {', '.join(missing)}")
-            
-            # Check for directory traversal attempts
-            for name in names:
-                if name.startswith('/') or '..' in name:
-                    error(f"Invalid file path in ZIP: {name}")
-            
-            print(f"   ✓ Found {len(names)} files")
-            print(f"   ✓ Required files present: {', '.join(required_files)}")
-            
-    except zipfile.BadZipFile:
-        error("Invalid ZIP file format")
-
-
-def create_pre_restore_backup(app_name: str, resource_group: str):
-    """Create backup before restore."""
-    print("\n💾 Creating pre-restore backup...")
-    
-    # Import here to avoid issues if backup.py doesn't exist yet
-    backup_script = os.path.join(os.path.dirname(__file__), 'backup.py')
-    if not os.path.exists(backup_script):
-        error("backup.py not found. Cannot create pre-restore backup.", code=1)
-    
-    # Run backup.py
-    result = subprocess.run([
-        sys.executable, backup_script,
-        '--app-name', app_name,
-        '--resource-group', resource_group,
-        '--prefix', 'pre-restore'
-    ], capture_output=True, text=True, check=False)
-    
-    if result.returncode != 0:
-        print(f"⚠️  Warning: Pre-restore backup failed:\n{result.stderr}", file=sys.stderr)
-        print("   Continuing with restore...")
-    else:
-        print("   ✓ Pre-restore backup created")
-
-
-def stop_app_service(app_name: str, resource_group: str):
-    """Stop App Service."""
-    print("\n⏸️  Stopping App Service...")
-    run_az(['webapp', 'stop', '--name', app_name, '--resource-group', resource_group])
-    print("   ✓ App Service stopped")
-
-
-def start_app_service(app_name: str, resource_group: str):
-    """Start App Service."""
-    print("\n▶️  Starting App Service...")
-    run_az(['webapp', 'start', '--name', app_name, '--resource-group', resource_group])
-    print("   ✓ App Service started")
-
-
-def upload_and_extract(zip_path: str, app_name: str, resource_group: str):
-    """Upload ZIP and extract remotely."""
-    print("\n📤 Uploading backup to App Service...")
-    
-    # Upload ZIP to temp location
-    remote_zip = '/tmp/restore.zip'
-    
-    # Use az webapp ssh to upload
-    with open(zip_path, 'rb') as f:
-        zip_data = f.read()
-    
-    # Write file remotely using base64 encoding to avoid binary issues
-    import base64
-    encoded = base64.b64encode(zip_data).decode('ascii')
-    
-    # Split into chunks (Azure CLI has command length limits)
-    chunk_size = 50000
-    chunks = [encoded[i:i+chunk_size] for i in range(0, len(encoded), chunk_size)]
-    
-    print(f"   Uploading {len(zip_data)} bytes in {len(chunks)} chunk(s)...")
-    
-    # Create empty file first
-    ssh_cmd = ['webapp', 'ssh', '--name', app_name, '--resource-group', resource_group,
-               '--command', f'echo "" > {remote_zip}.b64']
-    run_az(ssh_cmd)
-    
-    # Append chunks
-    for i, chunk in enumerate(chunks):
-        if i % 10 == 0:
-            print(f"   Uploading chunk {i+1}/{len(chunks)}...")
-        ssh_cmd = ['webapp', 'ssh', '--name', app_name, '--resource-group', resource_group,
-                   '--command', f'echo "{chunk}" >> {remote_zip}.b64']
-        run_az(ssh_cmd)
-    
-    # Decode base64 to binary
-    print("   Decoding uploaded data...")
-    ssh_cmd = ['webapp', 'ssh', '--name', app_name, '--resource-group', resource_group,
-               '--command', f'base64 -d {remote_zip}.b64 > {remote_zip}']
-    run_az(ssh_cmd)
-    
-    # Clean up base64 file
-    ssh_cmd = ['webapp', 'ssh', '--name', app_name, '--resource-group', resource_group,
-               '--command', f'rm {remote_zip}.b64']
-    run_az(ssh_cmd)
-    
-    print("   ✓ Upload complete")
-    
-    # Extract to /home/data
-    print("\n📂 Extracting backup to /home/data...")
-    
-    ssh_cmd = ['webapp', 'ssh', '--name', app_name, '--resource-group', resource_group,
-               '--command', f'unzip -o {remote_zip} -d /home/data']
-    result = run_az(ssh_cmd, check=False)
-    
-    if result.returncode != 0:
-        error(f"Failed to extract ZIP:\n{result.stderr}", code=3)
-    
-    print("   ✓ Extraction complete")
-
-
-def validate_remote_files(app_name: str, resource_group: str):
-    """Validate restored files exist remotely."""
-    print("\n🔍 Validating restored files...")
-    
-    required_files = ['users.yaml', '.secret_key']
-    
-    for file in required_files:
-        ssh_cmd = ['webapp', 'ssh', '--name', app_name, '--resource-group', resource_group,
-                   '--command', f'test -f /home/data/{file} && echo "exists" || echo "missing"']
-        result = run_az(ssh_cmd)
+            # Upload with timeout (allow 5 minutes for upload + processing)
+            response = requests.post(
+                url, 
+                headers=headers, 
+                files=files, 
+                timeout=300
+            )
         
-        if 'missing' in result.stdout:
-            error(f"Validation failed: {file} not found after restore", code=4)
+        # Handle errors
+        if response.status_code == 401:
+            print("❌ Error: Authentication failed (401 Unauthorized)", file=sys.stderr)
+            print("   Check your BACKUP_API_KEY in .env file", file=sys.stderr)
+            return False
         
-        print(f"   ✓ {file}")
+        if response.status_code == 400:
+            print("❌ Error: Bad request (400)", file=sys.stderr)
+            print(f"   Server response: {response.text}", file=sys.stderr)
+            return False
+        
+        if response.status_code == 500:
+            print("❌ Error: Server error (500 Internal Server Error)", file=sys.stderr)
+            print(f"   Server response: {response.text}", file=sys.stderr)
+            print("   Check app logs for details", file=sys.stderr)
+            return False
+        
+        if response.status_code != 200:
+            print(f"❌ Error: Unexpected response ({response.status_code})", file=sys.stderr)
+            print(f"   Response: {response.text}", file=sys.stderr)
+            return False
+        
+        # Parse JSON response
+        try:
+            result = response.json()
+            print("✅ Restore completed successfully!")
+            print(f"   Backup saved to: {result.get('backup_location', 'unknown')}")
+            print(f"   Message: {result.get('message', 'Data restored')}")
+            return True
+            
+        except ValueError:
+            # Response wasn't JSON - show text
+            print("✅ Restore completed!")
+            print(f"   Server response: {response.text}")
+            return True
+        
+    except requests.exceptions.Timeout:
+        print("❌ Error: Request timed out after 300 seconds", file=sys.stderr)
+        print("   The restore may still be processing on the server", file=sys.stderr)
+        print("   Check the app to verify if restore completed", file=sys.stderr)
+        return False
     
-    print("   ✓ All required files present")
-
-
-def cleanup_remote_temp(app_name: str, resource_group: str):
-    """Remove temporary files from remote."""
-    print("\n🧹 Cleaning up remote temp files...")
+    except requests.exceptions.ConnectionError as e:
+        print("❌ Error: Connection failed", file=sys.stderr)
+        print(f"   Could not connect to {url}", file=sys.stderr)
+        print(f"   Details: {e}", file=sys.stderr)
+        return False
     
-    ssh_cmd = ['webapp', 'ssh', '--name', app_name, '--resource-group', resource_group,
-               '--command', 'rm -f /tmp/restore.zip']
-    run_az(ssh_cmd, check=False)  # Don't fail if cleanup fails
+    except FileNotFoundError:
+        print(f"❌ Error: File not found: {file_path}", file=sys.stderr)
+        return False
     
-    print("   ✓ Cleanup complete")
+    except Exception as e:
+        print(f"❌ Error: Unexpected error during upload", file=sys.stderr)
+        print(f"   {e}", file=sys.stderr)
+        return False
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Restore Tournament Allocator data to Azure App Service',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python scripts/restore.py backup.zip --app-name myapp --resource-group myrg
-  python scripts/restore.py backup.zip --app-name myapp --resource-group myrg --no-backup
-  python scripts/restore.py backup.zip --app-name myapp --resource-group myrg --force
-
-Exit codes:
-  0: Success
-  1: Invalid ZIP or Azure CLI not available
-  2: App Service connection failed
-  3: Restore operation failed
-  4: Validation failed after restore
-        """
-    )
+    """Main entry point."""
+    print("=== Tournament Allocator Restore ===\n")
     
-    parser.add_argument('backup_zip', help='Path to backup ZIP file')
-    parser.add_argument('--app-name', required=True, help='Azure App Service name')
-    parser.add_argument('--resource-group', required=True, help='Azure resource group name')
-    parser.add_argument('--no-backup', action='store_true',
-                        help='Skip pre-restore backup (not recommended)')
-    parser.add_argument('--force', action='store_true',
-                        help='Skip confirmation prompt')
+    # Validate configuration
+    if not validate_config():
+        return 1
     
-    args = parser.parse_args()
+    # Get backup file path
+    file_path = get_backup_file_path()
     
-    print("=== Azure App Service Restore ===\n")
-    print(f"Backup file: {args.backup_zip}")
-    print(f"App name: {args.app_name}")
-    print(f"Resource group: {args.resource_group}")
-    print(f"Pre-restore backup: {'disabled' if args.no_backup else 'enabled'}")
-    print()
+    # Validate file
+    if not validate_file(file_path):
+        return 1
     
-    # Pre-flight checks
-    check_azure_cli()
-    validate_zip_structure(args.backup_zip)
+    # Confirm restore
+    if not confirm_restore(file_path):
+        return 0
     
-    # Confirmation
-    if not args.force:
-        print("\n⚠️  WARNING: This will replace all data on the App Service.")
-        print(f"   Target: {args.app_name}.azurewebsites.net")
-        response = input("\nType 'RESTORE' to continue: ")
-        if response != 'RESTORE':
-            print("Restore cancelled.")
-            sys.exit(0)
+    # Upload and restore
+    success = upload_restore(file_path)
     
-    try:
-        # Create pre-restore backup (unless disabled)
-        if not args.no_backup:
-            create_pre_restore_backup(args.app_name, args.resource_group)
-        
-        # Stop app service
-        stop_app_service(args.app_name, args.resource_group)
-        
-        # Upload and extract
-        upload_and_extract(args.backup_zip, args.app_name, args.resource_group)
-        
-        # Validate
-        validate_remote_files(args.app_name, args.resource_group)
-        
-        # Cleanup
-        cleanup_remote_temp(args.app_name, args.resource_group)
-        
-        # Restart app service
-        start_app_service(args.app_name, args.resource_group)
-        
-        print("\n✅ Restore complete!")
-        print(f"\nApp URL: https://{args.app_name}.azurewebsites.net")
-        print("\nNote: It may take 1-2 minutes for the app to fully restart.")
-        
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Restore interrupted by user.")
-        print("   The App Service may be in an inconsistent state.")
-        print("   Consider running restore again or restoring from pre-restore backup.")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n❌ Unexpected error: {e}", file=sys.stderr)
-        print("   The App Service may be in an inconsistent state.")
-        print("   Consider restoring from pre-restore backup.")
-        sys.exit(3)
+    if not success:
+        return 1
+    
+    print(f"\nℹ️  The app may take 30-60 seconds to fully reload the data.")
+    print(f"   Visit: https://{APP_NAME}.azurewebsites.net")
+    
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
