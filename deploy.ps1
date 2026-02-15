@@ -215,6 +215,61 @@ while (-not $deploySuccess -and $deployAttempt -lt $deployMaxRetries) {
     }
 }
 
+# Auto-generate BACKUP_API_KEY if not already set in Azure
+Write-Host "Checking for BACKUP_API_KEY..." -ForegroundColor Yellow
+$existingBackupKey = az webapp config appsettings list `
+    --name $appName `
+    --resource-group $resourceGroup `
+    --query "[?name=='BACKUP_API_KEY'].value" -o tsv
+
+if (-not $existingBackupKey) {
+    Write-Host "Generating new BACKUP_API_KEY..." -ForegroundColor Yellow
+    
+    # Generate a 32-byte random hex key (64 characters)
+    $randomBytes = [byte[]]::new(32)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($randomBytes)
+    $backupApiKey = [System.BitConverter]::ToString($randomBytes).Replace("-", "").ToLower()
+    
+    # Set in Azure
+    az webapp config appsettings set `
+        --name $appName `
+        --resource-group $resourceGroup `
+        --settings "BACKUP_API_KEY=$backupApiKey" `
+        --output none
+    
+    # Write to local .env file
+    $envFilePath = Join-Path $PSScriptRoot ".env"
+    $envContent = Get-Content $envFilePath -Raw
+    
+    if ($envContent -notmatch "BACKUP_API_KEY=") {
+        # Append if not present
+        Add-Content -Path $envFilePath -Value "`nBACKUP_API_KEY=$backupApiKey"
+        Write-Host "Added BACKUP_API_KEY to .env file." -ForegroundColor Green
+    } else {
+        # Replace if present (in case it was commented or had a placeholder)
+        $envContent = $envContent -replace "(?m)^#?\s*BACKUP_API_KEY=.*$", "BACKUP_API_KEY=$backupApiKey"
+        Set-Content -Path $envFilePath -Value $envContent -NoNewline
+        Write-Host "Updated BACKUP_API_KEY in .env file." -ForegroundColor Green
+    }
+} else {
+    Write-Host "BACKUP_API_KEY already set in Azure, skipping generation." -ForegroundColor DarkGray
+    
+    # Ensure local .env has it too
+    $envFilePath = Join-Path $PSScriptRoot ".env"
+    $envContent = Get-Content $envFilePath -Raw
+    
+    if ($envContent -notmatch "BACKUP_API_KEY=" -or $envContent -match "(?m)^#\s*BACKUP_API_KEY=") {
+        Write-Host "Adding existing Azure BACKUP_API_KEY to local .env..." -ForegroundColor Yellow
+        if ($envContent -notmatch "BACKUP_API_KEY=") {
+            Add-Content -Path $envFilePath -Value "`nBACKUP_API_KEY=$existingBackupKey"
+        } else {
+            $envContent = $envContent -replace "(?m)^#?\s*BACKUP_API_KEY=.*$", "BACKUP_API_KEY=$existingBackupKey"
+            Set-Content -Path $envFilePath -Value $envContent -NoNewline
+        }
+        Write-Host "Synced BACKUP_API_KEY from Azure to .env file." -ForegroundColor Green
+    }
+}
+
 # Configure runtime settings AFTER deploy succeeds.
 # The startup command and TOURNAMENT_DATA_DIR are runtime settings that trigger
 # container restarts. We set these after deploy to ensure build artifacts exist
