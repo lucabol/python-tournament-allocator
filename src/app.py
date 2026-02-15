@@ -4,6 +4,7 @@ Flask web application for Tournament Allocator.
 import os
 import csv
 import glob
+import hmac
 import io
 import re
 import shutil
@@ -160,6 +161,26 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'user' not in session:
             return redirect(url_for('login_page'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def require_backup_key(f):
+    """Require valid BACKUP_API_KEY in Authorization header."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        expected_key = os.environ.get('BACKUP_API_KEY')
+        if not expected_key:
+            return jsonify({'error': 'Server not configured for backup operations'}), 500
+        
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Missing or invalid Authorization header'}), 401
+        
+        provided_key = auth_header[7:]  # Strip "Bearer "
+        if not hmac.compare_digest(expected_key, provided_key):
+            return jsonify({'error': 'Invalid API key'}), 401
+        
         return f(*args, **kwargs)
     return decorated_function
 
@@ -3455,6 +3476,102 @@ def api_import_user():
 
     flash('User tournaments imported successfully.', 'success')
     return redirect(url_for('tournaments'))
+
+
+@app.route('/api/admin/export')
+@require_backup_key
+def api_admin_export():
+    """Export entire DATA_DIR as a downloadable ZIP file (admin backup)."""
+    if not os.path.exists(DATA_DIR):
+        return jsonify({'error': 'Data directory does not exist'}), 404
+    
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # Walk the entire DATA_DIR and add all files
+        for root, dirs, files in os.walk(DATA_DIR):
+            # Skip lock files and other temp artifacts
+            dirs[:] = [d for d in dirs if d not in SITE_EXPORT_SKIP]
+            
+            for file in files:
+                if any(file.endswith(ext) for ext in SITE_EXPORT_SKIP):
+                    continue
+                
+                file_path = os.path.join(root, file)
+                # Compute relative path from DATA_DIR
+                arcname = os.path.relpath(file_path, DATA_DIR)
+                zf.write(file_path, arcname)
+    
+    buffer.seek(0)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return send_file(
+        buffer,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'tournament-backup-{timestamp}.zip',
+    )
+
+
+@app.route('/api/admin/import', methods=['POST'])
+@require_backup_key
+def api_admin_import():
+    """Import entire DATA_DIR from an uploaded ZIP file (admin restore)."""
+    file = request.files.get('file')
+    if not file or file.filename == '':
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file_bytes = file.read()
+    if len(file_bytes) > MAX_SITE_UPLOAD_SIZE:
+        return jsonify({'error': f'File too large (max {MAX_SITE_UPLOAD_SIZE} bytes)'}), 400
+    
+    if not zipfile.is_zipfile(io.BytesIO(file_bytes)):
+        return jsonify({'error': 'Uploaded file is not a valid ZIP archive'}), 400
+    
+    with zipfile.ZipFile(io.BytesIO(file_bytes), 'r') as zf:
+        names = set(zf.namelist())
+        
+        # Security: reject entries with path traversal
+        for name in names:
+            if '..' in name or name.startswith('/') or name.startswith('\\'):
+                return jsonify({'error': 'ZIP contains unsafe file paths. Import aborted.'}), 400
+        
+        # Must contain tournaments.yaml at minimum (structural validation)
+        if 'tournaments.yaml' not in names and 'users.yaml' not in names:
+            return jsonify({'error': 'ZIP does not appear to be a valid backup (missing tournaments.yaml or users.yaml)'}), 400
+        
+        # Create backup of existing DATA_DIR
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_location = os.path.join(BASE_DIR, 'backups', f'pre-restore-{timestamp}')
+        os.makedirs(backup_location, exist_ok=True)
+        
+        # Backup existing data
+        if os.path.exists(DATA_DIR):
+            for item in os.listdir(DATA_DIR):
+                src = os.path.join(DATA_DIR, item)
+                dst = os.path.join(backup_location, item)
+                if os.path.isdir(src):
+                    shutil.copytree(src, dst, ignore=shutil.ignore_patterns('.lock', '__pycache__'))
+                else:
+                    if not item.endswith(('.lock', '.pyc')):
+                        shutil.copy2(src, dst)
+        
+        # Extract uploaded ZIP to DATA_DIR
+        os.makedirs(DATA_DIR, exist_ok=True)
+        for name in names:
+            # Skip metadata files that might exist in the archive
+            if name.endswith(('.lock', '.pyc')) or '__pycache__' in name:
+                continue
+            
+            dest_path = os.path.join(DATA_DIR, name)
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            
+            with zf.open(name) as src, open(dest_path, 'wb') as dst:
+                dst.write(src.read())
+    
+    return jsonify({
+        'success': True,
+        'backup_location': backup_location,
+        'message': f'Data restored successfully. Previous data backed up to {backup_location}'
+    }), 200
 
 
 @app.route('/tournaments')
