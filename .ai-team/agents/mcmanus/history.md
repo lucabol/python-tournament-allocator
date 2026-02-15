@@ -194,3 +194,19 @@
 - **Files changed**: `src/app.py` (added `hmac` import, `require_backup_key()` decorator, `api_admin_export()`, `api_admin_import()`)
 - **Test script**: `test_backup_routes.py` provided for local testing — verifies auth (valid/invalid key, missing header), export returns valid ZIP, import validation (missing file, invalid ZIP).
 - **Documentation**: `docs/http-backup-api.md` created with full API documentation, security features, testing workflow, Azure deployment instructions.
+
+### 2026-02-15: Fixed backup API routes - added to before_request whitelist
+- **Problem**: `/api/admin/export` and `/api/admin/import` were returning HTML (login page) instead of functioning, even with valid API key. The `before_request` handler was redirecting to login because these endpoints weren't whitelisted.
+- **Root cause**: These routes use `@require_backup_key` decorator for API key authentication (not session auth), but the `before_request` handler's whitelist only included session-based auth routes. The check at line 994-996 redirected to login for any endpoint not in the whitelist when `session['user']` was missing.
+- **Fix**: Added `'api_admin_export'` and `'api_admin_import'` to the whitelist at line 986-988, alongside other non-session-auth routes like `'public_live'` and `'api_public_live_html'`. These routes handle their own authentication via the decorator.
+- **Debug logging added**: Enhanced `api_admin_export()` with logging at start (DATA_DIR path), per-file debug logs, and summary log showing files added/skipped.
+- **Pattern**: Routes with custom authentication (API keys, public access) must be whitelisted in `before_request` to bypass session-based login check.
+- **Files changed**: `src/app.py` (lines 985-988 whitelist, lines 3485-3524 logging enhancements)
+- **Tests**: All 5 backup route tests pass (`test_backup_routes.py`)
+
+### 2026-02-15: Verified backup path location - no changes needed
+- **User request**: Change pre-backup file location from `/tmp` to `backups/` directory for Windows compatibility.
+- **Finding**: Code already uses `os.path.join(BASE_DIR, 'backups', f'pre-restore-{timestamp}')` at line 3559 in `src/app.py`. This pattern has been in place since the initial implementation (commit 5861616).
+- **Verification**: No `/tmp` or `tempfile` usage exists in `src/` or `scripts/` directories. The `scripts/backup.py` also correctly uses `backups_dir = script_dir / 'backups'` (line 78).
+- **Result**: Pre-backup files are stored at `{project_root}/backups/pre-restore-{timestamp}/` — exactly what the user requested.
+- **Files checked**: `src/app.py`, `scripts/backup.py`, `scripts/restore.py`

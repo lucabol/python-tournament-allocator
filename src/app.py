@@ -62,7 +62,10 @@ MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
 MAX_SITE_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB for site-wide exports
 MAX_UNCOMPRESSED_SIZE = 50 * 1024 * 1024  # 50 MB
 MAX_ZIP_FILES = 20
-SITE_EXPORT_SKIP = {'__pycache__', '.pyc', '.lock'}
+# Directories to skip during export
+SITE_EXPORT_SKIP_DIRS = {'__pycache__'}
+# File extensions to skip during export
+SITE_EXPORT_SKIP_EXTS = {'.pyc', '.lock'}
 
 # Files eligible for tournament export/import (legacy — use _get_exportable_files() in routes)
 EXPORTABLE_FILES = {
@@ -979,9 +982,10 @@ def get_default_constraints():
 @app.before_request
 def set_active_tournament():
     """Set g.data_dir to the active tournament's data directory."""
-    # Skip auth for static files, login, register
+    # Skip auth for static files, login, register, and API key authenticated endpoints
     if request.endpoint in ('static', 'login_page', 'register_page',
-                            'public_live', 'api_public_live_html', 'api_public_live_stream', None):
+                            'public_live', 'api_public_live_html', 'api_public_live_stream',
+                            'api_admin_export', 'api_admin_import', None):
         return
 
     # Ensure tournament structure exists (idempotent)
@@ -3483,23 +3487,35 @@ def api_import_user():
 def api_admin_export():
     """Export entire DATA_DIR as a downloadable ZIP file (admin backup)."""
     if not os.path.exists(DATA_DIR):
+        app.logger.error(f'Admin export failed: DATA_DIR does not exist: {DATA_DIR}')
         return jsonify({'error': 'Data directory does not exist'}), 404
+    
+    app.logger.info(f'Admin export starting: DATA_DIR={DATA_DIR}')
     
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        file_count = 0
+        skipped_count = 0
         # Walk the entire DATA_DIR and add all files
         for root, dirs, files in os.walk(DATA_DIR):
-            # Skip lock files and other temp artifacts
-            dirs[:] = [d for d in dirs if d not in SITE_EXPORT_SKIP]
+            # Skip directories like __pycache__
+            dirs[:] = [d for d in dirs if d not in SITE_EXPORT_SKIP_DIRS]
             
             for file in files:
-                if any(file.endswith(ext) for ext in SITE_EXPORT_SKIP):
+                # Skip files with certain extensions
+                if any(file.endswith(ext) for ext in SITE_EXPORT_SKIP_EXTS):
+                    skipped_count += 1
+                    app.logger.debug(f'Skipping file: {file}')
                     continue
                 
                 file_path = os.path.join(root, file)
                 # Compute relative path from DATA_DIR
                 arcname = os.path.relpath(file_path, DATA_DIR)
                 zf.write(file_path, arcname)
+                file_count += 1
+                app.logger.debug(f'Added to ZIP: {arcname}')
+        
+        app.logger.info(f'Admin export: added {file_count} files to ZIP, skipped {skipped_count} files')
     
     buffer.seek(0)
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
