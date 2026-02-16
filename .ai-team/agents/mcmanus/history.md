@@ -9,6 +9,8 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+📌 **Team update (2026-02-16):** Player score reporting Phase 1 implemented with structured data submission. See decisions.md for details. — decided by Verbal, McManus, Fenster
+
 ### 2026-02-11: Multi-tournament infrastructure added
 - **Architecture**: Tournament data lives in `data/tournaments/<slug>/` subdirectories. A top-level `data/tournaments.yaml` tracks the list and active tournament.
 - **Path resolution**: All `load_*`/`save_*` functions use `_file_path(filename)` → `_tournament_dir()` → `g.data_dir` (set by `@app.before_request`). Fallback to `DATA_DIR` if outside request context.
@@ -274,3 +276,19 @@
 - **Penalty weight rationale**: Set to `match_slots` so avoiding one consecutive pair is worth roughly 1 match-duration of schedule extension. Must be less than `makespan_weight` to prevent extending the tournament just to avoid consecutive play, but more than 1 to make the solver care.
 - **Logging enhancement**: Added post-solve logging that outputs makespan value (in slots and minutes), minimum team gap (in slots and minutes), and consecutive match penalty count (pairs + 3×triples). This helps verify the solver is successfully reducing consecutive matches.
 - **Files changed**: `src/core/allocation.py` (lines 569-580 objective function, lines 596-602 logging)
+
+
+### 2026-02-13: Player score reporting backend API added
+- **Storage**: Pending score reports stored in `pending_results.yaml` as `{pending_results: [{match_key, team1, team2, pool, sets, timestamp, status}]}`.
+- **Status values**: `pending` (new submission), `accepted` (organizer applied to results.yaml), `dismissed` (organizer rejected, pruned after 24h).
+- **Rate limiting**: In-memory `_rate_limit_store` dict keyed by `(ip, username, slug)`, max 30 submissions per IP per hour per tournament. Timestamps older than 1h are pruned on each check.
+- **Routes**:
+  - `POST /api/report-result/<username>/<slug>` — Public (unauthenticated) endpoint for players to submit match scores. Validates sets structure (non-negative integers ≤99), checks rate limit, rejects duplicate pending reports.
+  - `POST /api/accept-result/<username>/<slug>` — Organizer-only (`@login_required`). Applies pending result to `results.yaml` (same logic as manual tracking), marks as accepted.
+  - `POST /api/dismiss-result/<username>/<slug>` — Organizer-only. Marks pending result as dismissed.
+- **Helper functions**:
+  - `load_pending_results(data_dir=None)` — Loads from YAML, auto-prunes dismissed entries older than 24h.
+  - `save_pending_results(results, data_dir=None)` — Saves to YAML.
+  - `check_rate_limit(ip, username, slug, max_per_hour=30)` — Returns True if under limit, False if exceeded.
+- **Integration**: Modified `tracking()` route to load pending results and pass `pending_results` to template for organizer review UI.
+- **Files changed**: `src/app.py`

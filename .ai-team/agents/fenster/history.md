@@ -24,6 +24,8 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+📌 **Team update (2026-02-16):** Player score reporting Phase 1 implemented with structured data submission. See decisions.md for details. — decided by Verbal, McManus, Fenster
+
 ### 2026-02-13: Awards feature frontend
 - **What**: Created `awards.html` template with add-award form (name/player inputs + image picker grid), current awards list with delete buttons, and all JS for API interaction. Added Awards nav link in `base.html` between Print and Live. Added read-only Awards section to `live_content.html` as a collapsible `<details>` block. Created 10 SVG award icons in `src/static/awards/` (trophy, medals, star, crown, flame, volleyball, target, thumbs-up). Added CSS classes: `.awards-grid`, `.award-card`, `.award-card-img`, `.award-card-info`, `.image-picker`, `.image-picker-item`, `.award-form`.
 - **Image source pattern**: Images starting with `custom-` load from `/api/awards/image/{filename}`, others from `/static/awards/{filename}`. This dual-source pattern is used in both `awards.html` and `live_content.html`.
@@ -69,3 +71,11 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 - **Problem**: Dashboard QR code was generating `/live` without username and tournament slug, while Live page correctly used full URL (`/live/username/slug`).
 - **Fix**: Changed both QR code generation and `copyLiveLink()` to use `url_for("public_live", username=current_user, slug=active_tournament)` instead of `url_for("live")`. This matches the pattern used in tracking.html (line 2416 in app.py).
 - **Pattern**: Public live URLs require username and slug parameters. Always use `url_for("public_live", username=..., slug=...)` for shareable links, not `url_for("live")`. Context processor provides `current_user` and `active_tournament` to all templates.
+
+### 2026-02-14: Player score reporting UI (Phase 1)
+- **What**: Built frontend for player-submitted match results. Players on Live page see a "📝 Report" button on each non-completed match card in the Full Schedule section. Clicking opens an inline score entry form (adapts to single_set vs best_of_3 based on constraints). Form posts to `/api/report-result/<username>/<slug>` (or `/api/report-result` for authenticated). Client-side localStorage tracks submitted match_keys to prevent double-submission (UX courtesy, not security).
+- **Organizer view**: `tracking.html` shows pending results as badges ("📩 21-15 reported") on match cells. Clicking the badge auto-fills score inputs and saves via existing `/api/results/pool` endpoint, then dismisses the pending result. "✕" button dismisses without applying. If 3+ pending results exist, a yellow notification banner appears at top of page.
+- **Template changes**: `live_content.html` (added report button + inline form + JS), `tracking.html` (added pending badges + accept/dismiss handlers + notification banner), both use `pending_results` context var (McManus to add).
+- **CSS additions**: `.btn-report-score`, `.report-score-form`, `.report-form-*` classes in `live.css` (green button, gray form with mobile-friendly inputs). `.pending-badge`, `.pending-dismiss`, `.pending-notification` classes in `style.css` (green accept, red dismiss, yellow banner).
+- **API expectations**: `/api/report-result/<username>/<slug>` (POST, accepts `{match_key, team1, team2, pool, sets}`), `/api/pending-results` (GET, returns `{pending_results: {match_key: {sets, timestamp}}}`), `/api/dismiss-result` (POST, accepts `{match_key}`). Backend needs to implement these endpoints and pass `pending_results` dict to `tracking()` route.
+- **Mobile patterns**: Form uses `inputmode="numeric"` on score inputs, 44px touch targets on buttons. Report button is small but tappable (32px min-height). Badge/dismiss buttons stack in mobile meta row.

@@ -43,3 +43,12 @@
 - Match generation uses `combinations()` order which clusters by first team (AB, AC, AD, BC, BD, CD)
 - Greedy fallback (`_allocate_greedy`, line 514) has separate pool_in_same_court logic with `soft_break` retry
 - `min_team_gap` as global minimum is a weak signal — only improves when worst-case improves
+
+### 2026-02-20: Player Notification Feature Analysis
+- Live page (`live.html`) is public/unauthenticated, uses SSE for real-time updates, includes QR code sharing
+- `live_content.html` is a large partial template (~500+ lines) with schedule, standings, brackets, awards
+- `tracking.html` is the organizer's score entry page — uses inline score inputs with debounced auto-save to `/api/results/pool`
+- `_get_live_data()` is the shared data-gathering function used by `/live`, `/insta`, and public live routes
+- Public live routes bypass auth via `_resolve_public_tournament_dir()` with path traversal protection
+- No existing communication channel from players to organizers — all data flows organizer→system→players
+- For any player-submitted data feature, structured input is preferred over free-text to avoid double data entry by organizers

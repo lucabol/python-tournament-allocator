@@ -672,3 +672,42 @@ Each helper returns `List[str]` of clear, actionable violation messages (empty l
 - This pattern can extend to 4+ consecutive runs if needed (weight 5×, 7×, etc.)
 
 **Files:** `src/core/allocation.py` (lines 373-482)
+
+---
+
+## Player Score Reporting Feature (2026-02-16)
+
+### 2026-02-16: Player score reporting — Phase 1 structured data implementation (consolidated)
+
+**By:** McManus, Fenster, Verbal
+
+**What:** Implemented Phase 1 of player score reporting: players submit structured match results (team names + numeric scores) from public Live page; organizers review and accept/dismiss submissions from tracking page as green "📩" badges with single-click accept or red "✕" dismiss. Implementation includes:
+
+**Backend (McManus):**
+- Public API endpoints follow `/<username>/<slug>` pattern (unauthenticated)
+- Pending state stored in `pending_results.yaml` (separate from `results.yaml`)
+- Rate limiting via in-memory store keyed by `(ip, username, slug)` tuple
+- Auto-cleanup of dismissed entries after 24 hours
+- Organizer actions temporarily set `g.data_dir` for cross-user operations
+
+**Frontend (Fenster):**
+- Green "📩" badges on tracking page for pending submissions
+- Single-click accept action (reuses existing score-saving flow)
+- Red "✕" dismiss button (removes without applying)
+- localStorage tracking prevents duplicate reports (UX-only, not security-critical)
+- Inline display on tracking.html avoids workflow fragmentation
+
+**Why:** 
+- **Structured input** — Free-text match results force organizers to mentally parse and re-enter scores (doubling work). Structured submissions enable single-click acceptance.
+- **Inline display** — Keeping pending reports on tracking.html (existing organizer workflow) avoids context-switching. A separate Inbox tab would fragment the workflow.
+- **Minimal cognitive load** — Green/red badges with color-coded actions (accept/dismiss) match universal conventions and require no modal interaction.
+- **Spectator participation** — Public Live page gets report button; organizers maintain control via review workflow.
+
+**Scope (Phase 1):** Structured match results only. Free-text general messages deferred to Phase 2.
+
+**Files affected:**
+- `src/app.py` — API routes, pending state logic, rate limiting
+- `src/templates/live_content.html` — Report button + inline form
+- `src/templates/tracking.html` — Pending badges + handlers + notification
+- `src/static/live.css` — Report form styling
+- `src/static/style.css` — Badge and notification styling
