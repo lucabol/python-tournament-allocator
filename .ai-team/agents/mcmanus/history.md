@@ -240,3 +240,37 @@
 - **Pattern**: Used CP-SAT reification pattern: `model.Add(condition).OnlyEnforceIf(bool_var)` and `model.Add(negated_condition).OnlyEnforceIf(bool_var.Not())` to link boolean to condition.
 - **Next step**: The `consecutive_penalty` variable is ready to be added to the objective function (separate todo). Current objective is `makespan × weight - min_team_gap`; will become `makespan × weight - min_team_gap + consecutive_penalty × penalty_weight`.
 - **Files changed**: `src/core/allocation.py` (lines 373-431, inserted after team no-overlap constraint)
+
+### 2026-02-16: Greedy fallback enhanced to avoid consecutive match placements
+- **Context**: The greedy algorithm is used when CP-SAT fails to find a solution. Previously it placed matches at the first available slot, naturally creating consecutive matches.
+- **Implementation**: Added `_count_consecutive_matches_if_placed()` helper that counts the maximum consecutive run a placement would create. Uses same definition as CP-SAT: matches within `2 × (match_duration + break)` are consecutive.
+- **Algorithm change**: Instead of placing at first available slot, the greedy algorithm now:
+  1. Collects all valid candidate slots for a match
+  2. Scores each by the maximum consecutive count it would create for either team
+  3. Places the match at the slot with lowest consecutive count (breaking ties by earliest time)
+- **Performance**: Slightly slower than first-fit greedy (must scan all candidates), but still fast. The algorithm remains a fallback — it produces valid schedules even when avoiding all consecutive matches is impossible.
+- **Logging**: Added consecutive count to greedy scheduling logs when count > 1 (e.g., "scheduled (greedy): Team A vs Team B on Court 1 Day 1 (consecutive=2)").
+- **Pattern**: Same consecutive-avoidance logic applies to both normal greedy and no-break fallback passes. Preserves existing two-pass structure (with breaks first, then without if pool_in_same_court).
+- **Files changed**: `src/core/allocation.py` (lines 574-719, modified `_allocate_greedy()`, added helper method)
+
+### 2026-02-16: Graduated penalty for triple consecutive matches
+- **Extension**: Built on pair-wise consecutive detection to identify and penalize runs of 3+ consecutive matches more heavily.
+- **Architecture**: Two-phase detection system:
+  1. **Phase 1 (Pairs)**: Store all pair-wise `is_consecutive` variables in `pair_consecutive_vars` dict with key `(team, m1_idx, m2_idx)` for reuse in triple detection.
+  2. **Phase 2 (Triples)**: For teams with ≥3 matches, iterate through all ordered triples `(m1, m2, m3)` and create `is_triple_consecutive` boolean that is true when both `(m1, m2)` AND `(m2, m3)` pairs are consecutive.
+- **Boolean AND implementation**: Use CP-SAT constraints to implement logical AND: `triple <= pair1`, `triple <= pair2`, `triple >= pair1 + pair2 - 1`. This enforces `triple = 1` iff both pair variables are 1.
+- **Graduated weighting**: Combined penalty computed as `pair_consecutive_penalty + 3 × triple_consecutive_penalty`. The 3× multiplier strongly encourages solver to prefer 2-in-a-row over 3-in-a-row.
+- **Complexity**: Triple detection is O(T × M³) where T = teams, M = matches per team. For typical tournaments (3-6 matches per team), this adds 1-20 triple booleans per team — still very manageable.
+- **Pattern**: Reused existing pair detection variables instead of recomputing, avoiding redundant constraints and keeping model size reasonable.
+- **Files changed**: `src/core/allocation.py` (lines 373-482, replaced consecutive detection section)
+
+### 2026-02-16: Consecutive penalty integrated into CP-SAT objective function
+- **Integration**: Added `consecutive_penalty` variable to the objective function with proper weighting to make the solver actively avoid consecutive matches.
+- **Objective hierarchy**: Three-tier optimization priority:
+  1. **Primary**: Minimize makespan (finish tournament on time) — weight = `num_days * slots_per_day + 1`
+  2. **Secondary**: Minimize consecutive matches (avoid back-to-back play) — weight = `match_slots` (≈ 1 match duration)
+  3. **Tertiary**: Maximize minimum gap between matches (maximize rest time) — no weight, uses negative sign
+- **Formula**: `minimize(makespan * makespan_weight + consecutive_penalty * penalty_weight - min_team_gap)`
+- **Penalty weight rationale**: Set to `match_slots` so avoiding one consecutive pair is worth roughly 1 match-duration of schedule extension. Must be less than `makespan_weight` to prevent extending the tournament just to avoid consecutive play, but more than 1 to make the solver care.
+- **Logging enhancement**: Added post-solve logging that outputs makespan value (in slots and minutes), minimum team gap (in slots and minutes), and consecutive match penalty count (pairs + 3×triples). This helps verify the solver is successfully reducing consecutive matches.
+- **Files changed**: `src/core/allocation.py` (lines 569-580 objective function, lines 596-602 logging)

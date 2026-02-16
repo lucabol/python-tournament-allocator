@@ -621,3 +621,54 @@ Each helper returns `List[str]` of clear, actionable violation messages (empty l
 - `validate_no_premature_scheduling` requires `match_codes` dict mapping teams tuple to match code
 - Schedule format: `Dict[str, List[Tuple[int, datetime, datetime, Tuple[str, str]]]]` (court name → list)
 - All helpers handle edge cases: empty schedules, missing matches, cross-day dependencies, midnight crossing
+
+---
+
+### 2026-02-16: Greedy fallback prefers non-consecutive match placements
+
+**By:** McManus
+
+**What:** Updated the greedy scheduling fallback to actively avoid placing teams in consecutive matches. The algorithm now scans all valid candidate slots, scores them by how many consecutive matches they would create, and picks the best option (fewest consecutive, then earliest time).
+
+**Why:** When CP-SAT times out or fails, the greedy algorithm provides the fallback schedule. The old first-fit approach naturally created consecutive matches (teams playing 2-3 in a row with only minimum break). This change makes greedy smarter about interleaving matches from different teams.
+
+**How it works:**
+- New helper `_count_consecutive_matches_if_placed()` calculates consecutive run length
+- Uses same threshold as CP-SAT: matches within `2 × (match_duration + break)` are consecutive
+- Greedy collects all valid slots, sorts by `(consecutive_count, start_time)`, picks best
+- Falls back to any valid slot if avoiding consecutive matches is impossible (preserves feasibility)
+
+**Impact:**
+- Better schedules when greedy is triggered (tight tournaments, complex constraints)
+- Slightly slower than old first-fit, but still fast enough for fallback use
+- No UI changes — behavior is automatic
+
+### 2026-02-16: Consecutive match penalty weight calibration
+
+**By:** McManus
+
+**What:** Set penalty_weight = match_slots for the consecutive_penalty term in the CP-SAT objective function.
+
+**Why:** This calibration creates a meaningful tradeoff where avoiding one consecutive match pair is worth approximately one match-duration of schedule extension. The weight must be less than makespan_weight (to prevent extending the tournament just to avoid consecutive play) but more than 1 (to make the solver actually care about it). Using match_slots provides an intuitive, self-scaling value that adapts to match duration — shorter matches get proportionally less weight, longer matches get more.
+
+**Impact:** The solver now actively balances three priorities: (1) finish on time, (2) avoid consecutive play, (3) maximize rest between matches. This should significantly reduce back-to-back scheduling when `pool_in_same_court` is enabled.
+
+### 2026-02-16: Graduated penalty system for consecutive match runs
+
+**By:** McManus
+
+**What:** Implemented two-tier penalty detection in the CP-SAT scheduler: pair-wise consecutive matches (2 in a row) and triple consecutive matches (3+ in a row), with triple penalties weighted 3× higher than pair penalties.
+
+**Why:** 
+- The solver was creating schedules where teams played 3+ matches back-to-back when `pool_in_same_court` was enabled
+- Simply penalizing all consecutive pairs equally didn't differentiate between "2 in a row" (tolerable) and "3 in a row" (very demanding)
+- Graduated weighting gives the solver flexibility: it can choose some pairs if needed, but will strongly avoid triples
+- The 3× multiplier means a single triple (penalty = 3) costs more than one pair (penalty = 1), so the solver will break up triple runs when possible
+
+**Pattern:**
+- Store pair detection results in a dict `pair_consecutive_vars[(team, m1_idx, m2_idx)]` for reuse
+- Triple detection reuses pair booleans via AND constraints: `triple <= pair1`, `triple <= pair2`, `triple >= pair1 + pair2 - 1`
+- Combined penalty: `pair_penalty + 3 × triple_penalty`
+- This pattern can extend to 4+ consecutive runs if needed (weight 5×, 7×, etc.)
+
+**Files:** `src/core/allocation.py` (lines 373-482)
