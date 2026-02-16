@@ -244,7 +244,8 @@
 <script>
 (function() {
     var qr = qrcode(0, 'M');
-    qr.addData(window.location.href);
+    var liveUrl = window.location.origin + '{{ url_for("public_live", username=current_user, slug=active_tournament) }}';
+    qr.addData(liveUrl);
     qr.make();
     var container = document.getElementById('qr-container');
     if (container) {
@@ -258,7 +259,7 @@
 })();
 
 function copyLiveLink() {
-    var url = window.location.origin + '{{ url_for("live") }}';
+    var url = window.location.origin + '{{ url_for("public_live", username=current_user, slug=active_tournament) }}';
     var label = document.querySelector('#qr-live > span');
     navigator.clipboard.writeText(url).then(function() {
         if (label) {

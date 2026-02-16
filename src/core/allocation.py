@@ -370,6 +370,117 @@ class AllocationManager:
                 if team_intervals_by_day[d]:
                     model.AddNoOverlap(team_intervals_by_day[d])
         
+        # Consecutive-match detection: detect when teams play matches too close together
+        # This creates penalty variables for the objective function (added separately)
+        
+        # Phase 1: Detect pair-wise consecutive matches
+        # Store pair-wise detection variables in a dict for reuse in triple detection
+        pair_consecutive_vars = {}  # Key: (team, m1_idx, m2_idx) -> BoolVar
+        
+        for team, match_indices in team_matches.items():
+            if len(match_indices) < 2:
+                continue
+            
+            # For each pair of matches for this team, detect if they're consecutive
+            # (i.e., separated by less than 2× match duration)
+            for i, m1_idx in enumerate(match_indices):
+                for m2_idx in match_indices[i+1:]:
+                    # Threshold: two matches are "too close" if they start within
+                    # 2× (match_duration + break) slots of each other
+                    # This means there's no room for another match in between
+                    threshold = 2 * (match_slots + break_slots)
+                    
+                    # Create a boolean that is true when matches are consecutive
+                    is_consecutive = model.NewBoolVar(f"consecutive_{team}_m{m1_idx}_m{m2_idx}")
+                    
+                    # Calculate absolute difference between match start times
+                    diff = model.NewIntVar(-num_days * slots_per_day, num_days * slots_per_day,
+                                          f"time_diff_{team}_m{m1_idx}_m{m2_idx}")
+                    abs_diff = model.NewIntVar(0, num_days * slots_per_day,
+                                              f"abs_time_diff_{team}_m{m1_idx}_m{m2_idx}")
+                    
+                    # Create temporary global start time variables for this pair
+                    global_start_m1 = model.NewIntVar(0, num_days * slots_per_day, f"global_start_temp_m{m1_idx}_{team}")
+                    global_start_m2 = model.NewIntVar(0, num_days * slots_per_day, f"global_start_temp_m{m2_idx}_{team}")
+                    
+                    # Link these to the actual match start times
+                    for c_idx in range(num_courts):
+                        for d in range(num_days):
+                            present_m1 = match_present_vars[(m1_idx, c_idx, d)]
+                            present_m2 = match_present_vars[(m2_idx, c_idx, d)]
+                            start_m1 = match_start_vars[(m1_idx, c_idx, d)]
+                            start_m2 = match_start_vars[(m2_idx, c_idx, d)]
+                            
+                            model.Add(global_start_m1 == d * slots_per_day + start_m1).OnlyEnforceIf(present_m1)
+                            model.Add(global_start_m2 == d * slots_per_day + start_m2).OnlyEnforceIf(present_m2)
+                    
+                    # Calculate difference and absolute value
+                    model.Add(diff == global_start_m1 - global_start_m2)
+                    model.AddAbsEquality(abs_diff, diff)
+                    
+                    # is_consecutive = 1 if abs_diff < threshold
+                    # Using reification: create constraints that enforce is_consecutive
+                    model.Add(abs_diff < threshold).OnlyEnforceIf(is_consecutive)
+                    model.Add(abs_diff >= threshold).OnlyEnforceIf(is_consecutive.Not())
+                    
+                    # Store for later use in triple detection
+                    pair_consecutive_vars[(team, m1_idx, m2_idx)] = is_consecutive
+        
+        # Sum all pair consecutive detection variables into a penalty term
+        pair_consecutive_penalty = model.NewIntVar(0, len(pair_consecutive_vars), "pair_consecutive_penalty")
+        model.Add(pair_consecutive_penalty == sum(pair_consecutive_vars.values()))
+        
+        # Phase 2: Detect triple consecutive matches (runs of 3+ in a row)
+        # For teams with ≥3 matches, detect when 3 matches are all consecutive
+        triple_consecutive_vars = []
+        
+        for team, match_indices in team_matches.items():
+            if len(match_indices) < 3:
+                continue
+            
+            # For each ordered triple of matches (m1, m2, m3) where m1 < m2 < m3
+            for i in range(len(match_indices)):
+                for j in range(i + 1, len(match_indices)):
+                    for k in range(j + 1, len(match_indices)):
+                        m1_idx = match_indices[i]
+                        m2_idx = match_indices[j]
+                        m3_idx = match_indices[k]
+                        
+                        # A triple is consecutive when:
+                        # - m1 and m2 are consecutive (pair detection)
+                        # - m2 and m3 are consecutive (pair detection)
+                        # This means three matches in a row
+                        
+                        is_triple_consecutive = model.NewBoolVar(f"triple_consecutive_{team}_m{m1_idx}_m{m2_idx}_m{m3_idx}")
+                        
+                        # Get the pair detection variables for this triple
+                        is_m1_m2_consecutive = pair_consecutive_vars.get((team, m1_idx, m2_idx))
+                        is_m2_m3_consecutive = pair_consecutive_vars.get((team, m2_idx, m3_idx))
+                        
+                        # is_triple_consecutive = is_m1_m2_consecutive AND is_m2_m3_consecutive
+                        # Using CP-SAT: triple_var = 1 iff both pair vars are 1
+                        # Implement AND using: triple <= pair1, triple <= pair2, triple >= pair1 + pair2 - 1
+                        model.Add(is_triple_consecutive <= is_m1_m2_consecutive)
+                        model.Add(is_triple_consecutive <= is_m2_m3_consecutive)
+                        model.Add(is_triple_consecutive >= is_m1_m2_consecutive + is_m2_m3_consecutive - 1)
+                        
+                        triple_consecutive_vars.append(is_triple_consecutive)
+        
+        # Sum all triple consecutive detection variables into a penalty term
+        triple_consecutive_penalty = model.NewIntVar(0, len(triple_consecutive_vars) if triple_consecutive_vars else 1, 
+                                                     "triple_consecutive_penalty")
+        if triple_consecutive_vars:
+            model.Add(triple_consecutive_penalty == sum(triple_consecutive_vars))
+        else:
+            model.Add(triple_consecutive_penalty == 0)
+        
+        # Combined consecutive penalty with graduated weighting
+        # Triple penalty is weighted 3× higher than pair penalty
+        # This strongly encourages the solver to prefer 2-in-a-row over 3-in-a-row
+        max_consecutive_penalty = len(pair_consecutive_vars) + 3 * len(triple_consecutive_vars) if triple_consecutive_vars else len(pair_consecutive_vars)
+        consecutive_penalty = model.NewIntVar(0, max_consecutive_penalty, "consecutive_penalty")
+        model.Add(consecutive_penalty == pair_consecutive_penalty + 3 * triple_consecutive_penalty)
+        
         # Constraint 6: Pool in same court - all matches for a pool must be on the same court
         if pool_in_same_court:
             # Group matches by pool
@@ -455,9 +566,18 @@ class AllocationManager:
         # This ensures any 1-slot improvement in makespan outweighs max possible gap improvement
         makespan_weight = num_days * slots_per_day + 1
         
-        # Combined objective: minimize (makespan * weight - min_team_gap)
-        # This minimizes makespan first, then maximizes min_team_gap as secondary
-        model.Minimize(makespan * makespan_weight - min_team_gap)
+        # Weight for consecutive penalty: roughly 1 match duration worth of slots
+        # This makes avoiding one consecutive pair worth ~1 match-duration of schedule extension
+        # Must be less than makespan_weight (don't extend tournament to avoid consecutive play)
+        # Must be more than 1 (make the solver actually care about it)
+        penalty_weight = match_slots
+        
+        # Combined objective with priority hierarchy:
+        # 1. Primary: Minimize makespan (finish tournament on time)
+        # 2. Secondary: Minimize consecutive matches (avoid back-to-back play)
+        # 3. Tertiary: Maximize minimum gap between matches (maximize rest time)
+        # Formula: minimize (makespan * makespan_weight + consecutive_penalty * penalty_weight - min_team_gap)
+        model.Minimize(makespan * makespan_weight + consecutive_penalty * penalty_weight - min_team_gap)
         
         # Solve
         solver = cp_model.CpSolver()
@@ -472,6 +592,14 @@ class AllocationManager:
         if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
             solution_type = "optimal" if status == cp_model.OPTIMAL else "feasible"
             print(f"Found {solution_type} solution!")
+            
+            # Log objective function values
+            makespan_value = solver.Value(makespan)
+            min_gap_value = solver.Value(min_team_gap)
+            consecutive_penalty_value = solver.Value(consecutive_penalty)
+            print(f"  Makespan: {makespan_value} slots ({makespan_value * time_slot_minutes} minutes)")
+            print(f"  Minimum team gap: {min_gap_value} slots ({min_gap_value * time_slot_minutes} minutes)")
+            print(f"  Consecutive match penalty: {consecutive_penalty_value} (pairs + 3×triples)")
             
             # Extract solution
             for m_idx, (match_tuple, match_info) in enumerate(matches_to_schedule):
@@ -511,6 +639,53 @@ class AllocationManager:
         self._post_allocation_checks(matches_to_schedule)
         return self.schedule, self.warnings
 
+    def _count_consecutive_matches_if_placed(self, team_name, potential_start_time, potential_end_time, day_num, match_duration_minutes):
+        """Count how many consecutive matches this placement would create for a team.
+        
+        Uses the same definition as CP-SAT: two matches are consecutive if they're within
+        2 × (match_duration + break) of each other, meaning there's no room for another match in between.
+        
+        Returns the maximum consecutive run that includes this new match.
+        """
+        min_break_minutes = self.constraints.get('min_break_between_matches_minutes', 0)
+        consecutive_threshold = datetime.timedelta(minutes=2 * (match_duration_minutes + min_break_minutes))
+        
+        # Collect all existing matches for this team on this day
+        team_matches_today = []
+        for court_matches in self.schedule.values():
+            for scheduled_day, scheduled_start, scheduled_end, scheduled_teams in court_matches:
+                if scheduled_day == day_num and team_name in map(str, scheduled_teams):
+                    team_matches_today.append((scheduled_start, scheduled_end))
+        
+        # Add the potential new match
+        all_matches = team_matches_today + [(potential_start_time, potential_end_time)]
+        all_matches.sort(key=lambda x: x[0])  # Sort by start time
+        
+        # Find the maximum consecutive run that includes the new match
+        max_consecutive = 1
+        new_match_idx = all_matches.index((potential_start_time, potential_end_time))
+        
+        # Count consecutive matches including the new one
+        consecutive_count = 1
+        
+        # Count forward from new match
+        for i in range(new_match_idx + 1, len(all_matches)):
+            time_gap = all_matches[i][0] - all_matches[i-1][0]
+            if time_gap < consecutive_threshold:
+                consecutive_count += 1
+            else:
+                break
+        
+        # Count backward from new match
+        for i in range(new_match_idx - 1, -1, -1):
+            time_gap = all_matches[i+1][0] - all_matches[i][0]
+            if time_gap < consecutive_threshold:
+                consecutive_count += 1
+            else:
+                break
+        
+        return consecutive_count
+
     def _allocate_greedy(self, matches_to_schedule, match_duration_minutes, time_slot_minutes,
                          days_number, day_start_time, day_end_time, base_date):
         """Fallback greedy allocation when CP-SAT fails to find a solution."""
@@ -527,13 +702,16 @@ class AllocationManager:
             pool_name = match_info  # match_info contains the pool name
             scheduled_this_match = False
             
+            # Collect candidate slots with their consecutive-match scores
+            candidates = []
+            
             for day_idx, day in enumerate(all_dates):
                 day_num = day_idx + 1
                 day_start_dt = self._datetime_from_time(day_start_time, day)
                 day_end_dt = self._datetime_from_time(day_end_time, day)
                 current_time = day_start_dt
                 
-                while current_time <= day_end_dt - match_duration and not scheduled_this_match:
+                while current_time <= day_end_dt - match_duration:
                     potential_start_time = current_time
                     potential_end_time = potential_start_time + match_duration
                     
@@ -543,10 +721,8 @@ class AllocationManager:
                     
                     # Determine which courts to consider
                     if pool_in_same_court and pool_name in pool_court_assignments:
-                        # Only consider the court already assigned to this pool
                         courts_to_try = [c for c in self.courts if c.name == pool_court_assignments[pool_name]]
                     else:
-                        # Sort by least loaded
                         courts_to_try = sorted(self.courts, key=lambda c: len(self.schedule[c.name]))
                     
                     for court in courts_to_try:
@@ -554,30 +730,47 @@ class AllocationManager:
                         if potential_start_time < court_start_dt:
                             continue
                         if self._check_court_availability(court, potential_start_time, potential_end_time):
-                            # Try with break constraint first
                             if self._check_team_constraints((team1_name, team2_name), potential_start_time):
-                                self.schedule[court.name].append((day_num, potential_start_time, potential_end_time, match_tuple))
-                                self.schedule[court.name].sort(key=lambda x: (x[0], x[1]))
-                                print(f"  ✓ Scheduled (greedy): {match_tuple} on {court.name} Day {day_num}")
-                                scheduled_this_match = True
-                                # Track pool-to-court assignment
-                                if pool_in_same_court and pool_name not in pool_court_assignments:
-                                    pool_court_assignments[pool_name] = court.name
-                                break
-                    if not scheduled_this_match:
-                        current_time += time_slot_increment
-                if scheduled_this_match:
-                    break
+                                # Calculate consecutive match count for both teams
+                                consecutive_team1 = self._count_consecutive_matches_if_placed(
+                                    team1_name, potential_start_time, potential_end_time, day_num, match_duration_minutes)
+                                consecutive_team2 = self._count_consecutive_matches_if_placed(
+                                    team2_name, potential_start_time, potential_end_time, day_num, match_duration_minutes)
+                                max_consecutive = max(consecutive_team1, consecutive_team2)
+                                
+                                # Score: prefer fewer consecutive matches, then earlier time
+                                # Lower score is better
+                                candidates.append((max_consecutive, potential_start_time, potential_end_time, court, day_num))
+                    
+                    current_time += time_slot_increment
             
-            # If pool_in_same_court and couldn't schedule with breaks, try again without break constraint
+            # Schedule at the best candidate slot (lowest consecutive count, then earliest time)
+            if candidates:
+                candidates.sort(key=lambda x: (x[0], x[1]))  # Sort by consecutive count, then time
+                best_consecutive, best_start, best_end, best_court, best_day = candidates[0]
+                
+                self.schedule[best_court.name].append((best_day, best_start, best_end, match_tuple))
+                self.schedule[best_court.name].sort(key=lambda x: (x[0], x[1]))
+                
+                consecutive_note = f" (consecutive={best_consecutive})" if best_consecutive > 1 else ""
+                print(f"  ✓ Scheduled (greedy): {match_tuple} on {best_court.name} Day {best_day}{consecutive_note}")
+                
+                if pool_in_same_court and pool_name not in pool_court_assignments:
+                    pool_court_assignments[pool_name] = best_court.name
+                
+                scheduled_this_match = True
+            
+            # If pool_in_same_court and couldn't schedule, try again without break constraint
             if not scheduled_this_match and pool_in_same_court:
+                candidates = []
+                
                 for day_idx, day in enumerate(all_dates):
                     day_num = day_idx + 1
                     day_start_dt = self._datetime_from_time(day_start_time, day)
                     day_end_dt = self._datetime_from_time(day_end_time, day)
                     current_time = day_start_dt
                     
-                    while current_time <= day_end_dt - match_duration and not scheduled_this_match:
+                    while current_time <= day_end_dt - match_duration:
                         potential_start_time = current_time
                         potential_end_time = potential_start_time + match_duration
                         
@@ -595,19 +788,31 @@ class AllocationManager:
                             if potential_start_time < court_start_dt:
                                 continue
                             if self._check_court_availability(court, potential_start_time, potential_end_time):
-                                # Try without break constraint (soft_break=True)
                                 if self._check_team_constraints((team1_name, team2_name), potential_start_time, soft_break=True):
-                                    self.schedule[court.name].append((day_num, potential_start_time, potential_end_time, match_tuple))
-                                    self.schedule[court.name].sort(key=lambda x: (x[0], x[1]))
-                                    print(f"  ✓ Scheduled (greedy, no break): {match_tuple} on {court.name} Day {day_num}")
-                                    scheduled_this_match = True
-                                    if pool_name not in pool_court_assignments:
-                                        pool_court_assignments[pool_name] = court.name
-                                    break
-                        if not scheduled_this_match:
-                            current_time += time_slot_increment
-                    if scheduled_this_match:
-                        break
+                                    consecutive_team1 = self._count_consecutive_matches_if_placed(
+                                        team1_name, potential_start_time, potential_end_time, day_num, match_duration_minutes)
+                                    consecutive_team2 = self._count_consecutive_matches_if_placed(
+                                        team2_name, potential_start_time, potential_end_time, day_num, match_duration_minutes)
+                                    max_consecutive = max(consecutive_team1, consecutive_team2)
+                                    
+                                    candidates.append((max_consecutive, potential_start_time, potential_end_time, court, day_num))
+                        
+                        current_time += time_slot_increment
+                
+                if candidates:
+                    candidates.sort(key=lambda x: (x[0], x[1]))
+                    best_consecutive, best_start, best_end, best_court, best_day = candidates[0]
+                    
+                    self.schedule[best_court.name].append((best_day, best_start, best_end, match_tuple))
+                    self.schedule[best_court.name].sort(key=lambda x: (x[0], x[1]))
+                    
+                    consecutive_note = f" (consecutive={best_consecutive})" if best_consecutive > 1 else ""
+                    print(f"  ✓ Scheduled (greedy, no break): {match_tuple} on {best_court.name} Day {best_day}{consecutive_note}")
+                    
+                    if pool_name not in pool_court_assignments:
+                        pool_court_assignments[pool_name] = best_court.name
+                    
+                    scheduled_this_match = True
             
             if not scheduled_this_match:
                 print(f"  ✗ Warning: Could not schedule match {match_tuple}")
