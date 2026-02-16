@@ -230,3 +230,13 @@
 - **Idempotency**: Uses `find` to count non-`.lock` files in target. Safe to run repeatedly — won't move if target already has data.
 - **Pattern**: Shell-based migration (not Python) ensures it runs before the application code. Uses `mv` to relocate (not copy) to preserve disk space.
 - **Files changed**: `startup.sh` (lines 16-25)
+
+### 2026-02-16: Consecutive-match detection variables added to CP-SAT model
+- **Problem**: When `pool_in_same_court` is enabled, the CP-SAT solver packs pool matches tightly on one court, causing teams to play 2-3 matches in a row (separated only by minimum break time). This is physically demanding for players.
+- **Solution**: Added boolean variables to detect when two matches for the same team are "too close together" (within 2× match duration of each other). For each team with ≥2 matches, the model creates `is_consecutive` booleans for each pair of matches, using reification to detect when `abs(start_m1 - start_m2) < threshold`.
+- **Implementation approach**: Create temporary global start time variables for each match pair, link them to the actual match_start_vars via OnlyEnforceIf constraints, compute absolute difference, reify into boolean. All booleans are summed into `consecutive_penalty` variable.
+- **Threshold logic**: `threshold = 2 × (match_slots + break_slots)`. If two matches start within this window, there's no room for another match in between — they're effectively consecutive.
+- **Complexity**: O(T × M²) variables where T = teams, M = matches per team. For typical tournaments (3-6 matches per team), this is 3-15 booleans per team, very manageable.
+- **Pattern**: Used CP-SAT reification pattern: `model.Add(condition).OnlyEnforceIf(bool_var)` and `model.Add(negated_condition).OnlyEnforceIf(bool_var.Not())` to link boolean to condition.
+- **Next step**: The `consecutive_penalty` variable is ready to be added to the objective function (separate todo). Current objective is `makespan × weight - min_team_gap`; will become `makespan × weight - min_team_gap + consecutive_penalty × penalty_weight`.
+- **Files changed**: `src/core/allocation.py` (lines 373-431, inserted after team no-overlap constraint)

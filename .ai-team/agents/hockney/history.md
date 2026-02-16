@@ -390,3 +390,46 @@ eeds_reset = gf_winner and gf_winner == losers_champion.
 
 
 📌 Team update (2026-02-14): Keaton removed admin configuration from deployment. CLI-based backup/restore strategy is now the primary approach for data persistence on Azure (McManus). All backup/restore operations covered by 67 comprehensive tests.
+
+## Learnings
+
+### 2026-02-16 - Consecutive Match Avoidance Test Suite
+
+**Test Architecture:**
+- Created `tests/test_consecutive.py` with 10 test cases (5 behavioral, 5 helper validation)
+- Tests validate CP-SAT soft penalty feature that discourages teams from playing 3+ matches consecutively when `pool_in_same_court` is enabled
+- Uses `count_consecutive_runs()` helper to detect back-to-back match patterns with 20-minute threshold window
+
+**Test Pattern - Monkey-Patch Match Generation:**
+- AllocationManager.allocate_teams_to_courts() takes no parameters, generates matches internally via `_generate_pool_play_matches()`
+- Override method with lambda: `manager._generate_pool_play_matches = lambda: custom_matches`
+- Match tuple format: `((team1, team2), pool_name)` — note nested tuple for teams
+- Method returns `(schedule, warnings)` tuple
+
+**Schedule Structure for Validation:**
+- Schedule dict: `{court_name: [(day_num, start_datetime, end_datetime, (team1, team2))]}`
+- Extract team matches by filtering all courts, sort by start_time
+- Calculate gaps between matches: if gap ≤ 20 minutes (match_duration + break buffer), count as consecutive
+- Detection algorithm: sliding window over sorted team matches, count max run length
+
+**Test Scenarios Covered:**
+1. **Happy path** (generous time): 4 teams, 1 court, 12-hour window → no team plays 3+ consecutive
+2. **Tight constraints**: 4 teams, 1 court, 3-hour window → schedule still feasible (soft constraint preserves validity)
+3. **No regression**: Without `pool_in_same_court`, matches spread across multiple courts as before
+4. **Larger pool**: 6 teams (15 matches), 1 court → avoids 3-in-a-row with proper penalty
+5. **Multi-pool isolation**: 2 pools on 2 courts with `pool_in_same_court` → each pool confined to one court
+
+**Expected Behavior (based on plan.md):**
+- Primary objective: makespan (finish tournament early)
+- Secondary: avoid consecutive matches (penalized in objective function)
+- Soft constraint: allows consecutive play when no alternative exists
+- Tests will fail until McManus implements detection logic in `src/core/allocation.py`
+
+**Key Files:**
+- `tests/test_consecutive.py` — New test file (10 tests, ~400 LOC)
+- `src/core/allocation.py` — Scheduling algorithm (to be modified by McManus)
+- `tests/test_integration.py` — Reference for monkey-patch pattern
+
+**Validation Helpers:**
+- `count_consecutive_runs(schedule, team_name)` — Returns max_run and run_counts dict
+- `verify_schedule_valid(manager, schedule)` — Checks basic constraints (breaks, no overlaps)

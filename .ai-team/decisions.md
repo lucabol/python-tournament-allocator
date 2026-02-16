@@ -352,6 +352,159 @@
 - **Scriptable**: Backup/restore operations can be automated in CI/CD pipelines or local cron jobs without web UI intervention
 - **No admin privileges**: Removes need for special admin credentials or web-based admin panels
 - **Auditable**: All operations are plain-text CLI commands (easily logged and reviewed)
+
+---
+
+## Recent Feature Development (2026-02-15 to 2026-02-16)
+
+### 2026-02-14: HTTP backup/restore architecture with API key authentication
+
+**By:** McManus  
+**What:** Replaced Azure CLI SSH-based backup with HTTP routes secured by API key. Backup and restore operations now accessible via HTTP without requiring SSH access to the Azure container.
+
+**Why:** The original CLI-based backup scripts (`backup-data.ps1`, `restore-data.ps1`) required SSH access to the Azure container using App Service credentials. This created operational friction — every backup/restore required looking up SSH credentials, enabling SSH on the App Service, and using `az webapp ssh` commands. HTTP-based backup allows:
+
+1. **Simpler automation** — backup scripts can use standard HTTP tools (curl, PowerShell Invoke-WebRequest) without Azure CLI dependencies
+2. **No SSH required** — reduces attack surface by not enabling SSH on production containers
+3. **Scriptable from CI/CD** — GitHub Actions, scheduled tasks, or monitoring systems can trigger backups via HTTP without container access
+4. **Same security model** — API key stored in Azure App Service application settings, timing-attack-safe comparison via `hmac.compare_digest()`
+
+**Implementation details:**
+- Export: `GET /api/admin/export` returns entire `DATA_DIR` as timestamped ZIP
+- Import: `POST /api/admin/import` accepts ZIP upload, validates structure, backs up existing data before restoring
+- Auth: `@require_backup_key` decorator checks `Authorization: Bearer <token>` header against `BACKUP_API_KEY` environment variable
+- Security: Path traversal protection, ZIP validation, size limits (50MB), timing-attack-safe key comparison
+- Backup on import: Creates `backups/pre-restore-{timestamp}/` copy before extracting uploaded ZIP
+
+**Migration path:**
+1. Generate API key: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+2. Set in Azure: `az webapp config appsettings set --settings BACKUP_API_KEY='...'`
+3. Update backup scripts to use HTTP instead of SSH
+4. Optionally disable SSH on App Service once HTTP backup is verified
+
+**Related files:**
+- `src/app.py` — Flask routes and decorator
+- `docs/http-backup-api.md` — API documentation
+- `test_backup_routes.py` — Local testing script
+- `scripts/backup-data.ps1`, `scripts/restore-data.ps1` — CLI scripts (can be updated to use HTTP)
+
+### 2026-02-15: Backup API routes must bypass session authentication
+
+**By:** McManus
+
+**What:** The `/api/admin/export` and `/api/admin/import` routes have been added to the `before_request` whitelist so they can use API key authentication instead of session-based login.
+
+**Why:** These routes use the `@require_backup_key` decorator which validates a `BACKUP_API_KEY` from environment variables. They're designed for automated backup/restore operations that can't use browser sessions. By adding them to the whitelist (alongside other non-session routes like public live views), they bypass the "redirect to login if no session" check and handle their own authentication.
+
+**Pattern:** Any route that uses custom authentication (API keys, public access, etc.) should be added to the `before_request` whitelist at the top of `set_active_tournament()`. Session-based routes stay off the whitelist and get the default "require login" behavior.
+
+### 2026-02-15: One-time data migration from old location to TOURNAMENT_DATA_DIR
+
+**By:** McManus
+
+**What:** Added shell-based migration logic in `startup.sh` that moves user data from the legacy location (`/home/site/wwwroot/data`) to the new persistent location (`/home/data`) on first startup.
+
+**Why:** When we deployed the `TOURNAMENT_DATA_DIR` change (2026-02-11), existing Azure deployments had all their user data in `/home/site/wwwroot/data`. The backup system correctly targets `/home/data`, but that directory was empty on existing sites. This one-time migration runs before Flask starts, detects the situation, and relocates the data automatically.
+
+**Pattern:**
+- Migration runs in `startup.sh` BEFORE Flask starts (not in Python)
+- Checks if target is empty (ignoring `.lock` file)
+- Checks if source exists with `users/` directory
+- Uses `mv` (not `cp`) to relocate files
+- Idempotent — safe to run multiple times
+- Logs when migration runs for debugging
+
+**Decision:** Shell-based migrations for filesystem changes belong in `startup.sh`, not in Python `before_request` hooks. This ensures the filesystem is in the correct state before any application code runs.
+
+### 2026-02-15: Auto-generate backup API key in deployment script
+
+**By:** Keaton
+
+**What:** Added automatic BACKUP_API_KEY generation to deploy.ps1 that checks Azure App Settings, generates a 32-byte random hex key if missing, sets it in Azure, and writes it to the local .env file.
+
+**Why:** Ensures backup/restore HTTP endpoints are always secured with an API key without requiring manual key management. The script generates a cryptographically secure 64-character hex key on first deploy and syncs it between Azure and local environment. Subsequent deploys preserve the existing key to maintain access to backup operations.
+
+### 2026-02-15: Pre-restore backup file location (VERIFIED)
+
+**By:** McManus
+
+**What:** Pre-backup files are already stored in `backups/` directory within the project root using Windows-compatible paths via `os.path.join(BASE_DIR, 'backups', f'pre-restore-{timestamp}')`.
+
+**Why:** The implementation at line 3559 in `src/app.py` has always used the proper `backups/` directory. No `/tmp` usage exists in the backup/restore code. This was verified by checking both current code and git history (commit 5861616 initial implementation).
+
+### 2026-02-19: Remove Admin User Concept
+
+**By:** Verbal
+
+**What:** Removed all privileged "admin" user logic from the codebase. No more admin accounts, ADMIN_PASSWORD env vars, admin-only routes, or admin migration logic.
+
+**Why:** 
+- Multi-user architecture already supports per-user tournament management; no privileged admin needed
+- Site-wide export/import (`/api/export/site`, `/api/import/site`) was admin-only and not used
+- Simplified codebase: removed `_ensure_admin_user_exists()`, `_migrate_to_admin_user()`, `is_admin()` checks
+- Each user can export/import their own tournaments; no need for admin-level access
+
+**Changes:**
+- **Deleted functions:** `is_admin()`, `_ensure_admin_user_exists()`, `_migrate_to_admin_user()`
+- **Deleted routes:** `/api/export/site`, `/api/import/site` (admin-only site backup/restore)
+- **Deleted env var:** `ADMIN_PASSWORD` — no longer used
+- **Deleted template logic:** Admin-only section from `tournaments.html`
+- **Deleted tests:** `TestSiteExportImport` class (16 tests), `test_delete_account_admin_prevented`, migration tests
+- **Updated:** `ensure_tournament_structure()` now just ensures directories exist; all migration logic removed
+- **Updated:** `api_delete_account()` now allows all users to delete their own account (no admin exception)
+
+**Verification:**
+- 450 of 457 tests pass (7 failures in unrelated backup script tests)
+- User-scoped tournament export/import (`/api/export/user`, `/api/import/user`) works fine
+- No admin references remain in codebase (verified with grep)
+- App syntax valid; no import errors
+
+### 2026-02-20: Consecutive matches should be avoided via soft CP-SAT penalty
+
+**By:** Verbal
+
+**What:** When `pool_in_same_court` is enabled, the solver should add soft penalties to the objective function discouraging teams from playing consecutive matches. Use graduated penalties: 2-in-a-row penalized lightly, 3-in-a-row penalized heavily. This is a soft constraint (penalty in objective), not a hard constraint, to preserve schedule feasibility. No new UI setting needed — always active.
+
+**Why:** The current model packs matches tightly to minimize makespan, causing teams to play 3 matches in a row. A soft penalty lets the solver find better interleaving when possible, while still producing valid schedules under tight time constraints. The greedy fallback should also prefer non-consecutive placements.
+
+### 2026-02-16: Consecutive match detection approach
+
+**By:** McManus
+
+**What:** Added boolean variables to the CP-SAT model in `src/core/allocation.py` that detect when two matches for the same team are scheduled too close together (within 2× match duration). Each team with ≥2 matches gets `is_consecutive` booleans for each pair of matches. All booleans are summed into a `consecutive_penalty` variable ready for use in the objective function.
+
+**Why:** When `pool_in_same_court` is enabled, the solver packs pool matches sequentially on one court, causing teams to play 2-3 matches in a row with only the minimum break between them. This is physically taxing for players. The detection variables enable a future soft penalty in the objective function that will discourage (but not prohibit) consecutive matches. Using a soft penalty instead of a hard constraint ensures the model remains feasible even in tight schedules.
+
+**Implementation details:**
+- Threshold: `2 × (match_slots + break_slots)` — if two matches start within this window, they're too close
+- Uses CP-SAT reification: `model.Add(abs_diff < threshold).OnlyEnforceIf(is_consecutive)`
+- Complexity: O(T × M²) boolean variables, where T = teams and M = matches per team (typically 3-6)
+- Location: After team no-overlap constraint (line 373), before pool-in-same-court constraint
+- Next step: Add `consecutive_penalty × penalty_weight` to objective function (separate task)
+
+**Pattern for other agents:**
+When adding soft constraints to CP-SAT models:
+1. Create detection variables using reification (boolean linked to a condition)
+2. Sum detection variables into a penalty term
+3. Add penalty term to objective with appropriate weight (less than makespan_weight to preserve priorities)
+
+### 2026-02-16: Test Structure for Consecutive Match Feature
+
+**By:** Hockney
+
+**What:** Created dedicated test file `tests/test_consecutive.py` with 10 test cases validating the consecutive match avoidance feature. Tests use monkey-patching to inject custom match lists, following the pattern from `tests/test_integration.py`.
+
+**Why:** 
+- Separate file keeps consecutive match tests isolated and easy to maintain
+- Monkey-patching `_generate_pool_play_matches()` gives precise control over match scenarios
+- Tests verify both the optimization goal (avoid 3-in-a-row) and the soft constraint property (still feasible when unavoidable)
+- 20-minute threshold in `count_consecutive_runs()` accounts for typical match+break duration (30min + 15min break = 45min window)
+- Tests are written against intended behavior, so they guide implementation and serve as acceptance criteria
+
+**Impact:**
+- McManus can implement the CP-SAT penalty knowing exactly what behavior is expected
+- Tests will fail until penalty is implemented, then pass when feature is complete
+- Future changes to scheduling algorithm have regression protection
 - **Azure-native**: Uses Azure CLI (`az webapp ssh`) for secure, direct container access
 
 **Usage:**

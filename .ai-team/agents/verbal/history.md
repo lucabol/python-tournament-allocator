@@ -34,3 +34,12 @@
 - All 450 non-backup tests pass; user-scoped tournament export/import still works fine
 
 📌 Team update (2026-02-14): Azure backup/restore workflow consolidated: Hockney added 67 tests, Keaton cleaned deployment config, McManus established CLI-based scripts as primary strategy. Data persistence now fully documented and tested.
+
+### 2026-02-20: Consecutive Match Analysis
+- CP-SAT model in `src/core/allocation.py` uses 7 constraint groups: exactly-once, no-overlap, court hours (open/close), team time preferences, team no-overlap+break, pool-in-same-court
+- Objective is `minimize(makespan * weight - min_team_gap)` — makespan dominates, gap is secondary
+- `pool_in_same_court` (Constraint 6, line 373) pins all pool matches to one court via `pool_court` variable but has no interleaving logic
+- `_generate_pool_play_matches` is externally injected via lambda override — not defined in AllocationManager
+- Match generation uses `combinations()` order which clusters by first team (AB, AC, AD, BC, BD, CD)
+- Greedy fallback (`_allocate_greedy`, line 514) has separate pool_in_same_court logic with `soft_break` retry
+- `min_team_gap` as global minimum is a weak signal — only improves when worst-case improves

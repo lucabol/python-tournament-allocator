@@ -59,3 +59,13 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 - **File structure**: Backup restores to `/home/data` on Azure (set via `TOURNAMENT_DATA_DIR` env var in `deploy.ps1`). This directory is persistent across deploys (`/home` mount survives, `/home/site/wwwroot` is replaced).
 
 📌 **Team update (2026-02-14):** Azure backup/restore workflow coordinated with Keaton — backup uses SSH tar streaming; restore uses base64-chunked upload with app stop. See decisions.md for full architecture.
+
+### 2026-02-14: Dashboard QR code fixed
+- **Problem**: Dashboard (`index.html`) QR code was pointing to the Dashboard page itself (`window.location.href`), not the Live page.
+- **Fix**: Changed QR code generation to use the same URL construction as the `copyLiveLink()` function: `window.location.origin + '{{ url_for("live") }}'`. Now both Dashboard and Live page QR codes point to the Live page.
+- **Pattern**: When QR codes should share the same target across multiple pages, construct URL explicitly using `url_for()` in Jinja rather than relying on `window.location.href`.
+
+### 2026-02-14: Dashboard QR code now includes user/tournament parameters
+- **Problem**: Dashboard QR code was generating `/live` without username and tournament slug, while Live page correctly used full URL (`/live/username/slug`).
+- **Fix**: Changed both QR code generation and `copyLiveLink()` to use `url_for("public_live", username=current_user, slug=active_tournament)` instead of `url_for("live")`. This matches the pattern used in tracking.html (line 2416 in app.py).
+- **Pattern**: Public live URLs require username and slug parameters. Always use `url_for("public_live", username=..., slug=...)` for shareable links, not `url_for("live")`. Context processor provides `current_user` and `active_tournament` to all templates.
