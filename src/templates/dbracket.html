@@ -3,20 +3,26 @@
 {% block title %}Double Elimination Bracket - Tournament Allocator{% endblock %}
 
 {# --- Macro: mobile bracket match item with score inputs --- #}
-{% macro mobile_bracket_match(match, scoring_format, bracket_type='winners', extra_class='') %}
+{% macro mobile_bracket_match(match, scoring_format, bracket_type='winners', extra_class='', pending_results=none) %}
 {% set is_bye = match.is_bye if match.is_bye is defined else false %}
 {% set is_placeholder = match.get('is_placeholder') %}
 {% set is_playable = match.get('is_playable') %}
 {% set has_winner = match.get('winner') and not is_bye %}
+{% set bracket_match_key = match.get('match_code', '') %}
+{% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
 <div class="m-match-item bracket-match {% if is_bye %}m-bye{% endif %} {% if is_placeholder %}m-placeholder{% endif %} {% if has_winner %}match-completed{% endif %} {{ extra_class }}"
      data-round="{{ match.round if match.round is defined else '' }}"
      data-match="{{ match.match_number }}"
      data-match-code="{{ match.match_code }}"
      data-bracket-type="{{ bracket_type }}"
      data-team1="{{ match.teams[0] }}"
-     data-team2="{{ match.teams[1] }}">
+     data-team2="{{ match.teams[1] }}"
+     data-match-key="{{ bracket_match_key }}">
     <div class="m-match-meta">
         <span class="m-match-code">{{ match.match_code }}</span>
+        {% if pending_result and not has_winner %}
+        <span class="pending-badge" onclick="acceptPendingScore(this)" title="Accept score">📩</span>
+        {% endif %}
         {% if is_playable %}<span>🟢</span>
         {% elif has_winner %}<span>✓</span>{% endif %}
     </div>
@@ -69,19 +75,25 @@
 {% endmacro %}
 
 {# --- Macro: mobile grand final / bracket reset --- #}
-{% macro mobile_final_match(match, scoring_format, bracket_type, label, is_conditional=false) %}
+{% macro mobile_final_match(match, scoring_format, bracket_type, label, is_conditional=false, pending_results=none) %}
 {% set is_placeholder = match.get('is_placeholder') %}
 {% set is_playable = match.get('is_playable') %}
 {% set has_winner = match.get('winner') %}
 {% set needs_reset = match.get('needs_reset', false) if is_conditional else true %}
+{% set bracket_match_key = match.get('match_code', '') %}
+{% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
 <div class="m-match-item bracket-match {% if has_winner %}match-completed{% endif %} {% if not is_conditional %}m-grand-final{% else %}m-bracket-reset{% endif %}"
      data-round="{{ label }}"
      data-match="1"
      data-bracket-type="{{ bracket_type }}"
      data-team1="{{ match.teams[0] }}"
-     data-team2="{{ match.teams[1] }}">
+     data-team2="{{ match.teams[1] }}"
+     data-match-key="{{ bracket_match_key }}">
     <div class="m-match-meta">
         <span>{{ label }}{% if is_conditional %} <span class="m-conditional-badge">If Needed</span>{% endif %}</span>
+        {% if pending_result and not has_winner %}
+        <span class="pending-badge" onclick="acceptPendingScore(this)" title="Accept score">📩</span>
+        {% endif %}
         {% if is_playable and (not is_conditional or needs_reset) %}<span>🟢</span>
         {% elif has_winner %}<span>✓</span>{% endif %}
     </div>
@@ -178,7 +190,7 @@
             {% for round_name, matches in bracket_data.winners_bracket.items() %}
             <div class="m-round-label">{{ round_name }}</div>
             {% for match in matches %}
-            {{ mobile_bracket_match(match, scoring_format, 'winners', 'm-winners') }}
+            {{ mobile_bracket_match(match, scoring_format, 'winners', 'm-winners', pending_results=pending_results) }}
             {% endfor %}
             {% endfor %}
             </div>
@@ -189,7 +201,7 @@
             {% for round_name, matches in bracket_data.losers_bracket.items() %}
             <div class="m-round-label">{{ round_name }}</div>
             {% for match in matches %}
-            {{ mobile_bracket_match(match, scoring_format, 'losers', 'm-losers') }}
+            {{ mobile_bracket_match(match, scoring_format, 'losers', 'm-losers', pending_results=pending_results) }}
             {% endfor %}
             {% endfor %}
             </div>
@@ -198,9 +210,9 @@
         <details class="m-drill-down" open>
             <summary>🏆 Grand Final</summary>
             <div class="m-drill-down-content">
-            {{ mobile_final_match(bracket_data.grand_final, scoring_format, 'grand_final', 'Grand Final') }}
+            {{ mobile_final_match(bracket_data.grand_final, scoring_format, 'grand_final', 'Grand Final', pending_results=pending_results) }}
             {% if bracket_data.bracket_reset %}
-            {{ mobile_final_match(bracket_data.bracket_reset, scoring_format, 'bracket_reset', 'Bracket Reset', true) }}
+            {{ mobile_final_match(bracket_data.bracket_reset, scoring_format, 'bracket_reset', 'Bracket Reset', true, pending_results=pending_results) }}
             {% endif %}
             </div>
         </details>
@@ -237,18 +249,30 @@
             <h3>{{ round_name }}</h3>
             <div class="round-matches">
                 {% for match in matches %}
-                <div class="bracket-match winners-match {% if match.is_bye %}bye-match{% endif %} {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') and not match.is_bye %}completed-match{% endif %}"
+                {% set bracket_match_key = match.get('match_code', '') %}
+                {% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
+                {% set has_winner = match.get('winner') and not match.is_bye %}
+                <div class="bracket-match winners-match{% if match.is_bye %}bye-match{% endif %} {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if has_winner %}completed-match{% endif %}"
                      data-round="{{ round_name }}"
                      data-match="{{ match.match_number }}"
                      data-match-code="{{ match.match_code }}"
                      data-bracket-type="winners"
                      data-team1="{{ match.teams[0] }}"
-                     data-team2="{{ match.teams[1] }}">
+                     data-team2="{{ match.teams[1] }}"
+                     data-match-key="{{ bracket_match_key }}">
                     <div class="match-header">
                         <span class="match-code">{{ match.match_code }}</span>
+                        {% if pending_result and not has_winner %}
+                        <div class="pending-badge-container">
+                            <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                                📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                            </button>
+                            <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
+                        </div>
+                        {% endif %}
                         {% if match.get('is_playable') %}
                         <span class="playable-indicator">🟢</span>
-                        {% elif match.get('winner') and not match.is_bye %}
+                        {% elif has_winner %}
                         <span class="completed-indicator">✓</span>
                         {% endif %}
                     </div>
@@ -330,18 +354,30 @@
             <h3>{{ round_name }}</h3>
             <div class="round-matches">
                 {% for match in matches %}
-                <div class="bracket-match losers-match {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') %}completed-match{% endif %}"
+                {% set bracket_match_key = match.get('match_code', '') %}
+                {% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
+                {% set has_winner = match.get('winner') %}
+                <div class="bracket-match losers-match{% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if has_winner %}completed-match{% endif %}"
                      data-round="{{ round_name }}"
                      data-match="{{ match.match_number }}"
                      data-match-code="{{ match.match_code }}"
                      data-bracket-type="losers"
                      data-team1="{{ match.teams[0] }}"
-                     data-team2="{{ match.teams[1] }}">
+                     data-team2="{{ match.teams[1] }}"
+                     data-match-key="{{ bracket_match_key }}">
                     <div class="match-header">
                         <span class="match-code">{{ match.match_code }}</span>
+                        {% if pending_result and not has_winner %}
+                        <div class="pending-badge-container">
+                            <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                                📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                            </button>
+                            <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
+                        </div>
+                        {% endif %}
                         {% if match.get('is_playable') %}
                         <span class="playable-indicator">🟢</span>
-                        {% elif match.get('winner') %}
+                        {% elif has_winner %}
                         <span class="completed-indicator">✓</span>
                         {% endif %}
                     </div>
@@ -410,17 +446,29 @@
     {% if bracket_data.grand_final %}
     {# --- Desktop: finals container --- #}
     <div class="finals-container desktop-only">
-        <div class="bracket-match grand-final-match {% if bracket_data.grand_final.get('is_playable') %}playable-match{% endif %} {% if bracket_data.grand_final.get('winner') %}completed-match{% endif %}"
+        {% set bracket_match_key = bracket_data.grand_final.get('match_code', 'GF') %}
+        {% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
+        {% set has_winner = bracket_data.grand_final.get('winner') %}
+        <div class="bracket-match grand-final-match {% if bracket_data.grand_final.get('is_playable') %}playable-match{% endif %} {% if has_winner %}completed-match{% endif %}"
              data-round="Grand Final"
              data-match="1"
              data-bracket-type="grand_final"
              data-team1="{{ bracket_data.grand_final.teams[0] }}"
-             data-team2="{{ bracket_data.grand_final.teams[1] }}">
+             data-team2="{{ bracket_data.grand_final.teams[1] }}"
+             data-match-key="{{ bracket_match_key }}">
             <div class="match-header">
                 Grand Final
+                {% if pending_result and not has_winner %}
+                <div class="pending-badge-container">
+                    <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                        📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                    </button>
+                    <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
+                </div>
+                {% endif %}
                 {% if bracket_data.grand_final.get('is_playable') %}
                 <span class="playable-indicator">🟢</span>
-                {% elif bracket_data.grand_final.get('winner') %}
+                {% elif has_winner %}
                 <span class="completed-indicator">✓</span>
                 {% endif %}
             </div>
@@ -473,16 +521,28 @@
         </div>
         
         {% if bracket_data.bracket_reset %}
-        <div class="bracket-match bracket-reset-match conditional-match {% if bracket_data.bracket_reset.get('needs_reset') and bracket_data.bracket_reset.get('is_playable') %}playable-match{% endif %} {% if bracket_data.bracket_reset.get('winner') %}completed-match{% endif %}"
+        {% set bracket_match_key = bracket_data.bracket_reset.get('match_code', 'BR') %}
+        {% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
+        {% set has_winner = bracket_data.bracket_reset.get('winner') %}
+        <div class="bracket-match bracket-reset-match conditional-match {% if bracket_data.bracket_reset.get('needs_reset') and bracket_data.bracket_reset.get('is_playable') %}playable-match{% endif %} {% if has_winner %}completed-match{% endif %}"
              data-round="Bracket Reset"
              data-match="1"
              data-bracket-type="bracket_reset"
              data-team1="{{ bracket_data.bracket_reset.teams[0] }}"
-             data-team2="{{ bracket_data.bracket_reset.teams[1] }}">
+             data-team2="{{ bracket_data.bracket_reset.teams[1] }}"
+             data-match-key="{{ bracket_match_key }}">
             <div class="match-header">Bracket Reset <span class="conditional-badge">If Needed</span>
+                {% if pending_result and not has_winner %}
+                <div class="pending-badge-container">
+                    <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                        📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                    </button>
+                    <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
+                </div>
+                {% endif %}
                 {% if bracket_data.bracket_reset.get('needs_reset') and bracket_data.bracket_reset.get('is_playable') %}
                 <span class="playable-indicator">🟢</span>
-                {% elif bracket_data.bracket_reset.get('winner') %}
+                {% elif has_winner %}
                 <span class="completed-indicator">✓</span>
                 {% endif %}
             </div>
@@ -566,7 +626,7 @@
             {% for round_name, matches in silver_bracket_data.winners_bracket.items() %}
             <div class="m-round-label">{{ round_name }}</div>
             {% for match in matches %}
-            {{ mobile_bracket_match(match, scoring_format, 'silver_winners', 'm-silver-winners') }}
+            {{ mobile_bracket_match(match, scoring_format, 'silver_winners', 'm-silver-winners', pending_results=pending_results) }}
             {% endfor %}
             {% endfor %}
             </div>
@@ -577,7 +637,7 @@
             {% for round_name, matches in silver_bracket_data.losers_bracket.items() %}
             <div class="m-round-label">{{ round_name }}</div>
             {% for match in matches %}
-            {{ mobile_bracket_match(match, scoring_format, 'silver_losers', 'm-silver-losers') }}
+            {{ mobile_bracket_match(match, scoring_format, 'silver_losers', 'm-silver-losers', pending_results=pending_results) }}
             {% endfor %}
             {% endfor %}
             </div>
@@ -586,9 +646,9 @@
         <details class="m-drill-down" open>
             <summary>🥈 Grand Final</summary>
             <div class="m-drill-down-content">
-            {{ mobile_final_match(silver_bracket_data.grand_final, scoring_format, 'silver_grand_final', 'Silver Grand Final') }}
+            {{ mobile_final_match(silver_bracket_data.grand_final, scoring_format, 'silver_grand_final', 'Silver Grand Final', pending_results=pending_results) }}
             {% if silver_bracket_data.bracket_reset %}
-            {{ mobile_final_match(silver_bracket_data.bracket_reset, scoring_format, 'silver_bracket_reset', 'Silver Bracket Reset', true) }}
+            {{ mobile_final_match(silver_bracket_data.bracket_reset, scoring_format, 'silver_bracket_reset', 'Silver Bracket Reset', true, pending_results=pending_results) }}
             {% endif %}
             </div>
         </details>
@@ -621,18 +681,30 @@
             <h3>{{ round_name }}</h3>
             <div class="round-matches">
                 {% for match in matches %}
-                <div class="bracket-match {% if match.is_bye %}bye-match{% endif %} {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') and not match.is_bye %}completed-match{% endif %}"
+                {% set bracket_match_key = match.get('match_code', '') %}
+                {% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
+                {% set has_winner = match.get('winner') and not match.is_bye %}
+                <div class="bracket-match {% if match.is_bye %}bye-match{% endif %} {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if has_winner %}completed-match{% endif %}"
                      data-round="{{ round_name }}"
                      data-match="{{ match.match_number }}"
                      data-match-code="{{ match.match_code }}"
                      data-bracket-type="silver_winners"
                      data-team1="{{ match.teams[0] }}"
-                     data-team2="{{ match.teams[1] }}">
+                     data-team2="{{ match.teams[1] }}"
+                     data-match-key="{{ bracket_match_key }}">
                     <div class="match-header">
                         <span class="match-code">{{ match.match_code }}</span>
+                        {% if pending_result and not has_winner %}
+                        <div class="pending-badge-container">
+                            <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                                📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                            </button>
+                            <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
+                        </div>
+                        {% endif %}
                         {% if match.get('is_playable') %}
                         <span class="playable-indicator">🟢</span>
-                        {% elif match.get('winner') and not match.is_bye %}
+                        {% elif has_winner %}
                         <span class="completed-indicator">✓</span>
                         {% endif %}
                     </div>
@@ -711,18 +783,30 @@
             <h3>{{ round_name }}</h3>
             <div class="round-matches">
                 {% for match in matches %}
-                <div class="bracket-match {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if match.get('winner') %}completed-match{% endif %}"
+                {% set bracket_match_key = match.get('match_code', '') %}
+                {% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
+                {% set has_winner = match.get('winner') %}
+                <div class="bracket-match {% if match.get('is_placeholder') %}placeholder-match{% endif %} {% if match.get('is_playable') %}playable-match{% endif %} {% if has_winner %}completed-match{% endif %}"
                      data-round="{{ round_name }}"
                      data-match="{{ match.match_number }}"
                      data-match-code="{{ match.match_code }}"
                      data-bracket-type="silver_losers"
                      data-team1="{{ match.teams[0] }}"
-                     data-team2="{{ match.teams[1] }}">
+                     data-team2="{{ match.teams[1] }}"
+                     data-match-key="{{ bracket_match_key }}">
                     <div class="match-header">
                         <span class="match-code">{{ match.match_code }}</span>
+                        {% if pending_result and not has_winner %}
+                        <div class="pending-badge-container">
+                            <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                                📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                            </button>
+                            <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
+                        </div>
+                        {% endif %}
                         {% if match.get('is_playable') %}
                         <span class="playable-indicator">🟢</span>
-                        {% elif match.get('winner') %}
+                        {% elif has_winner %}
                         <span class="completed-indicator">✓</span>
                         {% endif %}
                     </div>
@@ -787,17 +871,29 @@
 
     {# --- Desktop --- #}
     <div class="grand-final-container desktop-only">
-        <div class="bracket-match grand-final-match {% if silver_bracket_data.grand_final.get('is_placeholder') %}placeholder-match{% endif %} {% if silver_bracket_data.grand_final.get('is_playable') %}playable-match{% endif %} {% if silver_bracket_data.grand_final.get('winner') %}completed-match{% endif %}"
+        {% set bracket_match_key = silver_bracket_data.grand_final.get('match_code', 'SGF') %}
+        {% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
+        {% set has_winner = silver_bracket_data.grand_final.get('winner') %}
+        <div class="bracket-match grand-final-match {% if silver_bracket_data.grand_final.get('is_placeholder') %}placeholder-match{% endif %} {% if silver_bracket_data.grand_final.get('is_playable') %}playable-match{% endif %} {% if has_winner %}completed-match{% endif %}"
              data-round="Grand Final"
              data-match="1"
              data-bracket-type="silver_grand_final"
              data-team1="{{ silver_bracket_data.grand_final.teams[0] }}"
-             data-team2="{{ silver_bracket_data.grand_final.teams[1] }}">
+             data-team2="{{ silver_bracket_data.grand_final.teams[1] }}"
+             data-match-key="{{ bracket_match_key }}">
             <div class="match-header">
                 Grand Final
+                {% if pending_result and not has_winner %}
+                <div class="pending-badge-container">
+                    <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                        📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                    </button>
+                    <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
+                </div>
+                {% endif %}
                 {% if silver_bracket_data.grand_final.get('is_playable') %}
                 <span class="playable-indicator">🟢</span>
-                {% elif silver_bracket_data.grand_final.get('winner') %}
+                {% elif has_winner %}
                 <span class="completed-indicator">✓</span>
                 {% endif %}
             </div>
@@ -858,16 +954,28 @@
 
     {# --- Desktop --- #}
     <div class="finals-container desktop-only">
-        <div class="bracket-match bracket-reset-match conditional-match {% if silver_bracket_data.bracket_reset.get('needs_reset') and silver_bracket_data.bracket_reset.get('is_playable') %}playable-match{% endif %} {% if silver_bracket_data.bracket_reset.get('winner') %}completed-match{% endif %}"
+        {% set bracket_match_key = silver_bracket_data.bracket_reset.get('match_code', 'SBR') %}
+        {% set pending_result = pending_results.get(bracket_match_key) if pending_results else none %}
+        {% set has_winner = silver_bracket_data.bracket_reset.get('winner') %}
+        <div class="bracket-match bracket-reset-match conditional-match {% if silver_bracket_data.bracket_reset.get('needs_reset') and silver_bracket_data.bracket_reset.get('is_playable') %}playable-match{% endif %} {% if has_winner %}completed-match{% endif %}"
              data-round="Bracket Reset"
              data-match="1"
              data-bracket-type="silver_bracket_reset"
              data-team1="{{ silver_bracket_data.bracket_reset.teams[0] }}"
-             data-team2="{{ silver_bracket_data.bracket_reset.teams[1] }}">
+             data-team2="{{ silver_bracket_data.bracket_reset.teams[1] }}"
+             data-match-key="{{ bracket_match_key }}">
             <div class="match-header">Silver Bracket Reset <span class="conditional-badge">If Needed</span>
+                {% if pending_result and not has_winner %}
+                <div class="pending-badge-container">
+                    <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                        📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                    </button>
+                    <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
+                </div>
+                {% endif %}
                 {% if silver_bracket_data.bracket_reset.get('needs_reset') and silver_bracket_data.bracket_reset.get('is_playable') %}
                 <span class="playable-indicator">🟢</span>
-                {% elif silver_bracket_data.bracket_reset.get('winner') %}
+                {% elif has_winner %}
                 <span class="completed-indicator">✓</span>
                 {% endif %}
             </div>
@@ -1016,6 +1124,72 @@ function generateRandomBracketResults() {
         if (data.success) {
             location.reload();
         }
+    });
+}
+
+// Accept pending score
+function acceptPendingScore(btn) {
+    const matchDiv = btn.closest('.bracket-match, .m-match-item');
+    const matchKey = matchDiv.dataset.matchKey;
+    const username = '{{ current_user }}';
+    const slug = '{{ active_tournament }}';
+    
+    if (!username || !slug) {
+        alert('Tournament information not available.');
+        return;
+    }
+    
+    fetch(`/api/accept-result/${username}/${slug}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({match_key: matchKey})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error accepting score: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Network error accepting score');
+    });
+}
+
+// Dismiss pending score
+function dismissPendingScore(btn) {
+    const matchDiv = btn.closest('.bracket-match, .m-match-item');
+    const matchKey = matchDiv.dataset.matchKey;
+    const username = '{{ current_user }}';
+    const slug = '{{ active_tournament }}';
+    
+    if (!username || !slug) {
+        alert('Tournament information not available.');
+        return;
+    }
+    
+    if (!confirm('Dismiss this reported score without applying it?')) {
+        return;
+    }
+    
+    fetch(`/api/dismiss-result/${username}/${slug}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({match_key: matchKey})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error dismissing score: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Network error dismissing score');
     });
 }
 </script>
