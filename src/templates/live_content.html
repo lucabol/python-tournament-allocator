@@ -81,7 +81,19 @@
 
     {% if court_ns.next_match is not none %}
     {% set m = court_ns.next_match %}
-    <div class="hero-match-card" data-teams="{{ m.teams[0] }} {{ m.teams[1] }}">
+    {% set team1 = m.teams[0] %}
+    {% set team2 = m.teams[1] %}
+    {% if (court_ns.is_bracket or m.get('is_bracket')) and m.get('match_code') %}
+        {% set full_match_key = m.match_code %}
+        {% set pool_name = m.get('pool', '') %}
+    {% else %}
+        {% set match_key_check = [team1, team2]|sort|join('_vs_') %}
+        {% set pool_name = court_ns.next_pool if court_ns.next_pool else '' %}
+        {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
+    {% endif %}
+    <div class="hero-match-card" data-teams="{{ team1 }} {{ team2 }}" 
+         data-match-key="{{ full_match_key }}" data-team1="{{ team1 }}" data-team2="{{ team2 }}" data-pool="{{ pool_name }}"
+         {% if m.get('match_code') %}data-match-code="{{ m.match_code }}"{% endif %}>
         <div class="hero-match-meta">
             <span class="meta-time">{{ court_ns.next_time }}</span>
             <span class="meta-court">{{ court_name }}</span>
@@ -90,13 +102,14 @@
             {% elif court_ns.next_pool %}
                 <span class="meta-pool">{{ court_ns.next_pool }}</span>
             {% endif %}
+            <button class="btn-report-score" onclick="toggleReportForm(this)" title="Report score">📝 Report</button>
         </div>
         <div class="hero-match-row">
-            <span class="team-name">{{ m.teams[0] }}</span>
+            <span class="team-name">{{ team1 }}</span>
             <span class="hero-score">-</span>
         </div>
         <div class="hero-match-row">
-            <span class="team-name">{{ m.teams[1] }}</span>
+            <span class="team-name">{{ team2 }}</span>
             <span class="hero-score">-</span>
         </div>
     </div>
@@ -133,15 +146,25 @@
         {% set match = day_data[court_name]['time_to_match'][time_slot] %}
         {% set team1 = match.teams[0] %}
         {% set team2 = match.teams[1] %}
-        {% set match_key_check = [team1, team2]|sort|join('_vs_') %}
-        {% set pool_name = match.pool if match.pool else '' %}
-        {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
+        {% if match.get('is_bracket') and match.get('match_code') %}
+            {% set full_match_key = match.match_code %}
+            {% set pool_name = match.get('pool', '') %}
+        {% else %}
+            {% set match_key_check = [team1, team2]|sort|join('_vs_') %}
+            {% set pool_name = match.pool if match.pool else '' %}
+            {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
+        {% endif %}
         {% set match_result = results.get(full_match_key, {}) %}
         {% set is_completed = match_result.get('completed', false) %}
-        <div class="match-list-item {% if is_completed %}match-completed{% endif %}" data-teams="{{ team1 }} {{ team2 }}">
+        <div class="match-list-item {% if is_completed %}match-completed{% endif %}" data-teams="{{ team1 }} {{ team2 }}" 
+             data-match-key="{{ full_match_key }}" data-team1="{{ team1 }}" data-team2="{{ team2 }}" data-pool="{{ pool_name }}"
+             {% if match.get('match_code') %}data-match-code="{{ match.match_code }}"{% endif %}>
             <div class="match-list-meta">
                 <span>{{ time_slot }} · {{ court_name }}</span>
                 {% if pool_name %}<span>{{ pool_name }}</span>{% endif %}
+                {% if not is_completed %}
+                <button class="btn-report-score" onclick="toggleReportForm(this)" title="Report score">📝 Report</button>
+                {% endif %}
             </div>
             <div class="match-list-row">
                 <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
@@ -175,10 +198,17 @@
         {% set team2 = match.teams[1] %}
         {% set match_result = match.get('result', {}) %}
         {% set is_completed = match_result.get('completed', false) %}
-        <div class="match-list-item {% if is_completed %}match-completed{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %}" data-teams="{{ team1 }} {{ team2 }}">
+        {% set bracket_match_key = match.get('match_code', '') %}
+        {% set bracket_pool = match.get('pool', '') %}
+        <div class="match-list-item {% if is_completed %}match-completed{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %}" data-teams="{{ team1 }} {{ team2 }}"
+             data-match-key="{{ bracket_match_key }}" data-team1="{{ team1 }}" data-team2="{{ team2 }}" data-pool="{{ bracket_pool }}"
+             data-match-code="{{ bracket_match_key }}">
             <div class="match-list-meta">
                 <span>{{ time_slot }} · {{ court_name }}</span>
                 {% if match.round %}<span>{{ match.round }}</span>{% endif %}
+                {% if not is_completed and not match.get('is_placeholder') %}
+                <button class="btn-report-score" onclick="toggleReportForm(this)" title="Report score">📝 Report</button>
+                {% endif %}
             </div>
             <div class="match-list-row">
                 <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
@@ -568,3 +598,149 @@
 {% endif %}
 
 {% endif %}{# end pools #}
+
+<script>
+// Player Score Reporting
+(function() {
+    var scoringFormat = {{ ('\"' + constraints.get('scoring_format', 'best_of_3') + '\"') | safe }};
+    {% if public_mode %}
+    var reportApiUrl = '/api/report-result/{{ public_username }}/{{ public_slug }}';
+    {% else %}
+    var reportApiUrl = '/api/report-result';
+    {% endif %}
+
+    // LocalStorage key for tracking submitted reports
+    function getStorageKey() {
+        {% if public_mode %}
+        return 'pending_results_{{ public_username }}_{{ public_slug }}';
+        {% else %}
+        return 'pending_results_' + (window.location.pathname.split('/').slice(-2).join('_'));
+        {% endif %}
+    }
+
+    // Check if match already reported
+    function isAlreadyReported(matchKey) {
+        var key = getStorageKey();
+        var submitted = JSON.parse(localStorage.getItem(key) || '[]');
+        return submitted.indexOf(matchKey) !== -1;
+    }
+
+    // Mark match as reported
+    function markAsReported(matchKey) {
+        var key = getStorageKey();
+        var submitted = JSON.parse(localStorage.getItem(key) || '[]');
+        if (submitted.indexOf(matchKey) === -1) {
+            submitted.push(matchKey);
+            localStorage.setItem(key, JSON.stringify(submitted));
+        }
+    }
+
+    window.toggleReportForm = function(btn) {
+        var matchItem = btn.closest('.match-list-item, .hero-match-card');
+        var matchKey = matchItem.dataset.matchCode || matchItem.dataset.matchKey;
+        
+        // Check if form already exists
+        var existingForm = matchItem.querySelector('.report-score-form');
+        if (existingForm) {
+            existingForm.remove();
+            return;
+        }
+
+        // Build form
+        var team1 = matchItem.dataset.team1;
+        var team2 = matchItem.dataset.team2;
+        var pool = matchItem.dataset.pool;
+        
+        var numSets = scoringFormat === 'single_set' ? 1 : 3;
+        var formHtml = '<div class="report-score-form">';
+        formHtml += '<div class="report-form-header">Report Score</div>';
+        
+        // Team 1 row
+        formHtml += '<div class="report-form-row">';
+        formHtml += '<span class="report-team-name">' + team1 + '</span>';
+        formHtml += '<div class="report-score-inputs">';
+        for (var i = 0; i < numSets; i++) {
+            formHtml += '<input type="number" class="report-score-input" data-team="0" data-set="' + i + '" min="0" max="99" inputmode="numeric" placeholder="-">';
+        }
+        formHtml += '</div></div>';
+        
+        // Team 2 row
+        formHtml += '<div class="report-form-row">';
+        formHtml += '<span class="report-team-name">' + team2 + '</span>';
+        formHtml += '<div class="report-score-inputs">';
+        for (var i = 0; i < numSets; i++) {
+            formHtml += '<input type="number" class="report-score-input" data-team="1" data-set="' + i + '" min="0" max="99" inputmode="numeric" placeholder="-">';
+        }
+        formHtml += '</div></div>';
+        
+        formHtml += '<div class="report-form-actions">';
+        formHtml += '<button class="btn-report-submit" onclick="submitReport(this)">Submit</button>';
+        formHtml += '<button class="btn-report-cancel" onclick="cancelReport(this)">Cancel</button>';
+        formHtml += '</div></div>';
+        
+        matchItem.insertAdjacentHTML('beforeend', formHtml);
+    };
+
+    window.submitReport = function(btn) {
+        var form = btn.closest('.report-score-form');
+        var matchItem = form.closest('.match-list-item, .hero-match-card');
+        // For bracket matches, prefer the explicit match_code over the general match_key
+        var matchKey = matchItem.dataset.matchCode || matchItem.dataset.matchKey;
+        var team1 = matchItem.dataset.team1;
+        var team2 = matchItem.dataset.team2;
+        var pool = matchItem.dataset.pool;
+        
+        // Collect scores
+        var inputs = form.querySelectorAll('.report-score-input');
+        var sets = [];
+        var numSets = scoringFormat === 'single_set' ? 1 : 3;
+        
+        for (var i = 0; i < numSets; i++) {
+            var t1Input = form.querySelector('[data-team="0"][data-set="' + i + '"]');
+            var t2Input = form.querySelector('[data-team="1"][data-set="' + i + '"]');
+            var score1 = t1Input.value ? parseInt(t1Input.value) : null;
+            var score2 = t2Input.value ? parseInt(t2Input.value) : null;
+            
+            if (score1 !== null && score2 !== null) {
+                sets.push([score1, score2]);
+            }
+        }
+        
+        if (sets.length === 0) {
+            console.warn('Score submission validation failed: no sets entered');
+            return;
+        }
+        
+        // Send to server
+        var payload = {
+            match_key: matchKey,
+            team1: team1,
+            team2: team2,
+            pool: pool,
+            sets: sets
+        };
+        
+        fetch(reportApiUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                form.remove();
+            } else {
+                console.error('Score submission error:', data.error);
+            }
+        })
+        .catch(function(err) {
+            console.error('Failed to submit report:', err);
+        });
+    };
+
+    window.cancelReport = function(btn) {
+        var form = btn.closest('.report-score-form');
+        form.remove();
+    };
+})();
+</script>
