@@ -1168,7 +1168,9 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                 
                 # Use silver_winners_ prefix
                 match_key = f"silver_winners_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"SW{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if is_bye:
                     winner = bye_winner
@@ -1215,7 +1217,9 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                 
                 match_number = i + 1
                 match_key = f"silver_winners_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"SW{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if team1 and team2:
                     if result.get('completed'):
@@ -1232,8 +1236,8 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                     loser = None
                     is_playable = False
                     is_placeholder = True
-                    team1 = team1 or f'Winner M{prev_match1}'
-                    team2 = team2 or f'Winner M{prev_match2}'
+                    team1 = team1 or f'Winner SW{round_idx}-M{prev_match1}'
+                    team2 = team2 or f'Winner SW{round_idx}-M{prev_match2}'
                 
                 match_data = {
                     'teams': (team1, team2),
@@ -1279,7 +1283,9 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                 
                 match_number = i + 1
                 match_key = f"silver_losers_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"SL{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if team1 and team2:
                     if result.get('completed'):
@@ -1335,7 +1341,9 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                 
                 match_number = i + 1
                 match_key = f"silver_losers_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"SL{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if team1 and team2:
                     if result.get('completed'):
@@ -1384,7 +1392,9 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
                 
                 match_number = i + 1
                 match_key = f"silver_losers_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"SL{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if team1 and team2:
                     if result.get('completed'):
@@ -1433,7 +1443,9 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
             losers_champion = losers_bracket[final_losers_round][0].get('winner')
     
     gf_match_key = "silver_grand_final_Grand Final_1"
-    gf_result = bracket_results.get(gf_match_key, {})
+    match_code_sgf = "SGF"
+    # Dual-format lookup
+    gf_result = bracket_results.get(match_code_sgf) or bracket_results.get(gf_match_key, {})
     
     if winners_champion and losers_champion:
         gf_teams = (winners_champion, losers_champion)
@@ -1463,7 +1475,9 @@ def generate_silver_double_bracket_with_results(pools: Dict[str, Dict], standing
     
     # Bracket Reset
     br_match_key = "silver_bracket_reset_Bracket Reset_1"
-    br_result = bracket_results.get(br_match_key, {})
+    match_code_sbr = "SBR"
+    # Dual-format lookup
+    br_result = bracket_results.get(match_code_sbr) or bracket_results.get(br_match_key, {})
     needs_reset = gf_winner and gf_winner == losers_champion
     
     if needs_reset:
