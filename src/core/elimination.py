@@ -597,7 +597,9 @@ def generate_bracket_with_results(pools: Dict[str, Dict], standings: Optional[Di
                 
                 # Check for result
                 match_key = f"winners_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"W{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 # Determine winner
                 if is_bye:
@@ -614,6 +616,7 @@ def generate_bracket_with_results(pools: Dict[str, Dict], standings: Optional[Di
                     'teams': (actual_team1, actual_team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': match_code,
                     'seeds': (seed1, seed2),
                     'is_bye': is_bye,
                     'is_playable': is_playable,
@@ -644,7 +647,9 @@ def generate_bracket_with_results(pools: Dict[str, Dict], standings: Optional[Di
                 
                 match_number = i + 1
                 match_key = f"winners_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"W{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 # Determine if match is playable (both teams known and no result yet)
                 if team1 and team2:
@@ -667,6 +672,7 @@ def generate_bracket_with_results(pools: Dict[str, Dict], standings: Optional[Di
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': match_code,
                     'seeds': None,
                     'is_bye': False,
                     'is_placeholder': is_placeholder,

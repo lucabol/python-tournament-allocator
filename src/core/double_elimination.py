@@ -676,7 +676,9 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                     bye_winner = None
                 
                 match_key = f"winners_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"W{round_idx + 1}-M{match_number}"
+                # Dual-format lookup: try match_code first (from pending/accepted), fallback to match_key
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if is_bye:
                     winner = bye_winner
@@ -695,6 +697,7 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                     'teams': (actual_team1, actual_team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': match_code,
                     'seeds': (seed1, seed2),
                     'is_bye': is_bye,
                     'is_playable': is_playable,
@@ -726,7 +729,9 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                 
                 match_number = i + 1
                 match_key = f"winners_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"W{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if team1 and team2:
                     if result.get('completed'):
@@ -752,6 +757,7 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': match_code,
                     'seeds': None,
                     'is_bye': False,
                     'is_placeholder': is_placeholder,
@@ -803,7 +809,9 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                 
                 match_number = i + 1
                 match_key = f"losers_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"L{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if team1 and team2:
                     if result.get('completed'):
@@ -824,6 +832,7 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': match_code,
                     'is_placeholder': is_placeholder,
                     'is_playable': is_playable,
                     'winner': winner,
@@ -866,7 +875,9 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                 
                 match_number = i + 1
                 match_key = f"losers_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"L{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if team1 and team2:
                     if result.get('completed'):
@@ -888,6 +899,7 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': match_code,
                     'is_placeholder': is_placeholder,
                     'is_playable': is_playable,
                     'winner': winner,
@@ -918,7 +930,9 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                 
                 match_number = i + 1
                 match_key = f"losers_{round_name}_{match_number}"
-                result = bracket_results.get(match_key, {})
+                match_code = f"L{round_idx + 1}-M{match_number}"
+                # Dual-format lookup
+                result = bracket_results.get(match_code) or bracket_results.get(match_key, {})
                 
                 if team1 and team2:
                     if result.get('completed'):
@@ -940,6 +954,7 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                     'teams': (team1, team2),
                     'round': round_name,
                     'match_number': match_number,
+                    'match_code': match_code,
                     'is_placeholder': is_placeholder,
                     'is_playable': is_playable,
                     'winner': winner,
@@ -968,7 +983,9 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
     
     # Grand Final
     gf_match_key = "grand_final_Grand Final_1"
-    gf_result = bracket_results.get(gf_match_key, {})
+    match_code_gf = "GF"
+    # Dual-format lookup
+    gf_result = bracket_results.get(match_code_gf) or bracket_results.get(gf_match_key, {})
     
     if winners_champion and losers_champion:
         if gf_result.get('completed'):
@@ -988,6 +1005,7 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
                   losers_champion or 'Losers Bracket Champion'),
         'round': 'Grand Final',
         'match_number': 1,
+        'match_code': match_code_gf,
         'is_placeholder': gf_is_placeholder,
         'is_playable': gf_is_playable,
         'winner': gf_winner,
@@ -997,7 +1015,9 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
     
     # Bracket Reset (conditional)
     br_match_key = "bracket_reset_Bracket Reset_1"
-    br_result = bracket_results.get(br_match_key, {})
+    match_code_br = "BR"
+    # Dual-format lookup
+    br_result = bracket_results.get(match_code_br) or bracket_results.get(br_match_key, {})
     
     # Bracket reset only happens if losers champion won grand final
     needs_reset = gf_winner and gf_winner == losers_champion
@@ -1021,6 +1041,7 @@ def generate_double_bracket_with_results(pools: Dict[str, Dict], standings: Opti
         'teams': br_teams,
         'round': 'Bracket Reset',
         'match_number': 1,
+        'match_code': match_code_br,
         'is_placeholder': br_is_placeholder,
         'is_conditional': True,
         'is_playable': br_is_playable,

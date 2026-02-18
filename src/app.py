@@ -84,6 +84,10 @@ TOURNAMENTS_DIR = os.path.join(DATA_DIR, 'tournaments')
 USERS_FILE = os.path.join(DATA_DIR, 'users.yaml')
 USERS_DIR = os.path.join(DATA_DIR, 'users')
 
+# Rate limiting for player score submissions
+# Structure: {(ip, username, slug): [(timestamp, timestamp, ...)]}
+_rate_limit_store = {}
+
 
 def load_users() -> list:
     """Load user registry from YAML."""
@@ -445,6 +449,106 @@ def save_awards(data: dict):
         yaml.dump(data, f, default_flow_style=False)
 
 
+def load_pending_results(data_dir: str = None):
+    """Load pending score reports from YAML file.
+    
+    Auto-prunes dismissed entries older than 24 hours.
+    
+    Args:
+        data_dir: Optional directory path. If provided, uses that instead of _file_path().
+    
+    Returns:
+        List of pending result dicts with keys: match_key, team1, team2, pool, sets, timestamp, status
+    """
+    if data_dir:
+        path = os.path.join(data_dir, 'pending_results.yaml')
+    else:
+        path = _file_path('pending_results.yaml')
+    
+    if not os.path.exists(path):
+        return []
+    
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data or 'pending_results' not in data:
+            return []
+        
+        results = data['pending_results']
+        if not isinstance(results, list):
+            return []
+        
+        # Prune dismissed entries older than 24h
+        cutoff = datetime.now() - timedelta(hours=24)
+        filtered = []
+        for r in results:
+            if r.get('status') == 'dismissed':
+                timestamp_str = r.get('timestamp', '')
+                try:
+                    ts = datetime.fromisoformat(timestamp_str)
+                    if ts >= cutoff:
+                        filtered.append(r)
+                except (ValueError, TypeError):
+                    # Keep if timestamp is invalid (safer than dropping)
+                    filtered.append(r)
+            else:
+                filtered.append(r)
+        
+        # Save back if we pruned anything
+        if len(filtered) < len(results):
+            save_pending_results(filtered, data_dir)
+        
+        return filtered
+
+
+def save_pending_results(results: list, data_dir: str = None):
+    """Save pending score reports to YAML file.
+    
+    Args:
+        results: List of pending result dicts
+        data_dir: Optional directory path. If provided, uses that instead of _file_path().
+    """
+    if data_dir:
+        path = os.path.join(data_dir, 'pending_results.yaml')
+    else:
+        path = _file_path('pending_results.yaml')
+    
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.dump({'pending_results': results}, f, default_flow_style=False)
+
+
+def check_rate_limit(ip: str, username: str, slug: str, max_per_hour: int = 30) -> bool:
+    """Check if IP has exceeded rate limit for a tournament.
+    
+    Args:
+        ip: Client IP address
+        username: Tournament owner username
+        slug: Tournament slug
+        max_per_hour: Maximum submissions allowed per hour
+    
+    Returns:
+        True if rate limit NOT exceeded, False if exceeded
+    """
+    key = (ip, username, slug)
+    now = time.time()
+    cutoff = now - 3600  # 1 hour ago
+    
+    # Get existing timestamps for this key
+    timestamps = _rate_limit_store.get(key, [])
+    
+    # Filter to only timestamps within the last hour
+    recent = [ts for ts in timestamps if ts > cutoff]
+    
+    # Check if limit exceeded
+    if len(recent) >= max_per_hour:
+        return False
+    
+    # Add current timestamp
+    recent.append(now)
+    _rate_limit_store[key] = recent
+    
+    return True
+
+
 def load_schedule():
     """Load saved schedule from YAML file."""
     path = _file_path('schedule.yaml')
@@ -523,97 +627,21 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
     bracket_results = results.get('bracket', {})
     
     # Build lookup for bracket match results
-    # Keys are like "winners_Winners Quarterfinal_1", "losers_Losers Round 1_2"
+    # Since bracket results are now stored with match_code keys (e.g., "W1-M1", "GF"),
+    # and schedule matches already have match_code, we can look them up directly.
+    # We still support the old bracket_key format for backward compatibility.
     resolved_teams = {}  # match_code -> {'winner': team, 'loser': team, 'sets': [...]}
     
-    # Map round names to round numbers for match_code generation
-    winners_round_map = {
-        'Winners Round of 16': 1, 'Winners Round of 8': 1, 'Winners Quarterfinal': 1,
-        'Winners Semifinal': 2, 'Winners Final': 3
-    }
-    
-    import re
-    for match_key, result in bracket_results.items():
+    # Direct pass-through: bracket_results keys are already match_codes or old format
+    for key, result in bracket_results.items():
         if result.get('completed'):
-            # Parse key: bracket_type_round_match_number (e.g., "winners_Winners Quarterfinal_1")
-            parts = match_key.rsplit('_', 1)
-            if len(parts) == 2:
-                prefix_round = parts[0]
-                match_number = parts[1]
-                
-                # Determine bracket_type and round_name from the key
-                if prefix_round.startswith('winners_'):
-                    bracket_type = 'winners'
-                    round_name = prefix_round[8:]
-                elif prefix_round.startswith('losers_'):
-                    bracket_type = 'losers'
-                    round_name = prefix_round[7:]
-                elif prefix_round.startswith('silver_winners_'):
-                    bracket_type = 'silver_winners'
-                    round_name = prefix_round[15:]
-                elif prefix_round.startswith('silver_losers_'):
-                    bracket_type = 'silver_losers'
-                    round_name = prefix_round[14:]
-                elif prefix_round.startswith('grand_final'):
-                    bracket_type = 'grand_final'
-                    round_name = 'Grand Final'
-                elif prefix_round.startswith('bracket_reset'):
-                    bracket_type = 'bracket_reset'
-                    round_name = 'Bracket Reset'
-                elif prefix_round.startswith('silver_grand_final'):
-                    bracket_type = 'silver_grand_final'
-                    round_name = 'Silver Grand Final'
-                elif prefix_round.startswith('silver_bracket_reset'):
-                    bracket_type = 'silver_bracket_reset'
-                    round_name = 'Silver Bracket Reset'
-                else:
-                    continue
-                
-                # Build match_code
-                if bracket_type == 'grand_final':
-                    code = 'GF'
-                elif bracket_type == 'bracket_reset':
-                    code = 'BR'
-                elif bracket_type == 'silver_grand_final':
-                    code = 'SGF'
-                elif bracket_type == 'silver_bracket_reset':
-                    code = 'SBR'
-                elif bracket_type == 'winners':
-                    round_num = winners_round_map.get(round_name, 1)
-                    code = f'W{round_num}-M{match_number}'
-                elif bracket_type == 'losers':
-                    round_match = re.search(r'Round (\d+)', round_name)
-                    if round_match:
-                        round_num = round_match.group(1)
-                    elif 'Semifinal' in round_name:
-                        round_num = '3'
-                    elif 'Final' in round_name:
-                        round_num = '4'
-                    else:
-                        round_num = '1'
-                    code = f'L{round_num}-M{match_number}'
-                elif bracket_type == 'silver_winners':
-                    round_num = winners_round_map.get(round_name, 1)
-                    code = f'SW{round_num}-M{match_number}'
-                elif bracket_type == 'silver_losers':
-                    round_match = re.search(r'Round (\d+)', round_name)
-                    if round_match:
-                        round_num = round_match.group(1)
-                    elif 'Semifinal' in round_name:
-                        round_num = '3'
-                    elif 'Final' in round_name:
-                        round_num = '4'
-                    else:
-                        round_num = '1'
-                    code = f'SL{round_num}-M{match_number}'
-                else:
-                    continue
-                
-                resolved_teams[code] = {
-                    'winner': result.get('winner'),
-                    'loser': result.get('loser'),
-                    'sets': result.get('sets', [])
-                }
+            # If key is already a match_code (W1-M1, L2-M3, GF, BR), use it directly
+            # If key is old format (winners_Winners Quarterfinal_1), we'll fall back to it
+            resolved_teams[key] = {
+                'winner': result.get('winner'),
+                'loser': result.get('loser'),
+                'sets': result.get('sets', [])
+            }
     
     # Process each day in the schedule
     for day, day_data in schedule_data.items():
@@ -2357,6 +2385,9 @@ def schedule():
                 # Clear all previous results (pool play and bracket)
                 save_results({'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'})
                 
+                # Clear pending score reports from previous schedule
+                save_pending_results([])
+                
                 # Stay on schedule page after successful generation
                 return render_template('schedule.html', schedule=schedule_data, error=None, stats=stats)
                 
@@ -2413,11 +2444,15 @@ def tracking():
         'remaining_matches': pool_scheduled - completed_matches
     }
     
+    # Load pending score reports
+    pending_list = load_pending_results()
+    pending_results = {item['match_key']: item for item in pending_list} if pending_list else {}
+    
     share_url = url_for('public_live', username=session.get('user', ''), slug=getattr(g, 'active_tournament', ''), _external=True)
     return render_template('tracking.html', schedule=schedule_data, stats=tracking_stats,
                           results=results.get('pool_play', {}), standings=standings,
                           scoring_format=scoring_format, pools=pools, share_url=share_url,
-)
+                          pending_results=pending_results)
 
 
 @app.route('/awards')
@@ -2531,6 +2566,202 @@ def api_awards_samples():
         return jsonify({'success': True, 'samples': []})
     filenames = sorted(f for f in os.listdir(awards_dir) if os.path.isfile(os.path.join(awards_dir, f)))
     return jsonify({'success': True, 'samples': filenames})
+
+
+@app.route('/api/report-result/<username>/<slug>', methods=['POST'])
+def api_report_result(username, slug):
+    """Public API endpoint for players to report match scores.
+    
+    Requires: match_key, team1, team2, pool, sets in JSON body.
+    Rate limited to 30 submissions per IP per hour per tournament.
+    """
+    # Resolve tournament directory
+    data_dir = _resolve_public_tournament_dir(username, slug)
+    if not data_dir:
+        return jsonify({'success': False, 'error': 'Tournament not found'}), 404
+    
+    # Get client IP
+    client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    
+    # Check rate limit
+    if not check_rate_limit(client_ip, username, slug):
+        return jsonify({'success': False, 'error': 'Rate limit exceeded. Please try again later.'}), 429
+    
+    # Parse request data
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    match_key = data.get('match_key', '').strip()
+    team1 = data.get('team1', '').strip()
+    team2 = data.get('team2', '').strip()
+    pool = data.get('pool', '').strip()
+    sets = data.get('sets', [])
+    
+    if not match_key or not team1 or not team2 or not sets:
+        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+    
+    # Validate sets structure
+    if not isinstance(sets, list):
+        return jsonify({'success': False, 'error': 'Sets must be a list'}), 400
+    
+    for s in sets:
+        if not isinstance(s, list) or len(s) != 2:
+            return jsonify({'success': False, 'error': 'Each set must be [score1, score2]'}), 400
+        if not isinstance(s[0], int) or not isinstance(s[1], int):
+            return jsonify({'success': False, 'error': 'Scores must be integers'}), 400
+        if s[0] < 0 or s[1] < 0 or s[0] > 99 or s[1] > 99:
+            return jsonify({'success': False, 'error': 'Scores must be between 0 and 99'}), 400
+    
+    # Load existing pending results
+    pending = load_pending_results(data_dir)
+    
+    # Check if this match already has a pending report - if so, update it (last-wins)
+    existing_idx = next((i for i, r in enumerate(pending) if r.get('match_key') == match_key and r.get('status') == 'pending'), None)
+    
+    # Create result entry
+    result_entry = {
+        'match_key': match_key,
+        'team1': team1,
+        'team2': team2,
+        'pool': pool,
+        'sets': sets,
+        'timestamp': datetime.now().isoformat(),
+        'status': 'pending'
+    }
+    
+    if existing_idx is not None:
+        # Update existing pending result with new submission (last-wins logic)
+        pending[existing_idx] = result_entry
+    else:
+        # Add new pending result
+        pending.append(result_entry)
+    
+    save_pending_results(pending, data_dir)
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/accept-result/<username>/<slug>', methods=['POST'])
+@login_required
+def api_accept_result(username, slug):
+    """Organizer endpoint to accept a pending score report.
+    
+    Applies the result to results.yaml and marks as accepted.
+    Requires: match_key in JSON body.
+    """
+    # Verify user owns this tournament
+    if session.get('user') != username:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    data_dir = _resolve_public_tournament_dir(username, slug)
+    if not data_dir:
+        return jsonify({'success': False, 'error': 'Tournament not found'}), 404
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    match_key = data.get('match_key', '').strip()
+    if not match_key:
+        return jsonify({'success': False, 'error': 'Missing match_key'}), 400
+    
+    # Load pending results
+    pending = load_pending_results(data_dir)
+    
+    # Find the pending result
+    result_to_accept = next((r for r in pending if r.get('match_key') == match_key and r.get('status') == 'pending'), None)
+    if not result_to_accept:
+        return jsonify({'success': False, 'error': 'Pending result not found'}), 404
+    
+    # Apply to results.yaml (use existing pattern from tracking route)
+    # Temporarily set g.data_dir so load_results/save_results work
+    original_data_dir = getattr(g, 'data_dir', None)
+    g.data_dir = data_dir
+    
+    try:
+        results = load_results()
+        
+        # Determine winner
+        winner_idx, loser_idx = None, None
+        if result_to_accept['sets']:
+            winner_idx, _ = determine_winner(result_to_accept['sets'])
+            loser_idx = 1 - winner_idx
+        
+        # Store result
+        result_entry = {
+            'sets': result_to_accept['sets'],
+            'completed': True
+        }
+        
+        if winner_idx is not None:
+            result_entry['winner'] = result_to_accept['team1'] if winner_idx == 0 else result_to_accept['team2']
+            result_entry['loser'] = result_to_accept['team2'] if winner_idx == 0 else result_to_accept['team1']
+        
+        # Check if this is a pool play or bracket match
+        pool = result_to_accept.get('pool', '')
+        if pool and not pool.endswith('Bracket') and not pool.endswith('Silver Bracket'):
+            # Pool play match
+            results['pool_play'][match_key] = result_entry
+        else:
+            # Bracket match
+            results['bracket'][match_key] = result_entry
+        
+        save_results(results)
+        
+        # Mark as accepted
+        result_to_accept['status'] = 'accepted'
+        save_pending_results(pending, data_dir)
+        
+        return jsonify({'success': True})
+    
+    finally:
+        # Restore original g.data_dir
+        if original_data_dir is not None:
+            g.data_dir = original_data_dir
+        elif hasattr(g, 'data_dir'):
+            delattr(g, 'data_dir')
+
+
+@app.route('/api/dismiss-result/<username>/<slug>', methods=['POST'])
+@login_required
+def api_dismiss_result(username, slug):
+    """Organizer endpoint to dismiss a pending score report.
+    
+    Marks the report as dismissed (will be pruned after 24h).
+    Requires: match_key in JSON body.
+    """
+    # Verify user owns this tournament
+    if session.get('user') != username:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    data_dir = _resolve_public_tournament_dir(username, slug)
+    if not data_dir:
+        return jsonify({'success': False, 'error': 'Tournament not found'}), 404
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    match_key = data.get('match_key', '').strip()
+    if not match_key:
+        return jsonify({'success': False, 'error': 'Missing match_key'}), 400
+    
+    # Load pending results
+    pending = load_pending_results(data_dir)
+    
+    # Find the pending result
+    result_to_dismiss = next((r for r in pending if r.get('match_key') == match_key and r.get('status') == 'pending'), None)
+    if not result_to_dismiss:
+        return jsonify({'success': False, 'error': 'Pending result not found'}), 404
+    
+    # Mark as dismissed
+    result_to_dismiss['status'] = 'dismissed'
+    save_pending_results(pending, data_dir)
+    
+    return jsonify({'success': True})
 
 
 def _get_live_data() -> dict:
@@ -2996,9 +3227,14 @@ def sbracket():
     if silver_bracket_enabled:
         silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
     
+    # Load pending score reports
+    pending_list = load_pending_results()
+    pending_results = {item['match_key']: item for item in pending_list} if pending_list else {}
+    
     return render_template('sbracket.html', bracket_data=bracket_data, error=None, 
                           bracket_results=bracket_results, scoring_format=scoring_format,
-                          silver_bracket_data=silver_bracket_data, silver_bracket_enabled=silver_bracket_enabled)
+                          silver_bracket_data=silver_bracket_data, silver_bracket_enabled=silver_bracket_enabled,
+                          pending_results=pending_results)
 
 
 @app.route('/schedule/single_elimination', methods=['GET', 'POST'])
@@ -3139,9 +3375,14 @@ def dbracket():
     if silver_bracket_enabled:
         silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
     
+    # Load pending score reports
+    pending_list = load_pending_results()
+    pending_results = {item['match_key']: item for item in pending_list} if pending_list else {}
+    
     return render_template('dbracket.html', bracket_data=bracket_data, error=None,
                           bracket_results=bracket_results, scoring_format=scoring_format,
                           silver_bracket_data=silver_bracket_data, silver_bracket_enabled=silver_bracket_enabled,
+                          pending_results=pending_results,
 )
 
 
