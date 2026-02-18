@@ -597,6 +597,34 @@
 </details>
 {% endif %}
 
+{# ============ MESSAGE ORGANIZERS ============ #}
+<details class="drill-down-section message-organizers-section">
+    <summary>📨 Message Organizers</summary>
+    <div class="drill-down-content">
+        <form id="message-form" class="message-form" onsubmit="return sendMessage(event)">
+            <div class="form-group">
+                <label for="message-team">Your Team:</label>
+                <select id="message-team" name="team_name" required>
+                    <option value="">Select your team...</option>
+                    {% for pool_name, pool_data in pools.items() %}
+                        {% for team in pool_data.teams %}
+                            <option value="{{ team }}">{{ team }}</option>
+                        {% endfor %}
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="message-text">Message:</label>
+                <textarea id="message-text" name="message" rows="4" maxlength="500" 
+                          placeholder="Ask a question, report an issue..." required></textarea>
+                <div class="char-count"><span id="char-count">0</span>/500</div>
+            </div>
+            <button type="submit" class="btn btn-primary">Send Message</button>
+            <div id="message-feedback" class="message-feedback" style="display:none;"></div>
+        </form>
+    </div>
+</details>
+
 {% endif %}{# end pools #}
 
 <script>
@@ -741,6 +769,74 @@
     window.cancelReport = function(btn) {
         var form = btn.closest('.report-score-form');
         form.remove();
+    };
+
+    // Message Form Handlers
+    var messageTextarea = document.getElementById('message-text');
+    if (messageTextarea) {
+        messageTextarea.addEventListener('input', function() {
+            document.getElementById('char-count').textContent = this.value.length;
+        });
+    }
+
+    window.sendMessage = function(event) {
+        event.preventDefault();
+        
+        var form = event.target;
+        var teamName = form.querySelector('[name="team_name"]').value.trim();
+        var message = form.querySelector('[name="message"]').value.trim();
+        var feedback = document.getElementById('message-feedback');
+        
+        if (!teamName || !message) {
+            feedback.textContent = 'Please fill in all fields.';
+            feedback.className = 'message-feedback error';
+            feedback.style.display = 'block';
+            return false;
+        }
+        
+        if (message.length > 500) {
+            feedback.textContent = 'Message is too long (max 500 characters).';
+            feedback.className = 'message-feedback error';
+            feedback.style.display = 'block';
+            return false;
+        }
+        
+        {% if public_mode %}
+        var messageApiUrl = '/api/message/{{ public_username }}/{{ public_slug }}';
+        {% else %}
+        var messageApiUrl = '/api/message';
+        {% endif %}
+        
+        fetch(messageApiUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({team_name: teamName, message: message})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                feedback.textContent = 'Message sent successfully!';
+                feedback.className = 'message-feedback success';
+                feedback.style.display = 'block';
+                form.reset();
+                document.getElementById('char-count').textContent = '0';
+                setTimeout(function() {
+                    feedback.style.display = 'none';
+                }, 5000);
+            } else {
+                feedback.textContent = data.error || 'Failed to send message.';
+                feedback.className = 'message-feedback error';
+                feedback.style.display = 'block';
+            }
+        })
+        .catch(function(err) {
+            console.error('Failed to send message:', err);
+            feedback.textContent = 'Failed to send message. Please try again.';
+            feedback.className = 'message-feedback error';
+            feedback.style.display = 'block';
+        });
+        
+        return false;
     };
 })();
 </script>

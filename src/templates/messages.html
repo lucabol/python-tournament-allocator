@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}Messages - Tournament Allocator{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Messages from Players</h1>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<section class="section">
+    <div class="messages-filters" style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="show-archived" onchange="toggleArchived()">
+            <span>Show archived</span>
+        </label>
+    </div>
+
+    {% if messages %}
+    <div class="messages-table-container">
+        <table class="messages-table">
+            <thead>
+                <tr>
+                    <th style="width: 160px;">Time</th>
+                    <th style="width: 150px;">Team</th>
+                    <th>Message</th>
+                    <th style="width: 80px;">Status</th>
+                    <th style="width: 220px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="messages-tbody">
+                {% for msg in messages %}
+                <tr class="message-row {{ 'message-archived' if msg.status == 'archived' else '' }} {{ 'message-new' if msg.status == 'new' else '' }}"
+                    data-status="{{ msg.status }}"
+                    data-id="{{ msg.id }}">
+                    <td class="message-time">
+                        {{ msg.timestamp[:16].replace('T', ' ') }}
+                    </td>
+                    <td class="message-team">{{ msg.team_name }}</td>
+                    <td class="message-text">{{ msg.message }}</td>
+                    <td class="message-status">
+                        {% if msg.status == 'new' %}
+                        <span class="status-badge status-new">New</span>
+                        {% elif msg.status == 'read' %}
+                        <span class="status-badge status-read">Read</span>
+                        {% elif msg.status == 'archived' %}
+                        <span class="status-badge status-archived">Archived</span>
+                        {% endif %}
+                    </td>
+                    <td class="message-actions">
+                        {% if msg.status == 'new' %}
+                        <button class="btn btn-sm btn-secondary" onclick="updateMessageStatus('{{ msg.id }}', 'read')">Mark Read</button>
+                        {% endif %}
+                        {% if msg.status != 'archived' %}
+                        <button class="btn btn-sm btn-secondary" onclick="updateMessageStatus('{{ msg.id }}', 'archive')">Archive</button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-danger" onclick="updateMessageStatus('{{ msg.id }}', 'delete')">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="empty-message">No messages yet. Players can send messages from the Live page.</p>
+    {% endif %}
+</section>
+
+<script>
+function toggleArchived() {
+    const showArchived = document.getElementById('show-archived').checked;
+    const rows = document.querySelectorAll('.message-row');
+    rows.forEach(row => {
+        if (row.dataset.status === 'archived') {
+            row.style.display = showArchived ? '' : 'none';
+        }
+    });
+}
+
+function updateMessageStatus(messageId, action) {
+    if (action === 'delete' && !confirm('Delete this message?')) {
+        return;
+    }
+
+    fetch('{{ url_for("api_messages_update") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message_id: messageId, action: action})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to update message.');
+        }
+    })
+    .catch(() => alert('Failed to update message — please try again.'));
+}
+
+// Hide archived messages by default
+document.addEventListener('DOMContentLoaded', function() {
+    toggleArchived();
+});
+</script>
+
+<style>
+.messages-table-container {
+    overflow-x: auto;
+}
+
+.messages-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.messages-table th,
+.messages-table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color, #e0e0e0);
+}
+
+.messages-table th {
+    background: var(--primary-color, #333);
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+}
+
+.messages-table tbody tr:hover {
+    background: #f9f9f9;
+}
+
+.message-new {
+    background: #fffacd !important;
+}
+
+.message-archived {
+    opacity: 0.6;
+}
+
+.message-time {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.message-team {
+    font-weight: 600;
+}
+
+.message-text {
+    max-width: 400px;
+    word-wrap: break-word;
+}
+
+.message-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-new {
+    background: #ffc107;
+    color: #000;
+}
+
+.status-read {
+    background: #28a745;
+    color: #fff;
+}
+
+.status-archived {
+    background: #6c757d;
+    color: #fff;
+}
+
+.empty-message {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    font-style: italic;
+}
+</style>
+
+{% endblock %}

@@ -36,6 +36,14 @@
             <li><a href="{{ url_for('tracking') }}" {% if request.endpoint == 'tracking' %}class="active"{% endif %}>Pools</a></li>
             <li><a href="{{ url_for('bracket') }}" {% if request.endpoint == 'bracket' or request.endpoint == 'sbracket' or request.endpoint == 'dbracket' or request.endpoint == 'schedule_single_elimination' or request.endpoint == 'schedule_double_elimination' %}class="active"{% endif %}>Bracket</a></li>
             <li><a href="{{ url_for('awards') }}" {% if request.endpoint == 'awards' %}class="active"{% endif %}>Awards</a></li>
+            <li>
+                <a href="{{ url_for('messages') }}" {% if request.endpoint == 'messages' %}class="active"{% endif %}>
+                    Messages
+                    {% if unread_messages_count > 0 %}
+                    <span class="nav-badge">{{ unread_messages_count }}</span>
+                    {% endif %}
+                </a>
+            </li>
             <li><a href="{{ url_for('insta') }}" {% if request.endpoint == 'insta' %}class="active"{% endif %}>Insta</a></li>
             {% if active_tournament %}
             <li><a href="{{ url_for('public_live', username=current_user, slug=active_tournament) }}" {% if request.endpoint == 'live' or request.endpoint == 'public_live' %}class="active"{% endif %}>Live</a></li>

@@ -449,6 +449,24 @@ def save_awards(data: dict):
         yaml.dump(data, f, default_flow_style=False)
 
 
+def load_messages():
+    """Load messages from YAML file."""
+    path = _file_path('messages.yaml')
+    if not os.path.exists(path):
+        return []
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data or 'messages' not in data:
+            return []
+        return data['messages']
+
+
+def save_messages(messages):
+    """Save messages to YAML file."""
+    with open(_file_path('messages.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump({'messages': messages}, f, default_flow_style=False)
+
+
 def load_pending_results(data_dir: str = None):
     """Load pending score reports from YAML file.
     
@@ -1079,16 +1097,27 @@ def set_active_tournament():
 def inject_tournament_context():
     """Make tournament and user info available to all templates."""
     show_test_buttons = False
+    unread_messages_count = 0
     try:
         constraints = load_constraints()
         show_test_buttons = constraints.get('show_test_buttons', False)
     except Exception:
         pass
+    
+    # Count unread messages for logged-in users
+    if 'user' in session and hasattr(g, 'data_dir'):
+        try:
+            messages_list = load_messages()
+            unread_messages_count = sum(1 for m in messages_list if m.get('status') == 'new')
+        except Exception:
+            pass
+    
     return {
         'active_tournament': getattr(g, 'active_tournament', None),
         'tournament_name': getattr(g, 'tournament_name', None),
         'current_user': session.get('user'),
         'show_test_buttons': show_test_buttons,
+        'unread_messages_count': unread_messages_count,
     }
 
 
@@ -2462,6 +2491,21 @@ def awards():
     return render_template('awards.html', awards=awards_data.get('awards', []))
 
 
+@app.route('/messages')
+@login_required
+def messages():
+    """Messages management page for organizers."""
+    messages_list = load_messages()
+    
+    # Calculate unread count
+    unread_count = sum(1 for m in messages_list if m.get('status') == 'new')
+    
+    # Sort by timestamp (newest first)
+    messages_list.sort(key=lambda m: m.get('timestamp', ''), reverse=True)
+    
+    return render_template('messages.html', messages=messages_list, unread_count=unread_count)
+
+
 @app.route('/api/awards/add', methods=['POST'])
 def api_awards_add():
     """Add a new award."""
@@ -2760,6 +2804,102 @@ def api_dismiss_result(username, slug):
     # Mark as dismissed
     result_to_dismiss['status'] = 'dismissed'
     save_pending_results(pending, data_dir)
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/message/<username>/<slug>', methods=['POST'])
+def api_message(username, slug):
+    """Public endpoint for players to send messages to organizers from Live page.
+    
+    Requires: team_name, message in JSON body.
+    No login required - this is for players.
+    """
+    data_dir = _resolve_public_tournament_dir(username, slug)
+    if not data_dir:
+        return jsonify({'success': False, 'error': 'Tournament not found'}), 404
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    team_name = data.get('team_name', '').strip()
+    message = data.get('message', '').strip()
+    
+    if not team_name:
+        return jsonify({'success': False, 'error': 'Team name is required'}), 400
+    if not message:
+        return jsonify({'success': False, 'error': 'Message is required'}), 400
+    if len(message) > 500:
+        return jsonify({'success': False, 'error': 'Message too long (max 500 characters)'}), 400
+    
+    # Load existing messages
+    messages_file = os.path.join(data_dir, 'messages.yaml')
+    if os.path.exists(messages_file):
+        with open(messages_file, 'r', encoding='utf-8') as f:
+            messages_data = yaml.safe_load(f)
+            messages = messages_data.get('messages', []) if messages_data else []
+    else:
+        messages = []
+    
+    # Create new message
+    timestamp = datetime.now().isoformat()
+    message_id = f"{int(datetime.now().timestamp())}_{team_name.replace(' ', '_')}"
+    
+    new_message = {
+        'id': message_id,
+        'timestamp': timestamp,
+        'team_name': team_name,
+        'message': message,
+        'status': 'new'
+    }
+    
+    messages.append(new_message)
+    
+    # Save messages
+    with open(messages_file, 'w', encoding='utf-8') as f:
+        yaml.dump({'messages': messages}, f, default_flow_style=False)
+    
+    return jsonify({'success': True, 'message_id': message_id})
+
+
+@app.route('/api/messages/update', methods=['POST'])
+@login_required
+def api_messages_update():
+    """Organizer endpoint to update message status (read/archived/deleted).
+    
+    Requires: message_id, action ('read'/'archive'/'delete') in JSON body.
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    message_id = data.get('message_id', '').strip()
+    action = data.get('action', '').strip()
+    
+    if not message_id:
+        return jsonify({'success': False, 'error': 'Message ID is required'}), 400
+    if action not in ['read', 'archive', 'delete']:
+        return jsonify({'success': False, 'error': 'Invalid action'}), 400
+    
+    # Load messages
+    messages = load_messages()
+    
+    # Find the message
+    message = next((m for m in messages if m.get('id') == message_id), None)
+    if not message:
+        return jsonify({'success': False, 'error': 'Message not found'}), 404
+    
+    # Update message
+    if action == 'delete':
+        messages = [m for m in messages if m.get('id') != message_id]
+    elif action == 'read':
+        message['status'] = 'read'
+    elif action == 'archive':
+        message['status'] = 'archived'
+    
+    # Save messages
+    save_messages(messages)
     
     return jsonify({'success': True})
 

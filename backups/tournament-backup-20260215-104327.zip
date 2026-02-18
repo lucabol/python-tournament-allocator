@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Tournament Allocator</title>
+    <link rel="icon" href="/api/logo">
+    <link rel="stylesheet" href="/static/style.css">
+    <script>
+        // Apply saved theme immediately to prevent flash
+        (function() {
+            var t = localStorage.getItem('theme');
+            if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        })();
+    </script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">🏆 Tournament Allocator</a>
+        </div>
+        
+    </nav>
+    
+    <main class="container">
+        
+<div class="auth-container">
+    <div class="auth-card">
+        <h2>Login</h2>
+        
+            
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Login</button>
+        </form>
+        <p class="auth-link">Don't have an account? <a href="/register">Register</a></p>
+    </div>
+</div>
+
+    </main>
+    
+    <footer class="footer">
+        <p>Tournament Allocator &copy; 2026</p>
+    </footer>
+    <script>
+    function toggleTheme() {
+        var html = document.documentElement;
+        var btn = document.querySelector('.theme-toggle');
+        if (html.getAttribute('data-theme') === 'dark') {
+            html.removeAttribute('data-theme');
+            localStorage.setItem('theme', 'light');
+            if (btn) btn.textContent = '🌙';
+        } else {
+            html.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            if (btn) btn.textContent = '☀️';
+        }
+    }
+    // Set correct icon on load
+    (function() {
+        var btn = document.querySelector('.theme-toggle');
+        if (btn && localStorage.getItem('theme') === 'dark') btn.textContent = '☀️';
+    })();
+    </script>
+</body>
+</html>
