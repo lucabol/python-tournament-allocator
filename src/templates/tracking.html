@@ -16,6 +16,12 @@
 </div>
 {% else %}
 
+{% if pending_results and pending_results|length >= 3 %}
+<div class="pending-notification">
+    ⚠️ {{ pending_results|length }} score{{ 's' if pending_results|length > 1 else '' }} reported by players — scroll down to review
+</div>
+{% endif %}
+
 <div class="stats-bar">
     <div class="stat">
         <span class="stat-value">{{ stats.scheduled_matches }}</span>
@@ -65,11 +71,20 @@
                             {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
                             {% set match_result = results.get(full_match_key, {}) %}
                             {% set is_completed = match_result.get('completed', false) %}
+                            {% set pending_result = pending_results.get(full_match_key) if pending_results else none %}
                             
                             <div class="match-cell {% if is_completed %}match-completed{% endif %}" 
                                  data-team1="{{ team1 }}" 
                                  data-team2="{{ team2 }}"
-                                 data-pool="{{ pool_name }}">
+                                 data-pool="{{ pool_name }}"
+                                 data-match-key="{{ full_match_key }}">
+                                {% if pending_result and not is_completed %}
+                                <div class="pending-badge-container">
+                                    <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                                        📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                                    </button>
+                                </div>
+                                {% endif %}
                                 <div class="match-teams-row">
                                     <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
                                     <div class="score-inputs" data-format="{{ scoring_format }}">
@@ -128,13 +143,20 @@
             {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
             {% set match_result = results.get(full_match_key, {}) %}
             {% set is_completed = match_result.get('completed', false) %}
+            {% set pending_result = pending_results.get(full_match_key) if pending_results else none %}
             <div class="m-match-item match-cell {% if is_completed %}match-completed{% endif %}"
                  data-team1="{{ team1 }}"
                  data-team2="{{ team2 }}"
-                 data-pool="{{ pool_name }}">
+                 data-pool="{{ pool_name }}"
+                 data-match-key="{{ full_match_key }}">
                 <div class="m-match-meta">
                     <span>{{ time_slot }} · {{ court_name }}</span>
                     {% if pool_name %}<span>{{ pool_name }}</span>{% endif %}
+                    {% if pending_result and not is_completed %}
+                    <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
+                        📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
+                    </button>
+                    {% endif %}
                 </div>
                 <div class="m-match-row match-teams-row">
                     <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
@@ -435,5 +457,71 @@ function generateRandomResults() {
         }
     });
 }
+
+// Pending Result Handlers
+function acceptPendingScore(btn) {
+    const matchCell = btn.closest('.match-cell');
+    const matchKey = matchCell.dataset.matchKey;
+    const username = '{{ current_user }}';
+    const slug = '{{ active_tournament }}';
+    
+    if (!username || !slug) {
+        alert('Tournament information not available.');
+        return;
+    }
+    
+    fetch(`/api/accept-result/${username}/${slug}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({match_key: matchKey})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        console.error('Error accepting pending score:', err);
+        alert('Failed to accept score.');
+    });
+}
+
+function dismissPendingScore(btn) {
+    const matchCell = btn.closest('.match-cell');
+    const matchKey = matchCell.dataset.matchKey;
+    const username = '{{ current_user }}';
+    const slug = '{{ active_tournament }}';
+    
+    if (!username || !slug) {
+        alert('Tournament information not available.');
+        return;
+    }
+    
+    if (!confirm('Dismiss this reported score without applying it?')) {
+        return;
+    }
+    
+    fetch(`/api/dismiss-result/${username}/${slug}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({match_key: matchKey})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        console.error('Error dismissing pending score:', err);
+        alert('Failed to dismiss score.');
+    });
+}
+
 </script>
 {% endblock %}

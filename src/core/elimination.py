@@ -81,15 +81,9 @@ def seed_teams_from_pools(pools: Dict[str, Dict], standings: Optional[Dict] = No
                 
                 teams_at_position.append((team_name, pool_name, team_stats))
         
-        # Sort by performance stats if available (wins desc, set_diff desc, point_diff desc),
-        # otherwise keep alphabetical pool order
-        if any(t[2] is not None for t in teams_at_position):
-            teams_at_position.sort(key=lambda t: (
-                -(t[2]['wins'] if t[2] else 0),
-                -(t[2]['set_diff'] if t[2] else 0),
-                -(t[2]['point_diff'] if t[2] else 0),
-                t[1]  # pool_name as final tiebreaker
-            ))
+        # Keep teams in alphabetical pool order
+        # Seeding is purely by pool finish position, not cross-pool record comparison
+        teams_at_position.sort(key=lambda t: t[1])  # Sort by pool_name only
         
         for team_name, pool_name, _ in teams_at_position:
             seeded_teams.append((team_name, seed, pool_name))
@@ -147,15 +141,9 @@ def seed_silver_bracket_teams(pools: Dict[str, Dict], standings: Optional[Dict] 
                 
                 teams_at_position.append((team_name, pool_name, team_stats))
         
-        # Sort by performance stats if available (wins desc, set_diff desc, point_diff desc),
-        # otherwise keep alphabetical pool order
-        if any(t[2] is not None for t in teams_at_position):
-            teams_at_position.sort(key=lambda t: (
-                -(t[2]['wins'] if t[2] else 0),
-                -(t[2]['set_diff'] if t[2] else 0),
-                -(t[2]['point_diff'] if t[2] else 0),
-                t[1]  # pool_name as final tiebreaker
-            ))
+        # Keep teams in alphabetical pool order
+        # Seeding is purely by pool finish position, not cross-pool record comparison
+        teams_at_position.sort(key=lambda t: t[1])  # Sort by pool_name only
         
         for team_name, pool_name, _ in teams_at_position:
             seeded_teams.append((team_name, seed, pool_name))

@@ -175,7 +175,6 @@
                             <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
                                 📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
                             </button>
-                            <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
                         </div>
                         {% endif %}
                         {% if match.get('is_playable') %}
@@ -324,7 +323,6 @@
                             <button class="pending-badge" onclick="acceptPendingScore(this)" title="Click to accept this score">
                                 📩 {% if pending_result.sets|length == 1 %}{{ pending_result.sets[0][0] }}-{{ pending_result.sets[0][1] }}{% else %}Reported{% endif %}
                             </button>
-                            <button class="pending-dismiss" onclick="dismissPendingScore(this)" title="Dismiss this report">✕</button>
                         </div>
                         {% endif %}
                         {% if match.get('is_playable') %}
