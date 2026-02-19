@@ -537,7 +537,7 @@ async function showUnpaidTeams() {
         result.unpaid_teams.forEach(team => {
             html += `
                 <div class="unpaid-team-item">
-                    <div class="unpaid-team-name">🏐 ${team.name}</div>
+                    <div class="unpaid-team-name">🏐 ${team.team_name}</div>
                     <div class="unpaid-team-email">✉️ ${team.email || 'No email'}</div>
                 </div>
             `;
