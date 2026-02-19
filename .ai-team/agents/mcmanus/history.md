@@ -287,6 +287,12 @@
 - **Formula**: `minimize(makespan * makespan_weight + consecutive_penalty * penalty_weight - min_team_gap)`
 - **Penalty weight rationale**: Set to `match_slots` so avoiding one consecutive pair is worth roughly 1 match-duration of schedule extension. Must be less than `makespan_weight` to prevent extending the tournament just to avoid consecutive play, but more than 1 to make the solver care.
 - **Logging enhancement**: Added post-solve logging that outputs makespan value (in slots and minutes), minimum team gap (in slots and minutes), and consecutive match penalty count (pairs + 3×triples). This helps verify the solver is successfully reducing consecutive matches.
+
+### 2026-02-19: Flask route endpoint names made explicit
+- **Pattern**: Flask route decorators now use explicit `endpoint=` parameter instead of relying on function name inference: `@app.route('/path', methods=['POST'], endpoint='function_name')`.
+- **Rationale**: While Flask correctly infers endpoint names from function names, being explicit improves code clarity and prevents subtle bugs if function names are refactored.
+- **Example**: `/api/registrations/toggle` route now declares `endpoint='api_toggle_registration'` explicitly at line 1533.
+- **Files changed**: `src/app.py` (line 1533)
 - **Files changed**: `src/core/allocation.py` (lines 569-580 objective function, lines 596-602 logging)
 
 

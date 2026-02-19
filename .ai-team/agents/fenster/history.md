@@ -89,3 +89,8 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 - **CSS class conventions**: `.registration-section` (gradient bg, white text), `.registration-header` (flexbox with controls), `.btn-toggle` + modifiers (toggle buttons), `.unassigned-teams` (responsive grid), `.unassigned-team-card` (card with drag states), `.pool-drop-zone` + `.drag-over` (drop target states). All classes have dark theme overrides.
 - **Mobile considerations**: Unassigned teams grid switches to single column below 768px. Dropdown assignment always visible as drag-and-drop alternative. Touch-friendly 44px+ buttons. Public registration form tested down to 480px with responsive typography and padding.
 
+### 2026-02-20: Registration toggle bug fix
+- **Problem**: Toggle button displayed "Closed" but clicking did nothing. Template was referencing `registration_open` as a bare variable, but it's actually `registrations.registration_open`. JavaScript had no error handling — failures were silent.
+- **Fix**: Updated 3 template conditionals (lines 27, 28, 40) to use `registrations.registration_open`. Added try/catch wrapper to `toggleRegistration()` function with HTTP status check, JSON error handling, and `alert()` + `console.error()` for failures.
+- **Pattern**: Always wrap async fetch calls in try/catch. Check `response.ok` before parsing JSON. Display user-facing error with `alert()` and log to console for debugging. For nested context variables, verify the full path in the template (use `{{ variable | pprint }}` in dev to inspect structure).
+
