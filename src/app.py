@@ -480,6 +480,10 @@ def load_registrations():
             data['registration_open'] = False
         if 'teams' not in data:
             data['teams'] = []
+        # Ensure all teams have paid field (default to False)
+        for team in data['teams']:
+            if 'paid' not in team:
+                team['paid'] = False
         return data
 
 
@@ -1334,6 +1338,9 @@ def teams():
                                                         existing_reg['phone'] = phone
                                                     existing_reg['status'] = 'assigned'
                                                     existing_reg['assigned_pool'] = pool_name
+                                                    # Preserve paid status if not already set
+                                                    if 'paid' not in existing_reg:
+                                                        existing_reg['paid'] = False
                                                 else:
                                                     registrations['teams'].append({
                                                         'team_name': team_name,
@@ -1341,6 +1348,7 @@ def teams():
                                                         'phone': phone,
                                                         'status': 'assigned',
                                                         'assigned_pool': pool_name,
+                                                        'paid': False,
                                                         'registered_at': datetime.now().isoformat()
                                                     })
                                     elif isinstance(item, str):
@@ -1375,6 +1383,9 @@ def teams():
                                                         existing_reg['phone'] = phone
                                                     existing_reg['status'] = 'assigned'
                                                     existing_reg['assigned_pool'] = pool_name
+                                                    # Preserve paid status if not already set
+                                                    if 'paid' not in existing_reg:
+                                                        existing_reg['paid'] = False
                                                 else:
                                                     registrations['teams'].append({
                                                         'team_name': team_name,
@@ -1382,6 +1393,7 @@ def teams():
                                                         'phone': phone,
                                                         'status': 'assigned',
                                                         'assigned_pool': pool_name,
+                                                        'paid': False,
                                                         'registered_at': datetime.now().isoformat()
                                                     })
                                     elif isinstance(item, str):
@@ -1597,7 +1609,8 @@ def public_register(username, slug):
             'phone': phone if phone else None,
             'registered_at': datetime.now().isoformat(),
             'status': 'unassigned',
-            'assigned_pool': None
+            'assigned_pool': None,
+            'paid': False
         }
         
         if 'teams' not in registrations:
@@ -1757,6 +1770,56 @@ def api_assign_from_registration():
     save_registrations(registrations)
     
     return jsonify({'success': True})
+
+
+@app.route('/api/toggle-paid', methods=['POST'])
+@login_required
+def api_toggle_paid():
+    """Toggle paid status for a team."""
+    team_name = request.json.get('team_name', '').strip()
+    
+    if not team_name:
+        return jsonify({'success': False, 'error': 'Team name is required.'}), 400
+    
+    registrations = load_registrations()
+    
+    # Find the team
+    team_found = False
+    for reg in registrations['teams']:
+        if reg['team_name'] == team_name:
+            # Toggle paid status
+            reg['paid'] = not reg.get('paid', False)
+            team_found = True
+            new_status = reg['paid']
+            break
+    
+    if not team_found:
+        return jsonify({'success': False, 'error': 'Team not found in registrations.'}), 404
+    
+    save_registrations(registrations)
+    return jsonify({'success': True, 'paid': new_status})
+
+
+@app.route('/api/unpaid-teams', methods=['GET'])
+@login_required
+def api_unpaid_teams():
+    """Get list of unpaid teams with their emails."""
+    registrations = load_registrations()
+    
+    unpaid_teams = []
+    for reg in registrations['teams']:
+        if not reg.get('paid', False):
+            team_name = reg.get('team_name', 'Unknown Team')
+            if team_name:  # Only include if team_name exists
+                unpaid_teams.append({
+                    'team_name': team_name,
+                    'email': reg.get('email', ''),
+                    'phone': reg.get('phone', ''),
+                    'status': reg.get('status', 'unassigned'),
+                    'assigned_pool': reg.get('assigned_pool')
+                })
+    
+    return jsonify({'success': True, 'unpaid_teams': unpaid_teams})
 
 
 @app.route('/courts', methods=['GET', 'POST'])
@@ -2115,7 +2178,8 @@ def api_load_test_teams():
                     'phone': None,
                     'registered_at': datetime.now().isoformat(),
                     'status': 'assigned',
-                    'assigned_pool': pool_name
+                    'assigned_pool': pool_name,
+                    'paid': False
                 })
     
     save_registrations(registrations)

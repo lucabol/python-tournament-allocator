@@ -72,11 +72,17 @@ def temp_data_dir(tmp_path, monkeypatch):
         'teams': []
     }))
     
-    # Create tournaments.yaml
-    tournaments_yaml = users_dir / "tournaments.yaml"
+    # Create tournaments.yaml in testuser directory
+    tournaments_yaml = testuser_dir / "tournaments.yaml"
     tournaments_yaml.write_text(yaml.dump({
         'active': None,
-        'tournaments': []
+        'tournaments': [
+            {
+                'name': 'Default Tournament',
+                'slug': 'default',
+                'created_at': '2024-01-01T00:00:00'
+            }
+        ]
     }))
     
     # Monkeypatch app module to use temp directory
@@ -606,3 +612,163 @@ class TestTeamRegistration:
         # Verify it returned to unassigned
         response = client.get('/teams')
         assert b'Team Alpha' in response.data
+
+
+class TestPaymentTracking:
+    """Tests for payment tracking functionality."""
+    
+    def test_new_registration_defaults_to_unpaid(self, client, temp_data_dir):
+        """Test that new registrations default to paid=False."""
+        # Open registration
+        with client.session_transaction() as sess:
+            sess['user'] = 'testuser'
+            sess['active_tournament'] = 'default'
+        
+        client.post('/api/registrations/toggle',
+                   json={},
+                   content_type='application/json')
+        
+        # Register a team
+        response = client.post('/register/testuser/default',
+                              json={
+                                  'team_name': 'Test Team',
+                                  'email': 'test@example.com',
+                                  'phone': '+1234567890'
+                              },
+                              content_type='application/json')
+        
+        assert response.status_code == 200
+        
+        # Check unpaid teams endpoint
+        response = client.get('/api/unpaid-teams',
+                             content_type='application/json')
+        
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert len(data['unpaid_teams']) == 1
+        assert data['unpaid_teams'][0]['team_name'] == 'Test Team'
+        assert data['unpaid_teams'][0]['email'] == 'test@example.com'
+    
+    def test_toggle_paid_status(self, client, temp_data_dir):
+        """Test toggling paid status for a team."""
+        # Setup: register a team
+        with client.session_transaction() as sess:
+            sess['user'] = 'testuser'
+            sess['active_tournament'] = 'default'
+        
+        client.post('/api/registrations/toggle', json={}, content_type='application/json')
+        client.post('/register/testuser/default',
+                   json={'team_name': 'Pay Team', 'email': 'pay@example.com'},
+                   content_type='application/json')
+        
+        # Toggle to paid
+        response = client.post('/api/toggle-paid',
+                              json={'team_name': 'Pay Team'},
+                              content_type='application/json')
+        
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['paid'] is True
+        
+        # Check unpaid teams - should be empty
+        response = client.get('/api/unpaid-teams', content_type='application/json')
+        data = response.get_json()
+        assert len(data['unpaid_teams']) == 0
+        
+        # Toggle back to unpaid
+        response = client.post('/api/toggle-paid',
+                              json={'team_name': 'Pay Team'},
+                              content_type='application/json')
+        
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data['success'] is True
+        assert data['paid'] is False
+        
+        # Check unpaid teams - should have one
+        response = client.get('/api/unpaid-teams', content_type='application/json')
+        data = response.get_json()
+        assert len(data['unpaid_teams']) == 1
+    
+    def test_toggle_paid_nonexistent_team(self, client, temp_data_dir):
+        """Test toggling paid status for non-existent team returns error."""
+        with client.session_transaction() as sess:
+            sess['user'] = 'testuser'
+            sess['active_tournament'] = 'default'
+        
+        response = client.post('/api/toggle-paid',
+                              json={'team_name': 'Nonexistent Team'},
+                              content_type='application/json')
+        
+        assert response.status_code == 404
+        data = response.get_json()
+        assert data['success'] is False
+        assert 'not found' in data['error'].lower()
+    
+    def test_unpaid_teams_includes_contact_info(self, client, temp_data_dir):
+        """Test that unpaid teams endpoint includes email and phone."""
+        with client.session_transaction() as sess:
+            sess['user'] = 'testuser'
+            sess['active_tournament'] = 'default'
+        
+        client.post('/api/registrations/toggle', json={}, content_type='application/json')
+        
+        # Register teams with different contact info
+        client.post('/register/testuser/default',
+                   json={'team_name': 'Team A', 'email': 'teama@example.com', 'phone': '+1111111111'},
+                   content_type='application/json')
+        client.post('/register/testuser/default',
+                   json={'team_name': 'Team B', 'email': 'teamb@example.com'},
+                   content_type='application/json')
+        
+        response = client.get('/api/unpaid-teams', content_type='application/json')
+        data = response.get_json()
+        
+        assert len(data['unpaid_teams']) == 2
+        
+        # Check Team A has phone
+        team_a = [t for t in data['unpaid_teams'] if t['team_name'] == 'Team A'][0]
+        assert team_a['email'] == 'teama@example.com'
+        assert team_a['phone'] == '+1111111111'
+        
+        # Check Team B has no phone
+        team_b = [t for t in data['unpaid_teams'] if t['team_name'] == 'Team B'][0]
+        assert team_b['email'] == 'teamb@example.com'
+        assert team_b['phone'] is None or team_b['phone'] == ''
+    
+    def test_paid_status_persists_across_loads(self, client, temp_data_dir):
+        """Test that paid status persists when registrations are reloaded."""
+        with client.session_transaction() as sess:
+            sess['user'] = 'testuser'
+            sess['active_tournament'] = 'default'
+        
+        client.post('/api/registrations/toggle', json={}, content_type='application/json')
+        client.post('/register/testuser/default',
+                   json={'team_name': 'Persist Team', 'email': 'persist@example.com'},
+                   content_type='application/json')
+        
+        # Mark as paid
+        client.post('/api/toggle-paid',
+                   json={'team_name': 'Persist Team'},
+                   content_type='application/json')
+        
+        # Simulate reload by making multiple requests
+        for _ in range(3):
+            response = client.get('/api/unpaid-teams', content_type='application/json')
+            data = response.get_json()
+            # Should still be empty (paid)
+            assert len(data['unpaid_teams']) == 0
+        
+        # Toggle back and verify
+        client.post('/api/toggle-paid',
+                   json={'team_name': 'Persist Team'},
+                   content_type='application/json')
+        
+        for _ in range(3):
+            response = client.get('/api/unpaid-teams', content_type='application/json')
+            data = response.get_json()
+            # Should have one unpaid team
+            assert len(data['unpaid_teams']) == 1
+
