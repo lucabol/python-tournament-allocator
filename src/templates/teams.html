@@ -34,6 +34,9 @@
             <button type="button" class="btn btn-sm btn-secondary" onclick="copyRegistrationLink()">
                 📋 Copy Link
             </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="showUnpaidTeams()">
+                💰 Unpaid Teams
+            </button>
         </div>
     </div>
     <p class="registration-status">
@@ -51,7 +54,19 @@
         {% for reg in unassigned_teams %}
         <div class="unassigned-team-card" draggable="true" data-team-name="{{ reg.team_name }}" data-team-email="{{ reg.email }}" data-team-phone="{{ reg.phone or '' }}">
             <div class="unassigned-team-header">
-                <div class="unassigned-team-name">{{ reg.team_name }}</div>
+                <div class="unassigned-team-name">
+                    <label class="paid-checkbox-label">
+                        <input type="checkbox" class="paid-checkbox" 
+                               id="paid-unreg-{{ reg.team_name | replace(' ', '_') }}"
+                               name="paid-unreg-{{ reg.team_name | replace(' ', '_') }}"
+                               autocomplete="off"
+                               data-team-name="{{ reg.team_name }}"
+                               onchange="togglePaid(this, '{{ reg.team_name }}')"
+                               {% if reg.paid %}checked{% endif %}>
+                        <span class="paid-indicator">💰</span>
+                    </label>
+                    {{ reg.team_name }}
+                </div>
                 <div class="unassigned-team-actions">
                     <button type="button" class="btn btn-xs btn-primary" onclick="editRegistration('{{ reg.team_name }}', '{{ reg.email }}', '{{ reg.phone or '' }}')">Edit</button>
                     <button type="button" class="btn btn-xs btn-danger" onclick="deleteRegistration('{{ reg.team_name }}')">Delete</button>
@@ -95,6 +110,7 @@
 <section class="section">
     <h2>Pools & Teams</h2>
     
+    {% set paid_team_names = registrations.teams | selectattr('paid') | map(attribute='team_name') | list %}
     <div class="pools-grid">
         {% for pool_name, pool_data in pools.items() %}
         <div class="pool-card pool-drop-zone" data-pool-name="{{ pool_name }}">
@@ -120,8 +136,20 @@
             <ul class="team-list">
                 {% for team in pool_data.teams %}
                 <li>
-                    <input type="text" value="{{ team }}" class="team-name-input"
-                           onchange="saveTeamName(this, '{{ pool_name }}', '{{ team }}')">
+                    <div class="team-item-wrapper">
+                        <label class="paid-checkbox-label">
+                            <input type="checkbox" class="paid-checkbox" 
+                                   id="paid-pool-{{ team | replace(' ', '_') }}"
+                                   name="paid-pool-{{ team | replace(' ', '_') }}"
+                                   autocomplete="off"
+                                   data-team-name="{{ team }}"
+                                   onchange="togglePaid(this, '{{ team }}')"
+                                   {% if team in paid_team_names %}checked{% endif %}>
+                            <span class="paid-indicator">💰</span>
+                        </label>
+                        <input type="text" value="{{ team }}" class="team-name-input"
+                               onchange="saveTeamName(this, '{{ pool_name }}', '{{ team }}')">
+                    </div>
                     <form method="POST" class="inline">
                         <input type="hidden" name="action" value="delete_team">
                         <input type="hidden" name="pool_name" value="{{ pool_name }}">
@@ -192,6 +220,18 @@ Pool A:
     phone: "555-1234"
   - Team 2</pre>
         <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('teams-yaml-example').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy to Clipboard',2000)">Copy to Clipboard</button>
+    </div>
+</div>
+
+<div id="unpaid-teams-modal" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Unpaid Teams</h3>
+            <button class="modal-close" onclick="document.getElementById('unpaid-teams-modal').style.display='none'">&times;</button>
+        </div>
+        <div id="unpaid-teams-list" class="unpaid-teams-list">
+            <p class="loading-message">Loading...</p>
+        </div>
     </div>
 </div>
 
@@ -434,6 +474,80 @@ async function exportTeams() {
     } catch (error) {
         console.error('Export error:', error);
         alert(`Error exporting teams: ${error.message}`);
+    }
+}
+
+// Toggle paid status
+async function togglePaid(checkbox, teamName) {
+    try {
+        const response = await fetch('/api/toggle-paid', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({team_name: teamName})
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        if (!result.success) {
+            alert(result.error || 'Failed to toggle paid status');
+            checkbox.checked = !checkbox.checked; // Revert
+        }
+    } catch (error) {
+        console.error('Toggle paid error:', error);
+        alert(`Error toggling paid status: ${error.message}`);
+        checkbox.checked = !checkbox.checked; // Revert
+    }
+}
+
+// Show unpaid teams overlay
+async function showUnpaidTeams() {
+    const modal = document.getElementById('unpaid-teams-modal');
+    const listContainer = document.getElementById('unpaid-teams-list');
+    
+    modal.style.display = 'flex';
+    listContainer.innerHTML = '<p class="loading-message">Loading...</p>';
+    
+    try {
+        const response = await fetch('/api/unpaid-teams', {
+            method: 'GET',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+            listContainer.innerHTML = `<p class="error-message">${result.error || 'Failed to load unpaid teams'}</p>`;
+            return;
+        }
+        
+        if (!result.unpaid_teams || result.unpaid_teams.length === 0) {
+            listContainer.innerHTML = '<p class="success-message">✅ All teams have paid!</p>';
+            return;
+        }
+        
+        // Build the list
+        let html = '<div class="unpaid-teams-grid">';
+        result.unpaid_teams.forEach(team => {
+            html += `
+                <div class="unpaid-team-item">
+                    <div class="unpaid-team-name">🏐 ${team.name}</div>
+                    <div class="unpaid-team-email">✉️ ${team.email || 'No email'}</div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        listContainer.innerHTML = html;
+    } catch (error) {
+        console.error('Show unpaid teams error:', error);
+        listContainer.innerHTML = `<p class="error-message">Error loading unpaid teams: ${error.message}</p>`;
     }
 }
 </script>
