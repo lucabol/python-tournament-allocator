@@ -31,12 +31,13 @@
                 <span class="toggle-indicator">○</span> Closed
                 {% endif %}
             </button>
-            <button type="button" class="btn btn-sm btn-secondary" onclick="copyRegistrationLink()">
-                📋 Copy Link
-            </button>
-            <button type="button" class="btn btn-sm btn-secondary" onclick="showUnpaidTeams()">
+            <button type="button" class="btn btn-sm btn-primary" onclick="showUnpaidTeams()">
                 💰 Unpaid Teams
             </button>
+            <div id="qr-registration" style="display:inline-flex;flex-direction:column;align-items:center;gap:0.25rem;cursor:pointer;" onclick="copyRegistrationLink()" title="Click to copy registration link">
+                <div id="qr-reg-container" style="background:#fff;padding:3px;border-radius:4px;line-height:0;"></div>
+                <span style="font-size:0.7rem;color:var(--text-muted);">📋 Register</span>
+            </div>
         </div>
     </div>
     <p class="registration-status">
@@ -334,6 +335,23 @@ async function assignToPool(select, teamName) {
 
 // Drag and drop
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize QR code for registration link
+    const username = '{{ current_user }}';
+    const slug = '{{ active_tournament }}';
+    const regUrl = window.location.origin + `/register/${username}/${slug}`;
+    const qrContainer = document.getElementById('qr-reg-container');
+    
+    if (qrContainer && typeof QRCode !== 'undefined') {
+        new QRCode(qrContainer, {
+            text: regUrl,
+            width: 80,
+            height: 80,
+            colorDark: '#000000',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    }
+    
     let draggedTeam = null;
     
     // Make unassigned teams draggable
