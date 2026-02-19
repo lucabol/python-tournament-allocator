@@ -255,6 +255,17 @@
 ### 2026-02-19: Fixed registration route template bug
 
 ### 2026-02-19: Test button now properly registers teams in registrations.yaml
+
+### 2026-02-19: Reset All Data now clears registrations
+- **Fix**: Added `registrations.yaml` to the file list in `/api/reset` endpoint. Previously, "Reset All Data" button in Settings cleared teams, courts, results, schedule, constraints, and logo, but left registered teams in `registrations.yaml`.
+- **Pattern**: File deletion list maintained at line 2094 in `src/app.py`. Always includes the full set of tournament data files.
+- **Files changed**: `src/app.py` (line 2094)
+
+### 2026-02-19: Unpaid teams modal now displays pool assignments
+- **Fix**: Updated "Unpaid Teams" modal display to show which pool each unpaid team is assigned to (or "Unassigned" if not yet assigned).
+- **Frontend change**: JavaScript in `teams.html` now renders a third line showing pool assignment using the `assigned_pool` data that the API already provided.
+- **Display format**: Assigned teams show "📋 Pool Name", unassigned teams show "⏳ Unassigned".
+- **Files changed**: `src/templates/teams.html` (lines 553-563)
 - **Problem**: Teams created by the Test button (`/api/test-teams`) were written to `teams.yaml` but not `registrations.yaml`. When a pool was deleted, the delete handler looked in `registrations.yaml` to unassign teams, so Test teams never showed up in Registered Teams section.
 - **Root cause**: `api_load_test_teams()` called `save_teams()` to write pools but never called `save_registrations()` to create registration records.
 - **Fix**: After `save_teams()`, the route now loads existing registrations, checks for duplicates (by team name), and appends a registration record for each test team with `status='assigned'` and `assigned_pool=pool_name`. Email format: `{team_name_cleaned}@test.example`, phone: None, registered_at: current timestamp.

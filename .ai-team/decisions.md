@@ -719,6 +719,15 @@ python scripts/restore.py backup.zip --app-name <app> --resource-group <rg>
 - Paid status persists correctly when teams move between pools or pools are deleted
 - Unpaid teams endpoint returns proper team names and contact info
 - All registration records have consistent schema with paid field
+
+---
+
+## Model Fallback Strategy (2026-02-19)
+
+### Model fallback refinement for Opus 4.6 Fast
+**By:** Luca Bolognese (via Copilot)
+**What:** If `claude-opus-4.6-fast` fails with an error, fall back to `claude-opus-4.6` (non-fast) before continuing down the premium fallback chain.
+**Why:** User directive — ensures premium work attempts the standard Opus 4.6 model after the fast variant fails, rather than immediately downgrading to Opus 4.5 or Sonnet.
 - Tournament managers can track payment status throughout team lifecycle
 
 ---
