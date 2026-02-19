@@ -711,3 +711,114 @@ Each helper returns `List[str]` of clear, actionable violation messages (empty l
 - `src/templates/tracking.html` — Pending badges + handlers + notification
 - `src/static/live.css` — Report form styling
 - `src/static/style.css` — Badge and notification styling
+---
+
+## Bracket Match Key Standardization & Pending Score Badges (2026-02-19, consolidated)
+
+### Match code as canonical bracket match key
+**By:** Fenster
+
+**What:** Standardized bracket matches to use match_code (e.g., "W1-M1", "L2-M3", "GF") as the unique key for all pending result lookups. Previously, bracket templates generated composite keys like "winners_RoundName_MatchNumber", while the live page used team-based keys for pool matches. This mismatch prevented pending score badges from displaying on bracket pages.
+
+**Solution implemented:**
+1. Updated live_content.html — When generating match_key for bracket matches, use match.match_code
+2. Updated sbracket.html — Changed pending result lookup from composite key to match.get('match_code', '')
+3. Updated dbracket.html — Same change for winners/losers brackets, grand finals, and bracket resets
+4. Added debug logging to both templates for troubleshooting
+
+**Why:** The match_code field is already present in all bracket match objects, is guaranteed unique, and works for single/double elimination, all special matches (grand finals, bracket resets). This simplification ensures the same key format is used consistently across schedule display, live page, and bracket displays. Existing pending_results.yaml files with old key format will naturally expire as pending results are resolved/dismissed.
+
+### Bracket pending score badge display implementation
+**By:** Fenster
+
+**What:** Extended pending score badge pattern from 	racking.html to bracket templates (sbracket.html, dbracket.html) so organizers can review and accept/dismiss pending scores directly on bracket pages without navigating to the Pools tracking page.
+
+**Implementation details:**
+- Badge placement: Match header alongside playable/completed indicators
+- JavaScript functions: cceptPendingScore() and dismissPendingScore() added to both templates
+- Visual treatment: Matches 	racking.html pattern for consistency
+- Mobile support: Works with both .match-item (desktop) and .m-match-item (mobile) selectors
+- Coverage: Winners, losers, silver, grand finals, and bracket resets
+
+**Files modified:**
+- src/app.py — Added pending_results loading to /sbracket and /dbracket routes
+- src/templates/sbracket.html — Badges added to gold and silver bracket matches
+- src/templates/dbracket.html — Badges added to all bracket types
+
+---
+
+## Score Management & Pending Results (2026-02-19, consolidated)
+
+### Allow multiple score submissions with last-submission-wins logic
+**By:** McManus
+
+**What:** Changed score submission behavior from "reject duplicates" to "last submission wins". Removed client-side localStorage check that prevented users from re-reporting scores. Updated server-side logic to update existing pending results with latest submission instead of rejecting with 409 error.
+
+**Rationale:**
+- Original implementation had two layers of duplicate prevention: client localStorage (persisted across schedule regenerations) and server-side rejection
+- When schedules regenerated, server correctly cleared pending_results.yaml but client localStorage still had old match keys marked as "reported"
+- Users saw "already reported" alerts even though pending results were cleared
+- User confirmed that allowing multiple submissions is acceptable and simplifies workflow
+
+**Files modified:**
+- src/templates/live_content.html — Removed localStorage check (lines 633-637) and markAsReported() call (line 727)
+- src/app.py — Changed duplicate detection from error response to update logic (lines 2694-2715)
+
+**Impact:** Eliminates stale localStorage problems. Players can re-report if they made a mistake. Simpler mental model for organizers.
+
+### Clear pending results on schedule generation
+**By:** McManus
+
+**What:** Added save_pending_results([]) call in /schedule route after save_results() to automatically clear pending_results.yaml when a new schedule is generated.
+
+**Rationale:** Pending results reference matches from the old schedule. When schedules regenerate, these pending results become stale and should be cleared along with other tournament state (pool play results, bracket results).
+
+**Files modified:**
+- src/app.py — Lines 2458-2468 in schedule generation route
+
+---
+
+## Team Registration Feature (2026-02-19, consolidated)
+
+### Team registration data model and API patterns
+**By:** McManus
+
+**What:** Established data model for team registration: separate egistrations.yaml file containing pre-assignment data (team name, contact info, registration timestamp) that syncs bidirectionally with 	eams.yaml pool assignments.
+
+**Rationale:**
+- **Separation of concerns:** Registrations (pre-assignment, contact metadata) vs pool assignments (tournament structure)
+- **Bidirectional sync:** Team moving from registration → pool updates both files atomically; removal from pool reverts registration status to "unassigned"
+- **Public access pattern:** /register/<username>/<slug> is unauthenticated and validates tournament via directory walk (USERS_DIR/<username>/tournaments/<slug>/)
+- **Standard API response format:** All registration APIs return jsonify({'success': bool, 'error': str}) with appropriate HTTP status codes
+
+**Data structure:** egistrations.yaml with format:
+`yaml
+registration_open: bool
+teams:
+  - team_name: str
+    email: str
+    phone: str
+    registered_at: timestamp
+    status: 'unassigned' | 'assigned'
+    assigned_pool: str (optional)
+`
+
+**API endpoints:**
+- POST /register/<username>/<slug> — Submit registration
+- POST /api/registration/toggle — Toggle open/closed
+- POST /api/registration/edit — Update team info
+- POST /api/registration/delete — Remove registration
+- POST /api/assign-from-registration — Assign to pool
+
+### Team registration UI patterns
+**By:** Fenster
+
+**What:** Established frontend patterns for team registration: (1) Standalone public registration page (	eam_register.html) with inline CSS, tournament branding, AJAX form submission, mobile-first design; (2) Unassigned teams grid on Teams page with edit/delete/assign actions; (3) HTML5 drag-and-drop from unassigned cards to pool cards with visual feedback, plus dropdown fallback for mobile/accessibility; (4) Toggle button pattern for Open/Close registration controls.
+
+**Rationale:** Public registration needs to work without authentication and look polished when shared. Standalone template with inline CSS ensures portability. Drag-and-drop makes pool assignment intuitive for organizers (moving cards around feels natural), but dropdown fallback ensures it works on all devices. Toggle buttons with colored indicators provide clear visual state. Unassigned teams section sits above pools to emphasize workflow.
+
+**Frontend files:**
+- src/templates/team_register.html — Public registration form
+- src/templates/teams.html — Added registration section, unassigned teams, drag-drop JS
+- src/static/style.css — Registration classes (.registration-section, .unassigned-team-card, .btn-toggle, .pool-drop-zone, .drag-over)
+

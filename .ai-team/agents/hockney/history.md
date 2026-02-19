@@ -19,6 +19,31 @@ Hockney is responsible for the pytest test suite covering all routes, models, bu
 
 ## Learnings (Recent: < 2 weeks)
 
+### 2026-02-19: Registration feature integration tests
+- **Summary:** Created comprehensive test suite for team registration lifecycle (21 tests total) covering public registration, validation, pool assignment, and round-trip workflows.
+- **File:** `tests/test_registration.py` with `TestTeamRegistration` class (21 test methods)
+- **Test coverage:**
+  - Registration state: starts closed, open/close toggle endpoints
+  - Public form: shows closed message when closed, shows form when open
+  - Validation: email required, phone optional, duplicate team name rejection
+  - Registration persistence: team appears in unassigned list after registration
+  - Pool assignment: assign API moves team from unassigned to pool
+  - Pool removal: removing team returns it to unassigned list (if came from registration)
+  - Edit/delete operations: organizer can edit or delete registrations
+  - Timestamp persistence: registered_at field captured and stored in ISO format
+  - Multi-team workflow: end-to-end test with 3 teams, assignments, removal, close registration
+- **Key patterns established:**
+  - Public routes (no auth): `/register/<username>/<slug>` GET and POST
+  - Organizer API routes (auth required): `/api/registrations/toggle`, `/api/registrations/edit`, `/api/registrations/delete`, `/api/teams/assign_from_registration`
+  - Registration file structure: `registrations.yaml` with `registration_open` flag and `teams` list (team_name, email, phone, registered_at, status, assigned_pool)
+  - Status lifecycle: `unassigned` → `assigned` (when moved to pool) → `unassigned` (when removed from pool)
+- **Edge cases tested:**
+  - Registration attempt when closed (rejected)
+  - Duplicate team names (rejected at registration time)
+  - Test button integration (verify registration doesn't break existing test data generation)
+- **Why TDD approach:** Tests written BEFORE implementation by McManus and Fenster. Defines the contract: what validation, lifecycle, and data integrity the implementation must provide. All 21 tests expected to fail until routes and templates are built.
+- **Test execution context:** Uses `temp_data_dir` fixture with user-scoped tournament structure (`users/testuser/tournaments/default/registrations.yaml`). Client fixture authenticated as `testuser` with `active_tournament='default'` session variable.
+
 ### 2026-02-15: HTTP Backup/Restore Test Coverage
 
 **What I did:** Wrote comprehensive test coverage (19 tests total) for the upcoming HTTP backup/restore implementation (API key-secured routes for site-wide export/import).

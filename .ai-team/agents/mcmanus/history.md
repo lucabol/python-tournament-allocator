@@ -248,6 +248,18 @@
 - **Implementation**: Added `_count_consecutive_matches_if_placed()` helper that counts the maximum consecutive run a placement would create. Uses same definition as CP-SAT: matches within `2 × (match_duration + break)` are consecutive.
 - **Algorithm change**: Instead of placing at first available slot, the greedy algorithm now:
   1. Collects all valid candidate slots for a match
+
+### 2026-02-19: Team registration backend implemented
+- **Routes added**: `GET/POST /register/<username>/<slug>` (public, no auth), `POST /api/registrations/toggle` (open/close registration), `POST /api/registrations/edit` (edit team details), `POST /api/registrations/delete` (remove registration), `POST /api/teams/assign_from_registration` (move team to pool).
+- **Data functions**: `load_registrations()` and `save_registrations()` follow standard YAML persistence pattern. Default structure: `{registration_open: False, teams: []}`. File location: `registrations.yaml` in tournament directory.
+- **Registration data model**: Each team entry has `team_name`, `email`, `phone` (optional), `registered_at` (ISO timestamp), `status` ('unassigned'|'assigned'), `assigned_pool` (pool name or None).
+- **Pool removal integration**: Modified `delete_team` action in `/teams` route to check if removed team came from registrations. If status is 'assigned', updates to 'unassigned' and clears `assigned_pool`.
+- **Public route validation**: `public_register()` verifies tournament exists by walking user directory structure, loads tournament constraints for display info (name, date, club), validates `registration_open` flag before accepting submissions.
+- **Duplicate handling**: All edit/add operations check for duplicate team names across existing registrations. Edit endpoint allows name changes if new name doesn't conflict.
+- **Bidirectional sync**: When assigning from registration to pool, team is added to `teams.yaml` AND registration status updated to 'assigned'. When deleting from pool, registration returns to 'unassigned'. When editing team name in registration while assigned, name is updated in pool too.
+- **Consistency pattern**: All API endpoints return `jsonify({'success': bool, ...})`. Edit/delete endpoints return 404 if team not found, 400 for validation errors.
+- **Template integration**: Modified `/teams` route to pass `registrations` data to template for frontend display (frontend implementation pending).
+- **Files changed**: `src/app.py` (lines 470-490: data functions, lines 1366-1380: pool removal update, lines 1443-1668: public route + 5 API endpoints, line 1439: template data)
   2. Scores each by the maximum consecutive count it would create for either team
   3. Places the match at the slot with lowest consecutive count (breaking ties by earliest time)
 - **Performance**: Slightly slower than first-fit greedy (must scan all candidates), but still fast. The algorithm remains a fallback — it produces valid schedules even when avoiding all consecutive matches is impossible.
