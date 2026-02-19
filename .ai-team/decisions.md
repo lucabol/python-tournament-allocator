@@ -599,6 +599,165 @@ python scripts/restore.py backup.zip --app-name <app> --resource-group <rg>
 ### Bracket scheduling validation — Phase 2 test suite
 **By:** Hockney
 **Date:** 2026-02-14
+
+---
+
+## Team Import/Export & Registration System (2026-02-19, consolidated)
+
+### Team import/export with contact information (consolidated)
+**By:** McManus, Fenster
+**Date:** 2026-02-19
+
+**What:** Enhanced team YAML import/export functionality to support team contact information (email and phone numbers) while maintaining full backward compatibility with existing simple string-based team lists.
+
+**Import Format:** The system now accepts teams in three formats:
+1. **Team object with contact info** (new):
+   ```yaml
+   Pool A:
+     teams:
+       - name: "Team Name"
+         email: "team@example.com"
+         phone: "555-1234"
+   ```
+2. **Mixed format** (backward compatible):
+   ```yaml
+   Pool A:
+     teams:
+       - name: "Team 1"
+         email: "team1@example.com"
+       - Team 2  # Simple string
+   ```
+3. **Simple string format** (legacy):
+   ```yaml
+   Pool A:
+     teams:
+       - Team 1
+       - Team 2
+   ```
+
+**Export:** New `/api/export-teams` endpoint merges `teams.yaml` with `registrations.yaml` to create complete export with all team data and contact information. The exported file can be reimported into any tournament.
+
+**Implementation Details:**
+- **Data Separation:** Team names remain in `teams.yaml` for pool assignments; contact details stored in `registrations.yaml`
+- **Import:** Extended `load_yaml` action in `/teams` route to parse team objects with email/phone fields
+- **Backward Compatibility:** Simple string team names continue to work without modification
+
+**Why:**
+- Maintains data integrity by keeping the existing `teams.yaml` structure unchanged
+- Uses `registrations.yaml` as source of truth for contact information
+- Enables administrators to export tournament configurations that can be shared and reimported
+- No breaking changes to existing data structures
+
+**Files Modified:** `src/app.py`, `src/templates/teams.html`, `tests/test_team_import_export.py`, `tests/conftest.py`
+
+### Test button teams must be registered in registrations.yaml
+**By:** McManus
+**Date:** 2026-02-19
+
+**What:** The Test button (`/api/test-teams`) now creates registration records in `registrations.yaml` for all test teams, not just pool assignments in `teams.yaml`. Each test team gets a record with `status='assigned'`, `assigned_pool=pool_name`, a generated email, and a timestamp.
+
+**Why:** Pool deletion logic expects teams to exist in `registrations.yaml` so it can unassign them. Without registration records, Test teams disappeared when their pool was deleted instead of returning to the Registered Teams section. This ensures Test teams follow the same data flow as manually registered teams.
+
+---
+
+## Payment Tracking Feature (2026-02-19, consolidated)
+
+### Payment tracking: API endpoints, data model, and UI (consolidated)
+**By:** McManus, Fenster
+**Date:** 2026-02-19
+
+**What:** Implemented comprehensive payment tracking system with API endpoints, data persistence, and user interface.
+
+**Data Model:**
+- Added `paid` field (boolean) to team registrations in `registrations.yaml`
+- Defaults to `false` for all new registrations
+- Persists across application restarts
+- **Critical Rule:** All registration record creation must explicitly include `'paid': False`
+
+**API Endpoints:**
+
+1. **POST `/api/toggle-paid`**
+   - Requires: `team_name` in JSON body
+   - Toggles paid status for a team
+   - Returns: `{'success': True, 'paid': <new_status>}`
+   - Requires login
+
+2. **GET `/api/unpaid-teams`**
+   - Returns list of teams where `paid=false`
+   - Includes: team_name, email, phone, status, assigned_pool
+   - Useful for sending payment reminders
+   - Requires login
+
+**UI Components:**
+- **Payment Checkbox**: Added to both assigned and unassigned team cards
+  - Placed left of team name in pool cards
+  - Uses unique `id` tied to team name (e.g., `paid-unreg-Team_A`)
+  - Includes `autocomplete="off"` to prevent browser form state restoration
+  - Shows 💰 emoji when checked
+  
+- **Unpaid Teams Button**: Located in registration controls section
+  - Uses 💰 emoji for visual consistency
+  - Opens modal displaying unpaid teams with contact info
+  - Each unpaid team shows name (🏐), email (✉️), and contact details
+  - Displays "All teams have paid!" when list is empty
+
+**Critical Implementation Rules:**
+1. **Explicit paid field:** Every registration creation must explicitly set `'paid': False` (applies to YAML imports, test data, API assignments)
+2. **Preserve on updates:** When updating existing registrations, use `if 'paid' not in existing_reg: existing_reg['paid'] = False`
+3. **Checkbox identity:** Paid checkboxes in both Unassigned Teams and Pools sections use team-bound IDs with `autocomplete="off"`
+4. **Pool card lookup:** Pool cards build `paid_team_names` lookup from `registrations` using Jinja2 filters: `selectattr('paid') | map(attribute='team_name')`
+
+**Why:**
+- Explicit field initialization prevents undefined/None states that cause API errors
+- Checkbox identity (tied to team name) prevents stale browser state when teams shift position
+- Using registration data as single source of truth ensures toggle API calls persist correctly
+- Payment status must be preserved when teams move between pools or pools are deleted
+
+**Files Modified:** `src/app.py` (4 locations), `src/templates/teams.html`, `tests/test_registration.py`
+
+**Impact:**
+- Paid status persists correctly when teams move between pools or pools are deleted
+- Unpaid teams endpoint returns proper team names and contact info
+- All registration records have consistent schema with paid field
+- Tournament managers can track payment status throughout team lifecycle
+
+---
+
+## Registration System Patterns (2026-02-19)
+
+### Public registration link generation
+**By:** Fenster
+**Date:** 2026-02-19
+
+**What:** The "Copy Link" button on the Teams page generates a public registration link using `window.location.origin + /register/${username}/${slug}`, pointing to the public (`@login_required`-free) registration route.
+
+**Why:**
+- The public registration route exists specifically for team self-registration
+- Teams shouldn't need organizer credentials to register
+- Direct URL construction ensures no accidental redirection through authenticated routes
+- Using `window.location.origin` makes the link work across different deployment environments
+
+**Impact:** Teams can now successfully register via the copied link without authentication barriers, maintaining separation between organizer admin panel and public team registration.
+
+---
+
+## Model Selection & Testing Directives (2026-02-19)
+
+### Model preference for all team spawns
+**By:** Luca Bolognese (via Copilot)
+**Date:** 2026-02-19
+
+**What:** Use `claude-opus-4.6-fast` for all team member agent spawns going forward.
+
+**Why:** User directive — captured for team memory.
+
+### Testing workflow directive
+**By:** Luca Bolognese (via Copilot)
+**Date:** 2026-02-19
+
+**What:** Always run fast tests (`pytest tests/ -m "not slow"`) after implementing a feature. Run all tests (`pytest tests/`) only when implementing scheduling algorithm changes in `src/core/allocation.py`.
+
+**Why:** User request — ensures features are validated quickly (~21s) while critical scheduling logic gets full test coverage (~137s). Balances speed with thoroughness based on risk.
 **What:** Implemented comprehensive bracket scheduling validation tests across 3 areas:
 1. **Bracket phase transitions** (`TestBracketPhaseTransitions`) — 3 tests validating pool-to-bracket timing constraints, enforcing `pool_to_bracket_delay_minutes` and ensuring bracket starts after pools complete
 2. **Court constraints for bracket** (`tests/test_schedule_validity.py`) — 3 tests validating bracket matches respect court hours, minimum breaks, and no court double-booking
