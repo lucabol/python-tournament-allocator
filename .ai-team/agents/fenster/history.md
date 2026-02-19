@@ -94,3 +94,8 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 - **Fix**: Updated 3 template conditionals (lines 27, 28, 40) to use `registrations.registration_open`. Added try/catch wrapper to `toggleRegistration()` function with HTTP status check, JSON error handling, and `alert()` + `console.error()` for failures.
 - **Pattern**: Always wrap async fetch calls in try/catch. Check `response.ok` before parsing JSON. Display user-facing error with `alert()` and log to console for debugging. For nested context variables, verify the full path in the template (use `{{ variable | pprint }}` in dev to inspect structure).
 
+### 2026-02-21: Pool management UX cleanup
+- **Removed**: "Add Team" form from pool badge cards. Teams should come from drag-and-drop or registration assignment, not manual entry in pool cards.
+- **Fixed**: Pool deletion now moves all teams back to unassigned registrations. When a pool is deleted, backend loops through all teams in that pool, finds them in the registrations list, sets their `status` to `'unassigned'` and `assigned_pool` to `None`. This matches the existing pattern used when deleting individual teams (app.py lines 1373-1380).
+- **Pattern**: Registrations are the source of truth for team metadata (email, phone, registration date). When removing teams from pools (whether individually or via pool deletion), always check registrations and update their status back to 'unassigned'. This keeps teams visible in the Unassigned Teams section for re-assignment.
+

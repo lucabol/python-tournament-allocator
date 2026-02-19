@@ -467,6 +467,28 @@ def save_messages(messages):
         yaml.dump({'messages': messages}, f, default_flow_style=False)
 
 
+def load_registrations():
+    """Load team registrations from YAML file."""
+    path = _file_path('registrations.yaml')
+    if not os.path.exists(path):
+        return {'registration_open': False, 'teams': []}
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        if not data:
+            return {'registration_open': False, 'teams': []}
+        if 'registration_open' not in data:
+            data['registration_open'] = False
+        if 'teams' not in data:
+            data['teams'] = []
+        return data
+
+
+def save_registrations(registrations):
+    """Save team registrations to YAML file."""
+    with open(_file_path('registrations.yaml'), 'w', encoding='utf-8') as f:
+        yaml.dump(registrations, f, default_flow_style=False)
+
+
 def load_pending_results(data_dir: str = None):
     """Load pending score reports from YAML file.
     
@@ -1029,7 +1051,7 @@ def get_default_constraints():
 def set_active_tournament():
     """Set g.data_dir to the active tournament's data directory."""
     # Skip auth for static files, login, register, and API key authenticated endpoints
-    if request.endpoint in ('static', 'login_page', 'register_page',
+    if request.endpoint in ('static', 'login_page', 'register_page', 'public_register',
                             'public_live', 'api_public_live_html', 'api_public_live_stream',
                             'api_admin_export', 'api_admin_import', None):
         return
@@ -1280,19 +1302,99 @@ def teams():
                     if not isinstance(data, dict):
                         flash('Invalid YAML format. Expected pool definitions.', 'error')
                     else:
-                        # Normalize format
+                        # Normalize format and extract registrations
                         normalized = {}
+                        registrations = load_registrations()
+                        
                         for pool_name, pool_data in data.items():
                             if isinstance(pool_data, list):
-                                normalized[pool_name] = {'teams': pool_data, 'advance': 2}
+                                # Check if list contains dicts with team info or strings
+                                teams_list = []
+                                for item in pool_data:
+                                    if isinstance(item, dict):
+                                        # Team object with name, email, phone
+                                        team_name = item.get('name', '').strip()
+                                        if team_name:
+                                            teams_list.append(team_name)
+                                            # Store email/phone in registrations
+                                            email = item.get('email', '').strip()
+                                            phone = item.get('phone', '').strip()
+                                            if email or phone:
+                                                # Check if registration exists, update or create
+                                                existing_reg = None
+                                                for reg in registrations['teams']:
+                                                    if reg['team_name'] == team_name:
+                                                        existing_reg = reg
+                                                        break
+                                                
+                                                if existing_reg:
+                                                    if email:
+                                                        existing_reg['email'] = email
+                                                    if phone:
+                                                        existing_reg['phone'] = phone
+                                                    existing_reg['status'] = 'assigned'
+                                                    existing_reg['assigned_pool'] = pool_name
+                                                else:
+                                                    registrations['teams'].append({
+                                                        'team_name': team_name,
+                                                        'email': email,
+                                                        'phone': phone,
+                                                        'status': 'assigned',
+                                                        'assigned_pool': pool_name,
+                                                        'registered_at': datetime.now().isoformat()
+                                                    })
+                                    elif isinstance(item, str):
+                                        # Simple string format (backward compatible)
+                                        teams_list.append(item.strip())
+                                
+                                normalized[pool_name] = {'teams': teams_list, 'advance': 2}
                             elif isinstance(pool_data, dict):
-                                teams_list = pool_data.get('teams', [])
+                                teams_list = []
+                                teams_raw = pool_data.get('teams', [])
                                 advance = pool_data.get('advance', 2)
+                                
+                                # Process teams list (might be strings or dicts)
+                                for item in teams_raw:
+                                    if isinstance(item, dict):
+                                        team_name = item.get('name', '').strip()
+                                        if team_name:
+                                            teams_list.append(team_name)
+                                            email = item.get('email', '').strip()
+                                            phone = item.get('phone', '').strip()
+                                            if email or phone:
+                                                existing_reg = None
+                                                for reg in registrations['teams']:
+                                                    if reg['team_name'] == team_name:
+                                                        existing_reg = reg
+                                                        break
+                                                
+                                                if existing_reg:
+                                                    if email:
+                                                        existing_reg['email'] = email
+                                                    if phone:
+                                                        existing_reg['phone'] = phone
+                                                    existing_reg['status'] = 'assigned'
+                                                    existing_reg['assigned_pool'] = pool_name
+                                                else:
+                                                    registrations['teams'].append({
+                                                        'team_name': team_name,
+                                                        'email': email,
+                                                        'phone': phone,
+                                                        'status': 'assigned',
+                                                        'assigned_pool': pool_name,
+                                                        'registered_at': datetime.now().isoformat()
+                                                    })
+                                    elif isinstance(item, str):
+                                        teams_list.append(item.strip())
+                                
                                 normalized[pool_name] = {'teams': teams_list, 'advance': advance}
                             else:
                                 flash(f'Invalid format for pool "{pool_name}".', 'error')
                                 return redirect(url_for('teams'))
+                        
                         save_teams(normalized)
+                        save_registrations(registrations)
+                        
                         # Clear existing schedule when teams change
                         schedule_path = _file_path('schedule.yaml')
                         if os.path.exists(schedule_path):
@@ -1321,6 +1423,17 @@ def teams():
             pool_name = request.form.get('pool_name')
             pools = load_teams()
             if pool_name in pools:
+                # Move teams back to unassigned registrations
+                teams_in_pool = pools[pool_name].get('teams', [])
+                if teams_in_pool:
+                    registrations = load_registrations()
+                    for team_name in teams_in_pool:
+                        for reg_team in registrations['teams']:
+                            if reg_team['team_name'] == team_name and reg_team.get('status') == 'assigned':
+                                reg_team['status'] = 'unassigned'
+                                reg_team['assigned_pool'] = None
+                    save_registrations(registrations)
+                
                 del pools[pool_name]
                 save_teams(pools)
         
@@ -1348,6 +1461,14 @@ def teams():
             if pool_name in pools and team_name in pools[pool_name]['teams']:
                 pools[pool_name]['teams'].remove(team_name)
                 save_teams(pools)
+                # Check if team came from registrations and update status
+                registrations = load_registrations()
+                for reg_team in registrations['teams']:
+                    if reg_team['team_name'] == team_name and reg_team.get('status') == 'assigned':
+                        reg_team['status'] = 'unassigned'
+                        reg_team['assigned_pool'] = None
+                        save_registrations(registrations)
+                        break
         
         elif action == 'update_advance':
             pool_name = request.form.get('pool_name')
@@ -1405,7 +1526,237 @@ def teams():
         return redirect(url_for('teams'))
     
     pools = load_teams()
-    return render_template('teams.html', pools=pools)
+    registrations = load_registrations()
+    return render_template('teams.html', pools=pools, registrations=registrations)
+
+
+@app.route('/register/<username>/<slug>', methods=['GET', 'POST'])
+def public_register(username, slug):
+    """Public team registration page (no login required)."""
+    # Verify tournament exists
+    user_dir = os.path.join(USERS_DIR, username)
+    tournaments_file = os.path.join(user_dir, 'tournaments.yaml')
+    if not os.path.exists(tournaments_file):
+        abort(404)
+    
+    try:
+        with open(tournaments_file, 'r', encoding='utf-8') as f:
+            tournaments_data = yaml.safe_load(f)
+            if not tournaments_data or not tournaments_data.get('tournaments'):
+                abort(404)
+            tournament = next((t for t in tournaments_data['tournaments'] if t['slug'] == slug), None)
+            if not tournament:
+                abort(404)
+    except Exception:
+        abort(404)
+    
+    # Load tournament data
+    tournament_dir = os.path.join(user_dir, 'tournaments', slug)
+    registrations_file = os.path.join(tournament_dir, 'registrations.yaml')
+    constraints_file = os.path.join(tournament_dir, 'constraints.yaml')
+    
+    # Load constraints for tournament info
+    tournament_info = {'name': tournament.get('name', 'Tournament'), 'date': '', 'club': ''}
+    if os.path.exists(constraints_file):
+        with open(constraints_file, 'r', encoding='utf-8') as f:
+            constraints = yaml.safe_load(f)
+            if constraints:
+                tournament_info['name'] = constraints.get('tournament_name', tournament_info['name'])
+                tournament_info['date'] = constraints.get('tournament_date', '')
+                tournament_info['club'] = constraints.get('club_name', '')
+    
+    # Load registrations
+    if os.path.exists(registrations_file):
+        with open(registrations_file, 'r', encoding='utf-8') as f:
+            registrations = yaml.safe_load(f) or {}
+    else:
+        registrations = {'registration_open': False, 'teams': []}
+    
+    if request.method == 'POST':
+        # Handle AJAX registration submission
+        if not registrations.get('registration_open', False):
+            return jsonify({'success': False, 'error': 'Registration is currently closed.'}), 400
+        
+        data = request.get_json()
+        team_name = data.get('team_name', '').strip()
+        email = data.get('email', '').strip()
+        phone = data.get('phone', '').strip()
+        
+        if not team_name or not email:
+            return jsonify({'success': False, 'error': 'Team name and email are required.'}), 400
+        
+        # Check for duplicates
+        existing_teams = [t['team_name'] for t in registrations.get('teams', [])]
+        if team_name in existing_teams:
+            return jsonify({'success': False, 'error': 'This team name is already registered.'}), 400
+        
+        # Add registration
+        new_registration = {
+            'team_name': team_name,
+            'email': email,
+            'phone': phone if phone else None,
+            'registered_at': datetime.now().isoformat(),
+            'status': 'unassigned',
+            'assigned_pool': None
+        }
+        
+        if 'teams' not in registrations:
+            registrations['teams'] = []
+        registrations['teams'].append(new_registration)
+        
+        # Save with filelock
+        lock_file = os.path.join(tournament_dir, '.lock')
+        lock = FileLock(lock_file, timeout=10)
+        with lock:
+            with open(registrations_file, 'w', encoding='utf-8') as f:
+                yaml.dump(registrations, f, default_flow_style=False)
+        
+        return jsonify({'success': True, 'message': 'Registration successful!'})
+    
+    # GET: render registration form
+    registration_open = registrations.get('registration_open', False)
+    return render_template('team_register.html', 
+                          tournament_info=tournament_info, 
+                          registration_open=registration_open,
+                          username=username,
+                          slug=slug)
+
+
+@app.route('/api/registrations/toggle', methods=['POST'], endpoint='api_toggle_registration')
+@login_required
+def api_toggle_registration():
+    """Toggle registration open/closed status."""
+    registrations = load_registrations()
+    registrations['registration_open'] = not registrations.get('registration_open', False)
+    save_registrations(registrations)
+    return jsonify({'success': True, 'registration_open': registrations['registration_open']})
+
+
+@app.route('/api/registrations/edit', methods=['POST'])
+@login_required
+def api_edit_registration():
+    """Edit a registration (organizer only)."""
+    old_team_name = request.json.get('old_team_name', '').strip()
+    new_team_name = request.json.get('team_name', '').strip()
+    email = request.json.get('email', '').strip()
+    phone = request.json.get('phone', '').strip()
+    
+    if not old_team_name or not new_team_name or not email:
+        return jsonify({'success': False, 'error': 'Team name and email are required.'}), 400
+    
+    registrations = load_registrations()
+    
+    # Find the registration
+    reg_to_edit = None
+    for reg in registrations['teams']:
+        if reg['team_name'] == old_team_name:
+            reg_to_edit = reg
+            break
+    
+    if not reg_to_edit:
+        return jsonify({'success': False, 'error': 'Registration not found.'}), 404
+    
+    # Check for duplicate name (if changing name)
+    if new_team_name != old_team_name:
+        existing_names = [t['team_name'] for t in registrations['teams'] if t != reg_to_edit]
+        if new_team_name in existing_names:
+            return jsonify({'success': False, 'error': 'This team name is already registered.'}), 400
+    
+    # Update registration
+    reg_to_edit['team_name'] = new_team_name
+    reg_to_edit['email'] = email
+    reg_to_edit['phone'] = phone if phone else None
+    
+    # If name changed and team is assigned, update pool too
+    if new_team_name != old_team_name and reg_to_edit.get('status') == 'assigned':
+        pools = load_teams()
+        pool_name = reg_to_edit.get('assigned_pool')
+        if pool_name and pool_name in pools:
+            teams_list = pools[pool_name]['teams']
+            if old_team_name in teams_list:
+                idx = teams_list.index(old_team_name)
+                teams_list[idx] = new_team_name
+                save_teams(pools)
+    
+    save_registrations(registrations)
+    return jsonify({'success': True})
+
+
+@app.route('/api/registrations/delete', methods=['POST'])
+@login_required
+def api_delete_registration():
+    """Delete a registration (organizer only)."""
+    team_name = request.json.get('team_name', '').strip()
+    
+    if not team_name:
+        return jsonify({'success': False, 'error': 'Team name is required.'}), 400
+    
+    registrations = load_registrations()
+    
+    # Find and remove the registration
+    reg_to_delete = None
+    for reg in registrations['teams']:
+        if reg['team_name'] == team_name:
+            reg_to_delete = reg
+            break
+    
+    if not reg_to_delete:
+        return jsonify({'success': False, 'error': 'Registration not found.'}), 404
+    
+    # If team is assigned to a pool, remove it from there too
+    if reg_to_delete.get('status') == 'assigned' and reg_to_delete.get('assigned_pool'):
+        pools = load_teams()
+        pool_name = reg_to_delete['assigned_pool']
+        if pool_name in pools and team_name in pools[pool_name]['teams']:
+            pools[pool_name]['teams'].remove(team_name)
+            save_teams(pools)
+    
+    registrations['teams'].remove(reg_to_delete)
+    save_registrations(registrations)
+    return jsonify({'success': True})
+
+
+@app.route('/api/teams/assign_from_registration', methods=['POST'])
+@login_required
+def api_assign_from_registration():
+    """Assign a registered team to a pool."""
+    team_name = request.json.get('team_name', '').strip()
+    pool_name = request.json.get('pool_name', '').strip()
+    
+    if not team_name or not pool_name:
+        return jsonify({'success': False, 'error': 'Team name and pool name are required.'}), 400
+    
+    pools = load_teams()
+    if pool_name not in pools:
+        return jsonify({'success': False, 'error': 'Pool not found.'}), 404
+    
+    # Check if team already exists in any pool
+    for p_name, pool_data in pools.items():
+        if team_name in pool_data['teams']:
+            return jsonify({'success': False, 'error': f'Team already exists in {p_name}.'}), 400
+    
+    registrations = load_registrations()
+    
+    # Find the registration
+    reg_team = None
+    for reg in registrations['teams']:
+        if reg['team_name'] == team_name:
+            reg_team = reg
+            break
+    
+    if not reg_team:
+        return jsonify({'success': False, 'error': 'Registration not found.'}), 404
+    
+    # Add team to pool
+    pools[pool_name]['teams'].append(team_name)
+    save_teams(pools)
+    
+    # Update registration status
+    reg_team['status'] = 'assigned'
+    reg_team['assigned_pool'] = pool_name
+    save_registrations(registrations)
+    
+    return jsonify({'success': True})
 
 
 @app.route('/courts', methods=['GET', 'POST'])
@@ -1562,6 +1913,54 @@ def api_update_advance():
     return jsonify({'success': True})
 
 
+@app.route('/api/export-teams', methods=['GET'])
+@login_required
+def api_export_teams():
+    """Export teams with email/phone information in importable YAML format."""
+    pools = load_teams()
+    registrations = load_registrations()
+    
+    # Create mapping of team_name -> registration info
+    reg_map = {}
+    for reg in registrations.get('teams', []):
+        reg_map[reg['team_name']] = {
+            'email': reg.get('email', ''),
+            'phone': reg.get('phone', '')
+        }
+    
+    # Build export structure with team objects
+    export_data = {}
+    for pool_name, pool_data in pools.items():
+        teams_list = []
+        for team_name in pool_data.get('teams', []):
+            # Check if we have registration info for this team
+            if team_name in reg_map and (reg_map[team_name]['email'] or reg_map[team_name]['phone']):
+                # Export as object with name, email, phone
+                team_obj = {'name': team_name}
+                if reg_map[team_name]['email']:
+                    team_obj['email'] = reg_map[team_name]['email']
+                if reg_map[team_name]['phone']:
+                    team_obj['phone'] = reg_map[team_name]['phone']
+                teams_list.append(team_obj)
+            else:
+                # Export as simple string (backward compatible)
+                teams_list.append(team_name)
+        
+        export_data[pool_name] = {
+            'teams': teams_list,
+            'advance': pool_data.get('advance', 2)
+        }
+    
+    # Convert to YAML and return as downloadable file
+    yaml_content = yaml.dump(export_data, default_flow_style=False, allow_unicode=True)
+    
+    return Response(
+        yaml_content,
+        mimetype='application/x-yaml',
+        headers={'Content-Disposition': 'attachment; filename=teams_export.yaml'}
+    )
+
+
 @app.route('/api/courts/edit', methods=['POST'])
 def api_edit_court():
     """AJAX endpoint for editing court name."""
@@ -1702,6 +2101,24 @@ def api_load_test_teams():
         }
     }
     save_teams(test_teams)
+    
+    # Register all test teams in registrations.yaml so pool deletion works correctly
+    registrations = load_registrations()
+    existing_team_names = {team['team_name'] for team in registrations['teams']}
+    
+    for pool_name, pool_data in test_teams.items():
+        for team_name in pool_data['teams']:
+            if team_name not in existing_team_names:
+                registrations['teams'].append({
+                    'team_name': team_name,
+                    'email': f'{team_name.replace(" - ", "-").replace(" ", "")}@test.example',
+                    'phone': None,
+                    'registered_at': datetime.now().isoformat(),
+                    'status': 'assigned',
+                    'assigned_pool': pool_name
+                })
+    
+    save_registrations(registrations)
     
     # Clear any existing results and schedule
     for fname in ['results.yaml', 'schedule.yaml']:

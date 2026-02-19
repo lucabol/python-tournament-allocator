@@ -20,6 +20,66 @@
     {% endif %}
 {% endwith %}
 
+<section class="section registration-section">
+    <div class="registration-header">
+        <h2>Team Registration</h2>
+        <div class="registration-controls">
+            <button type="button" class="btn btn-sm btn-toggle {% if registrations.registration_open %}btn-toggle-on{% else %}btn-toggle-off{% endif %}" onclick="toggleRegistration()">
+                {% if registrations.registration_open %}
+                <span class="toggle-indicator">●</span> Open
+                {% else %}
+                <span class="toggle-indicator">○</span> Closed
+                {% endif %}
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="copyRegistrationLink()">
+                📋 Copy Link
+            </button>
+        </div>
+    </div>
+    <p class="registration-status">
+        Status: <strong>{% if registrations.registration_open %}Open{% else %}Closed{% endif %}</strong> • 
+        <span id="reg-count">{{ registrations.teams|length if registrations and registrations.teams else 0 }}</span> team(s) registered
+    </p>
+</section>
+
+{% if registrations and registrations.teams %}
+{% set unassigned_teams = registrations.teams | selectattr('status', 'equalto', 'unassigned') | list %}
+{% if unassigned_teams %}
+<section class="section">
+    <h2>Unassigned Teams ({{ unassigned_teams|length }})</h2>
+    <div class="unassigned-teams">
+        {% for reg in unassigned_teams %}
+        <div class="unassigned-team-card" draggable="true" data-team-name="{{ reg.team_name }}" data-team-email="{{ reg.email }}" data-team-phone="{{ reg.phone or '' }}">
+            <div class="unassigned-team-header">
+                <div class="unassigned-team-name">{{ reg.team_name }}</div>
+                <div class="unassigned-team-actions">
+                    <button type="button" class="btn btn-xs btn-primary" onclick="editRegistration('{{ reg.team_name }}', '{{ reg.email }}', '{{ reg.phone or '' }}')">Edit</button>
+                    <button type="button" class="btn btn-xs btn-danger" onclick="deleteRegistration('{{ reg.team_name }}')">Delete</button>
+                </div>
+            </div>
+            <div class="unassigned-team-info">
+                <div class="info-item">✉️ {{ reg.email }}</div>
+                {% if reg.phone %}
+                <div class="info-item">📞 {{ reg.phone }}</div>
+                {% endif %}
+                <div class="info-item">📅 {{ reg.registered_at[:10] if reg.registered_at else 'N/A' }}</div>
+            </div>
+            <div class="unassigned-team-assign">
+                <label>Assign to pool:</label>
+                <select class="assign-pool-select" onchange="assignToPool(this, '{{ reg.team_name }}')">
+                    <option value="">Choose pool...</option>
+                    {% for pool_name in pools.keys() %}
+                    <option value="{{ pool_name }}">{{ pool_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+{% endif %}
+
 <section class="section">
     <h2>Add New Pool</h2>
     <form method="POST" class="inline-form">
@@ -31,51 +91,13 @@
     </form>
 </section>
 
-<section class="section">
-    <h2>Load from YAML 
-        <span class="help-icon" onclick="document.getElementById('teams-yaml-help').style.display='flex'">?</span>
-    </h2>
-    <form method="POST" enctype="multipart/form-data" class="inline-form" id="teams-yaml-form">
-        <input type="hidden" name="action" value="load_yaml">
-        <input type="file" name="yaml_file" accept=".yaml,.yml" required style="display:none" id="teams-yaml-input" onchange="document.getElementById('teams-yaml-form').submit()">
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('teams-yaml-input').click()">Load</button>
-    </form>
-    <p class="help-text">Loading will replace all existing teams and clear the schedule.</p>
-</section>
-
-<div id="teams-yaml-help" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3>Teams YAML Format</h3>
-            <button class="modal-close" onclick="document.getElementById('teams-yaml-help').style.display='none'">&times;</button>
-        </div>
-        <pre id="teams-yaml-example">Pool A:
-  teams:
-    - Team 1
-    - Team 2
-  advance: 2
-
-Pool B:
-  teams:
-    - Team 3
-    - Team 4
-  advance: 2
-
-# Or simple format:
-Pool A:
-  - Team 1
-  - Team 2</pre>
-        <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('teams-yaml-example').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy to Clipboard',2000)">Copy to Clipboard</button>
-    </div>
-</div>
-
 {% if pools %}
 <section class="section">
     <h2>Pools & Teams</h2>
     
     <div class="pools-grid">
         {% for pool_name, pool_data in pools.items() %}
-        <div class="pool-card">
+        <div class="pool-card pool-drop-zone" data-pool-name="{{ pool_name }}">
             <div class="pool-header">
                 <input type="text" value="{{ pool_name }}" class="pool-name-input" 
                        data-pool-name="{{ pool_name }}"
@@ -93,13 +115,6 @@ Pool A:
                        onchange="saveAdvance(this, '{{ pool_name }}')">
                 <label>advance</label>
             </div>
-            
-            <form method="POST" class="add-team-form">
-                <input type="hidden" name="action" value="add_team">
-                <input type="hidden" name="pool_name" value="{{ pool_name }}">
-                <input type="text" name="team_name" placeholder="Team name" required>
-                <button type="submit" class="btn btn-success btn-sm">Add Team</button>
-            </form>
             
             {% if pool_data.teams %}
             <ul class="team-list">
@@ -136,7 +151,205 @@ Pool A:
 </div>
 {% endif %}
 
+<section class="section">
+    <h2>Import / Export 
+        <span class="help-icon" onclick="document.getElementById('teams-yaml-help').style.display='flex'">?</span>
+    </h2>
+    <form method="POST" enctype="multipart/form-data" class="inline-form" id="teams-yaml-form" style="display: inline;">
+        <input type="hidden" name="action" value="load_yaml">
+        <input type="file" name="yaml_file" accept=".yaml,.yml" required style="display:none" id="teams-yaml-input" onchange="document.getElementById('teams-yaml-form').submit()">
+        <button type="button" class="btn btn-primary" onclick="document.getElementById('teams-yaml-input').click()">Import Teams</button>
+    </form>
+    <button type="button" class="btn btn-primary" onclick="exportTeams()" style="margin-left: 10px;">Export Teams</button>
+    <p class="help-text">Importing will replace all existing teams and clear the schedule.</p>
+</section>
+
+<div id="teams-yaml-help" class="modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Teams YAML Format</h3>
+            <button class="modal-close" onclick="document.getElementById('teams-yaml-help').style.display='none'">&times;</button>
+        </div>
+        <pre id="teams-yaml-example">Pool A:
+  teams:
+    - name: "Team 1"
+      email: "team1@example.com"
+      phone: "555-1234"
+    - name: "Team 2"
+      email: "team2@example.com"
+  advance: 2
+
+Pool B:
+  teams:
+    - Team 3
+    - Team 4
+  advance: 2
+
+# Or simple format:
+Pool A:
+  - name: "Team 1"
+    email: "team1@example.com"
+    phone: "555-1234"
+  - Team 2</pre>
+        <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('teams-yaml-example').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy to Clipboard',2000)">Copy to Clipboard</button>
+    </div>
+</div>
+
 <script>
+// Registration toggle
+async function toggleRegistration() {
+    try {
+        const response = await fetch('{{ url_for("api_toggle_registration") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        if (result.success) {
+            location.reload();
+        } else {
+            alert(`Failed to toggle registration: ${result.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Toggle registration error:', error);
+        alert(`Error toggling registration: ${error.message}`);
+    }
+}
+
+// Copy registration link
+function copyRegistrationLink() {
+    const username = '{{ current_user }}';
+    const slug = '{{ active_tournament }}';
+    const url = window.location.origin + `/register/${username}/${slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+        alert('Registration link copied to clipboard!');
+    });
+}
+
+// Edit registration
+async function editRegistration(teamName, email, phone) {
+    const newName = prompt('Team name:', teamName);
+    if (!newName || newName === teamName) return;
+    
+    const newEmail = prompt('Email:', email);
+    if (!newEmail) return;
+    
+    const newPhone = prompt('Phone (optional):', phone);
+    
+    const response = await fetch('{{ url_for("api_edit_registration") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            old_team_name: teamName,
+            team_name: newName,
+            email: newEmail,
+            phone: newPhone
+        })
+    });
+    const result = await response.json();
+    if (result.success) {
+        location.reload();
+    } else {
+        alert(result.error || 'Edit failed');
+    }
+}
+
+// Delete registration
+async function deleteRegistration(teamName) {
+    if (!confirm(`Delete registration for "${teamName}"?`)) return;
+    
+    const response = await fetch('{{ url_for("api_delete_registration") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({team_name: teamName})
+    });
+    const result = await response.json();
+    if (result.success) {
+        location.reload();
+    }
+}
+
+// Assign to pool (from dropdown)
+async function assignToPool(select, teamName) {
+    const poolName = select.value;
+    if (!poolName) return;
+    
+    const response = await fetch('{{ url_for("api_assign_from_registration") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({team_name: teamName, pool_name: poolName})
+    });
+    const result = await response.json();
+    if (result.success) {
+        location.reload();
+    } else {
+        alert(result.error || 'Assignment failed');
+        select.value = '';
+    }
+}
+
+// Drag and drop
+document.addEventListener('DOMContentLoaded', function() {
+    let draggedTeam = null;
+    
+    // Make unassigned teams draggable
+    document.querySelectorAll('.unassigned-team-card').forEach(card => {
+        card.addEventListener('dragstart', function(e) {
+            draggedTeam = {
+                name: this.dataset.teamName,
+                email: this.dataset.teamEmail,
+                phone: this.dataset.teamPhone
+            };
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        
+        card.addEventListener('dragend', function() {
+            this.classList.remove('dragging');
+            draggedTeam = null;
+        });
+    });
+    
+    // Make pool cards drop zones
+    document.querySelectorAll('.pool-drop-zone').forEach(zone => {
+        zone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('drag-over');
+        });
+        
+        zone.addEventListener('dragleave', function() {
+            this.classList.remove('drag-over');
+        });
+        
+        zone.addEventListener('drop', async function(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            
+            if (!draggedTeam) return;
+            
+            const poolName = this.dataset.poolName;
+            const response = await fetch('{{ url_for("api_assign_from_registration") }}', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({team_name: draggedTeam.name, pool_name: poolName})
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                location.reload();
+            } else {
+                alert(result.error || 'Drop failed');
+            }
+        });
+    });
+});
+
+// Existing functions
 async function savePoolName(input, oldName) {
     const newName = input.value.trim();
     if (newName === oldName) return;
@@ -195,6 +408,33 @@ function loadTestTeams() {
             location.reload();
         }
     });
+}
+
+// Export teams
+async function exportTeams() {
+    try {
+        const response = await fetch('/api/export-teams', {
+            method: 'GET',
+            headers: {'Content-Type': 'application/json'}
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'teams.yaml';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('Export error:', error);
+        alert(`Error exporting teams: ${error.message}`);
+    }
 }
 </script>
 {% endblock %}

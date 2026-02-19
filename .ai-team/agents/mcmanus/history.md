@@ -251,6 +251,28 @@
 
 ### 2026-02-19: Team registration backend implemented
 - **Routes added**: `GET/POST /register/<username>/<slug>` (public, no auth), `POST /api/registrations/toggle` (open/close registration), `POST /api/registrations/edit` (edit team details), `POST /api/registrations/delete` (remove registration), `POST /api/teams/assign_from_registration` (move team to pool).
+
+### 2026-02-19: Fixed registration route template bug
+
+### 2026-02-19: Test button now properly registers teams in registrations.yaml
+- **Problem**: Teams created by the Test button (`/api/test-teams`) were written to `teams.yaml` but not `registrations.yaml`. When a pool was deleted, the delete handler looked in `registrations.yaml` to unassign teams, so Test teams never showed up in Registered Teams section.
+- **Root cause**: `api_load_test_teams()` called `save_teams()` to write pools but never called `save_registrations()` to create registration records.
+- **Fix**: After `save_teams()`, the route now loads existing registrations, checks for duplicates (by team name), and appends a registration record for each test team with `status='assigned'` and `assigned_pool=pool_name`. Email format: `{team_name_cleaned}@test.example`, phone: None, registered_at: current timestamp.
+- **Pattern**: Test teams now follow the same data flow as manually registered teams — they exist in both `teams.yaml` (pool assignments) and `registrations.yaml` (registration records).
+- **Files changed**: `src/app.py` (lines 1954-1998)
+- **Problem**: The `public_register()` function at line 1526 was rendering `register.html` (admin user registration page) instead of `team_register.html` (public team registration form).
+- **Root cause**: Copy-paste error — the route was created but never updated to use the correct template.
+- **Fix**: Changed `return render_template('register.html', ...)` to `return render_template('team_register.html', ...)` at line 1526.
+- **Verification**: Tested locally — `/register/lucabol/test1` now renders the team registration form with Team Name, Email, Phone fields.
+- **Files changed**: `src/app.py` (line 1526)
+
+### 2026-02-19: Fixed registration form JSON payload handling
+- **Problem**: Frontend sends JSON with `Content-Type: application/json`, but backend was reading `request.form` (multipart form data). This caused all registrations to fail with "Team name and email are required" even when data was provided.
+- **Root cause**: JavaScript at line 356 in `team_register.html` sends `JSON.stringify(formData)` with JSON content type, but backend at line 1489 used `request.form.get()` which only reads multipart/form-urlencoded data.
+- **Fix**: Changed line 1489-1491 in `src/app.py` from `request.form.get()` to `request.get_json()` pattern.
+- **Pattern**: When frontend sends AJAX with `Content-Type: application/json`, backend must use `request.get_json()`. When frontend uses standard form submission or `FormData`, use `request.form`.
+- **Verification**: Tested payload `{'team_name': 'Test Team', 'email': 'jafadfadfaf@afgadfm.com', 'phone': ''}` — now correctly parsed and accepted.
+- **Files changed**: `src/app.py` (lines 1489-1491)
 - **Data functions**: `load_registrations()` and `save_registrations()` follow standard YAML persistence pattern. Default structure: `{registration_open: False, teams: []}`. File location: `registrations.yaml` in tournament directory.
 - **Registration data model**: Each team entry has `team_name`, `email`, `phone` (optional), `registered_at` (ISO timestamp), `status` ('unassigned'|'assigned'), `assigned_pool` (pool name or None).
 - **Pool removal integration**: Modified `delete_team` action in `/teams` route to check if removed team came from registrations. If status is 'assigned', updates to 'unassigned' and clears `assigned_pool`.
@@ -309,4 +331,10 @@
   - `save_pending_results(results, data_dir=None)` — Saves to YAML.
   - `check_rate_limit(ip, username, slug, max_per_hour=30)` — Returns True if under limit, False if exceeded.
 - **Integration**: Modified `tracking()` route to load pending results and pass `pending_results` to template for organizer review UI.
+- **Files changed**: `src/app.py`
+
+### 2026-02-16: Public registration route exempted from auth
+- **Problem**: The `before_request` handler was redirecting `/register/<username>/<slug>` to `/login` because the endpoint `public_register` wasn't in the exemption list.
+- **Fix**: Added `'public_register'` to the tuple at line 1054 in `set_active_tournament()` alongside `'login_page'` and `'register_page'`.
+- **Pattern**: Public routes (no login required) must be explicitly whitelisted by endpoint name in `before_request`. Check this list when adding new public endpoints.
 - **Files changed**: `src/app.py`
