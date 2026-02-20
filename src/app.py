@@ -677,6 +677,48 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
     resolved_teams = {}  # match_code or old_key -> result data
     bracket_by_teams = {}  # frozenset({team1, team2}) -> result data
     
+    # Build round_name -> round_index mapping from all bracket results
+    # Group results by bracket_type to determine round ordering
+    round_indices = {}  # (bracket_type_prefix, round_name) -> round_index
+    for prefix in ['winners', 'losers', 'silver_winners', 'silver_losers']:
+        rounds_seen = []
+        for key, result in bracket_results.items():
+            bt = result.get('bracket_type', '')
+            rnd = result.get('round', '')
+            if bt == prefix and rnd and rnd not in rounds_seen:
+                rounds_seen.append(rnd)
+        for idx, rnd in enumerate(rounds_seen):
+            round_indices[(prefix, rnd)] = idx + 1
+    
+    def derive_match_code(result):
+        """Derive match_code from bracket_type, round, match_number."""
+        bt = result.get('bracket_type', '')
+        mn = result.get('match_number', '')
+        if not bt or mn == '' or mn is None:
+            return ''
+        mn = int(mn)
+        rnd = result.get('round', '')
+        
+        if bt == 'grand_final':
+            return 'GF'
+        elif bt == 'bracket_reset':
+            return 'BR'
+        elif bt == 'silver_grand_final':
+            return 'SGF'
+        elif bt == 'silver_bracket_reset':
+            return 'SBR'
+        
+        # Map bracket_type to code prefix
+        prefix_map = {'winners': 'W', 'losers': 'L', 'silver_winners': 'SW', 'silver_losers': 'SL'}
+        code_prefix = prefix_map.get(bt, '')
+        if not code_prefix:
+            return ''
+        
+        ri = round_indices.get((bt, rnd), 0)
+        if ri:
+            return f'{code_prefix}{ri}-M{mn}'
+        return ''
+    
     for key, result in bracket_results.items():
         if result.get('completed'):
             result_data = {
@@ -685,10 +727,15 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
                 'sets': result.get('sets', [])
             }
             resolved_teams[key] = result_data
-            # Also index by match_code if stored in the result
+            # Index by stored match_code
             mc = result.get('match_code', '')
             if mc:
                 resolved_teams[mc] = result_data
+            # Also try to derive match_code from old fields
+            if not mc:
+                mc = derive_match_code(result)
+                if mc:
+                    resolved_teams[mc] = result_data
             # Also index by team pair for fallback matching
             t1 = result.get('team1', result.get('winner', ''))
             t2 = result.get('team2', result.get('loser', ''))
