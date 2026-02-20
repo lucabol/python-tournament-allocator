@@ -777,27 +777,27 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
                                         new_teams[i] = actual_team
                                         match['is_placeholder'] = False
                             # Check for special Grand Final placeholders
-                            elif team == 'Winner of Winners Bracket':
-                                # Find the winner of the last winners bracket match (W3-M1 for 8 teams)
+                            elif team in ('Winner of Winners Bracket', 'Winners Bracket Champion'):
+                                # Find the winner of the last winners bracket match
                                 for code in ['W3-M1', 'W2-M1', 'W1-M1']:
                                     if code in resolved_teams and resolved_teams[code].get('winner'):
                                         new_teams[i] = resolved_teams[code]['winner']
                                         match['is_placeholder'] = False
                                         break
-                            elif team == 'Winner of Losers Bracket':
-                                # Find the winner of the last losers bracket match (L4-M1 for 8 teams)
+                            elif team in ('Winner of Losers Bracket', 'Losers Bracket Champion'):
+                                # Find the winner of the last losers bracket match
                                 for code in ['L4-M1', 'L3-M1', 'L2-M1']:
                                     if code in resolved_teams and resolved_teams[code].get('winner'):
                                         new_teams[i] = resolved_teams[code]['winner']
                                         match['is_placeholder'] = False
                                         break
-                            elif team == 'Winner of SWinners Bracket':
+                            elif team in ('Winner of SWinners Bracket', 'SWinners Bracket Champion'):
                                 for code in ['SW3-M1', 'SW2-M1', 'SW1-M1']:
                                     if code in resolved_teams and resolved_teams[code].get('winner'):
                                         new_teams[i] = resolved_teams[code]['winner']
                                         match['is_placeholder'] = False
                                         break
-                            elif team == 'Winner of SLosers Bracket':
+                            elif team in ('Winner of SLosers Bracket', 'SLosers Bracket Champion'):
                                 for code in ['SL4-M1', 'SL3-M1', 'SL2-M1']:
                                     if code in resolved_teams and resolved_teams[code].get('winner'):
                                         new_teams[i] = resolved_teams[code]['winner']
