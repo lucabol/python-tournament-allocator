@@ -1054,6 +1054,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const round = match.dataset.round;
         const matchNumber = parseInt(match.dataset.match);
         const bracketType = match.dataset.bracketType || 'winners';
+        const matchCode = match.dataset.matchCode || '';
         
         let team1Inputs = match.querySelectorAll('.team-top .score-input');
         let team2Inputs = match.querySelectorAll('.team-bottom .score-input');
@@ -1090,6 +1091,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 round: round,
                 match_number: matchNumber,
                 bracket_type: bracketType,
+                match_code: matchCode,
                 sets: sets
             })
         })

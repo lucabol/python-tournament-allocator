@@ -426,6 +426,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const round = match.dataset.round;
         const matchNumber = parseInt(match.dataset.match);
         const bracketType = match.dataset.bracketType || 'winners';
+        const matchCode = match.dataset.matchCode || '';
         
         // Desktop uses .team-top/.team-bottom, mobile uses .m-match-row with score-inputs
         let team1Inputs = match.querySelectorAll('.team-top .score-input');
@@ -463,6 +464,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 round: round,
                 match_number: matchNumber,
                 bracket_type: bracketType,
+                match_code: matchCode,
                 sets: sets
             })
         })

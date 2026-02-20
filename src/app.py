@@ -670,10 +670,10 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
     pool_results = results.get('pool_play', {})
     bracket_results = results.get('bracket', {})
     
-    # Build lookup for bracket match results
+    # Build lookups for bracket match results
     # bracket_results uses keys like "winners_Winners Quarterfinal_1" (from bracket UI)
     # schedule matches have match_code like "W1-M1" (from execution order generator)
-    # These don't match directly, so we also build a team-pair lookup for matching.
+    # We index by: (1) original key, (2) match_code from stored result, (3) team pair
     resolved_teams = {}  # match_code or old_key -> result data
     bracket_by_teams = {}  # frozenset({team1, team2}) -> result data
     
@@ -685,6 +685,10 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
                 'sets': result.get('sets', [])
             }
             resolved_teams[key] = result_data
+            # Also index by match_code if stored in the result
+            mc = result.get('match_code', '')
+            if mc:
+                resolved_teams[mc] = result_data
             # Also index by team pair for fallback matching
             t1 = result.get('team1', result.get('winner', ''))
             t2 = result.get('team2', result.get('loser', ''))
@@ -3808,7 +3812,8 @@ def save_bracket_result():
     team2 = data.get('team2')
     round_name = data.get('round')
     match_number = data.get('match_number')
-    bracket_type = data.get('bracket_type', 'winners')  # 'winners', 'losers', 'grand_final', 'bracket_reset'
+    bracket_type = data.get('bracket_type', 'winners')
+    match_code = data.get('match_code', '')
     sets = data.get('sets', [])
     
     if not team1 or not team2:
@@ -3867,7 +3872,8 @@ def save_bracket_result():
         'team2': team2,
         'round': round_name,
         'match_number': match_number,
-        'bracket_type': bracket_type
+        'bracket_type': bracket_type,
+        'match_code': match_code
     }
     
     save_results(results)
