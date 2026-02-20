@@ -3,7 +3,7 @@
 ## Project Learnings (from import)
 
 **Project:** Python Flask tournament scheduling and management web application
-**Owner:** Luca Bolognese (lucabol@microsoft.com)
+**Owner:** Luca Bolognese
 **Stack:** Python 3.11+, Flask, Jinja2, pandas, numpy, OR-Tools CP-SAT, PyYAML, pytest
 **Description:** Tournament scheduling app with pool play, single/double elimination brackets, court allocation, and match result tracking.
 

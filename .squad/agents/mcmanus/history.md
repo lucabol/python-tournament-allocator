@@ -1,6 +1,6 @@
 # Project Context
 
-- **Owner:** Luca Bolognese (lucabol@microsoft.com)
+- **Owner:** Luca Bolognese
 - **Project:** Python Flask tournament scheduling and management web application
 - **Stack:** Python 3.11+, Flask, Jinja2, pandas, numpy, OR-Tools CP-SAT, PyYAML, pytest
 - **Created:** 2026-02-11
@@ -282,7 +282,7 @@
 - **Root cause**: JavaScript at line 356 in `team_register.html` sends `JSON.stringify(formData)` with JSON content type, but backend at line 1489 used `request.form.get()` which only reads multipart/form-urlencoded data.
 - **Fix**: Changed line 1489-1491 in `src/app.py` from `request.form.get()` to `request.get_json()` pattern.
 - **Pattern**: When frontend sends AJAX with `Content-Type: application/json`, backend must use `request.get_json()`. When frontend uses standard form submission or `FormData`, use `request.form`.
-- **Verification**: Tested payload `{'team_name': 'Test Team', 'email': 'jafadfadfaf@afgadfm.com', 'phone': ''}` — now correctly parsed and accepted.
+- **Verification**: Tested payload `{'team_name': 'Test Team', 'email': '[email scrubbed]', 'phone': ''}` — now correctly parsed and accepted.
 - **Files changed**: `src/app.py` (lines 1489-1491)
 - **Data functions**: `load_registrations()` and `save_registrations()` follow standard YAML persistence pattern. Default structure: `{registration_open: False, teams: []}`. File location: `registrations.yaml` in tournament directory.
 - **Registration data model**: Each team entry has `team_name`, `email`, `phone` (optional), `registered_at` (ISO timestamp), `status` ('unassigned'|'assigned'), `assigned_pool` (pool name or None).
