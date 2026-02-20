@@ -2808,6 +2808,15 @@ def schedule():
                     silver_matches = generate_silver_bracket_execution_order(pools, None) if include_silver else []
                 else:
                     bracket_matches = generate_all_single_bracket_matches_for_scheduling(pools, None, include_silver)
+                    # Add time_slot based on round order for single elimination
+                    round_order = {}
+                    slot = 0
+                    for m in bracket_matches:
+                        r = m['round']
+                        if r not in round_order:
+                            round_order[r] = slot
+                            slot += 1
+                        m['time_slot'] = round_order[r]
                     gold_matches = [m for m in bracket_matches if 'Silver' not in m.get('phase', '')]
                     silver_matches = [m for m in bracket_matches if 'Silver' in m.get('phase', '')]
                 
@@ -2849,9 +2858,14 @@ def schedule():
                         if court_name not in schedule_data[bracket_day]:
                             schedule_data[bracket_day][court_name] = []
                     
-                    # Assign courts: Gold on Court 1, Silver on Court 2 (if enabled)
-                    gold_court = court_names[0]
-                    silver_court = court_names[1 % num_courts] if include_silver else None
+                    # Assign courts: distribute across available courts by round
+                    # Gold and Silver each get a share of courts
+                    if include_silver and num_courts >= 2:
+                        gold_courts = court_names[:num_courts // 2] or [court_names[0]]
+                        silver_courts = court_names[num_courts // 2:] or [court_names[-1]]
+                    else:
+                        gold_courts = court_names
+                        silver_courts = [court_names[-1]] if include_silver else []
                     
                     def schedule_match(court, start_min, bmatch):
                         schedule_data[bracket_day][court].append({
@@ -2866,22 +2880,35 @@ def schedule():
                             'is_bracket': True
                         })
                     
-                    # Schedule Gold bracket - matches are already in execution order
-                    current_time = bracket_start
-                    for match in gold_matches:
-                        if match.get('is_bye', False):
-                            continue
-                        schedule_match(gold_court, current_time, match)
-                        current_time += slot_duration
-                    
-                    # Schedule Silver bracket - matches are already in execution order
-                    if include_silver and silver_matches:
-                        current_time = bracket_start
-                        for match in silver_matches:
-                            if match.get('is_bye', False):
+                    def schedule_bracket_matches(bracket_matches, assigned_courts):
+                        """Schedule bracket matches across courts, parallelizing within rounds."""
+                        # Group matches by time_slot (round dependency level)
+                        rounds = {}
+                        for m in bracket_matches:
+                            if m.get('is_bye', False):
                                 continue
-                            schedule_match(silver_court, current_time, match)
-                            current_time += slot_duration
+                            slot = m.get('time_slot', 0)
+                            if slot not in rounds:
+                                rounds[slot] = []
+                            rounds[slot].append(m)
+                        
+                        current_time = bracket_start
+                        for slot in sorted(rounds.keys()):
+                            round_matches = rounds[slot]
+                            # Distribute this round's matches across courts round-robin
+                            for i, bmatch in enumerate(round_matches):
+                                court = assigned_courts[i % len(assigned_courts)]
+                                schedule_match(court, current_time + (i // len(assigned_courts)) * slot_duration, bmatch)
+                            # Next round starts after all matches in this round complete
+                            rows_needed = (len(round_matches) + len(assigned_courts) - 1) // len(assigned_courts)
+                            current_time += rows_needed * slot_duration
+                    
+                    # Schedule Gold bracket
+                    schedule_bracket_matches(gold_matches, gold_courts)
+                    
+                    # Schedule Silver bracket
+                    if include_silver and silver_matches:
+                        schedule_bracket_matches(silver_matches, silver_courts)
                 
                 # Build time-aligned grid for display
                 # Collect all unique time slots across all courts for each day
