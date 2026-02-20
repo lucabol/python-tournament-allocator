@@ -671,21 +671,25 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
     bracket_results = results.get('bracket', {})
     
     # Build lookup for bracket match results
-    # Since bracket results are now stored with match_code keys (e.g., "W1-M1", "GF"),
-    # and schedule matches already have match_code, we can look them up directly.
-    # We still support the old bracket_key format for backward compatibility.
-    resolved_teams = {}  # match_code -> {'winner': team, 'loser': team, 'sets': [...]}
+    # bracket_results uses keys like "winners_Winners Quarterfinal_1" (from bracket UI)
+    # schedule matches have match_code like "W1-M1" (from execution order generator)
+    # These don't match directly, so we also build a team-pair lookup for matching.
+    resolved_teams = {}  # match_code or old_key -> result data
+    bracket_by_teams = {}  # frozenset({team1, team2}) -> result data
     
-    # Direct pass-through: bracket_results keys are already match_codes or old format
     for key, result in bracket_results.items():
         if result.get('completed'):
-            # If key is already a match_code (W1-M1, L2-M3, GF, BR), use it directly
-            # If key is old format (winners_Winners Quarterfinal_1), we'll fall back to it
-            resolved_teams[key] = {
+            result_data = {
                 'winner': result.get('winner'),
                 'loser': result.get('loser'),
                 'sets': result.get('sets', [])
             }
+            resolved_teams[key] = result_data
+            # Also index by team pair for fallback matching
+            t1 = result.get('team1', result.get('winner', ''))
+            t2 = result.get('team2', result.get('loser', ''))
+            if t1 and t2:
+                bracket_by_teams[frozenset([t1, t2])] = result_data
     
     # Process each day in the schedule
     for day, day_data in schedule_data.items():
@@ -762,13 +766,19 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
                     
                     match['teams'] = new_teams
                     
-                    # Check if this bracket match has results by match_code
+                    # Check if this bracket match has results
+                    # Try by match_code first, then fall back to team-pair matching
                     match_code = match.get('match_code', '')
-                    if match_code in resolved_teams:
+                    result_data = resolved_teams.get(match_code)
+                    if not result_data:
+                        # Fallback: match by resolved team names
+                        team_pair = frozenset(new_teams)
+                        result_data = bracket_by_teams.get(team_pair)
+                    if result_data:
                         match['result'] = {
-                            'winner': resolved_teams[match_code]['winner'],
-                            'loser': resolved_teams[match_code]['loser'],
-                            'sets': resolved_teams[match_code].get('sets', []),
+                            'winner': result_data['winner'],
+                            'loser': result_data['loser'],
+                            'sets': result_data.get('sets', []),
                             'completed': True
                         }
                 else:
