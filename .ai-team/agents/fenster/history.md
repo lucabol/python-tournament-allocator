@@ -103,3 +103,38 @@ Fenster is responsible for all Jinja2 templates, CSS styling, and client-side Ja
 - **What**: Moved "Unpaid Teams" button to second position in registration controls (after Open/Close toggle, before Copy Link). Changed button style from `btn-secondary` to `btn-primary` for blue background consistency with site's primary action buttons.
 - **Visual hierarchy**: Primary actions (Open toggle, Unpaid Teams) use blue/colored styling, secondary actions (Copy Link) use neutral gray. Button order now reflects importance: status toggle → quick access to unpaid list → utility (link sharing).
 
+### 2026-02-21: Page header consistency and registration banner cleanup
+- **Problem**: Three UI issues: (1) Registration page title showed "None" instead of "Team Registration", (2) Teams page registration banner was too large with oversized QR code (80x80px) and mismatched button heights, (3) Page headers were inconsistent across site.
+- **Fix**: (1) Changed register.html title block from "Register" to "Team Registration", (2) Reduced registration section padding from default to 0.75rem vertical, shrunk QR code from 80x80 to 56x56 pixels, created `.qr-code-small` CSS class with hover effect, standardized all buttons in registration controls to 32px height, (3) Standardized all page templates to use `<div class="page-header">` with optional `<div class="page-header-actions">` for action buttons.
+- **Pattern**: Page header structure is now consistent: `page-header` wraps h1 + optional `page-header-actions` div. This creates visual consistency and predictable layout across all pages (teams, courts, settings, schedule, tracking, awards, messages, tournaments, brackets). Registration banner is now more compact with reduced padding and smaller QR code, matching the visual weight of other sections.
+
+### 2026-02-21: Registration tab added to navbar
+- **What**: Added "Registration" navigation link as a tab after "Live" in the main navbar. Links to `public_register` route with current user and active tournament parameters. Only shows when an active tournament exists (matches Live tab pattern).
+- **Pattern**: Registration tab uses same conditional rendering as Live tab: shows parameterized URL (`url_for('public_register', username=current_user, slug=active_tournament)`) when `active_tournament` exists, hidden otherwise. Active state set when `request.endpoint == 'public_register'`.
+- **File**: `src/templates/base.html` line 51.
+
+### 2026-02-21: Account registration page tournament banner
+- **Problem**: Account registration page (`register.html`) showed bare h1 without tournament context banner.
+- **Fix**: Added `{% include '_tournament_header.html' %}` at the top of the content block, matching the pattern used in `live.html`. This shows the logo, club name, tournament name, and date.
+- **Pattern**: All public-facing pages should include the tournament header banner via `_tournament_header.html` to provide consistent branding and context. The partial expects `constraints` context with `club_name`, `tournament_name`, `tournament_date` keys.
+
+### 2026-02-21: QR code silent copy behavior
+- **What**: Removed alert message from `copyRegistrationLink()` function in teams.html. QR code now silently copies link to clipboard without showing "Registration link copied" alert.
+- **Why**: User feedback was that the alert was intrusive. QR code tooltip already indicates clickability ("Click to copy registration link"), so silent copy is sufficient. Maintains copy-on-click behavior without interruption.
+
+### 2026-02-21: Team registration banner fix
+- **Problem**: Team registration page (`/register/{username}/{slug}`) wasn't showing tournament header (logo, club name, tournament name, dates). The Flask `public_register()` route was passing a `tournament_info` dict to the template, but `team_register.html` expected individual variables (`tournament_name`, `organization_name`, `tournament_dates`, `tournament_location`, `logo_url`, `pools`).
+- **Fix**: Refactored route to load and pass correct template variables. Added logo loading from tournament directory with glob pattern matching, teams.yaml loading for pools display, and support for public logo access via `/api/logo?username=X&slug=Y` query params.
+- **Pattern**: Standalone templates (not extending base.html) that need tournament context require all data explicitly passed. Logo API endpoint now supports both authenticated access (from active tournament) and public access (via username/slug query params). Public tournament pages should receive: `tournament_name`, `organization_name`, `tournament_dates`, `tournament_location`, `logo_url`, `pools`, `registration_open`.
+- **Files**: `src/app.py` lines 1571-1659 (public_register route), lines 3594-3617 (api_logo endpoint).
+
+### 2026-02-21: QR code toast notification pattern
+- **What**: Re-implemented QR code click feedback using the dashboard's toast notification pattern. When QR code is clicked, the label below it briefly changes from "📋 Registration" to "✓ Copied!" for 2 seconds, then reverts. Added visible label span inside `#qr-registration` div and updated CSS to use flexbox column layout with centered items.
+- **Pattern**: Toast notifications use temporary label text swap with `setTimeout()` to revert. Structure requires a container with `display: flex; flex-direction: column; align-items: center;` and a span label as the child. JavaScript finds the label via `querySelector('span')`, stores original text, updates to "✓ Copied!", then reverts after 2000ms. This pattern is used consistently in index.html (dashboard) and now teams.html (registration QR).
+- **Files**: `src/templates/teams.html` (added label span on line 39, updated `copyRegistrationLink()` function lines 263-277), `src/static/style.css` (updated `.qr-code-small` to include flex layout, lines 3168-3177).
+
+### 2026-02-21: Account registration page banner removed
+- **What**: Removed tournament header banner from account registration page (`register.html`). This page is for creating user accounts, not team registrations, so tournament context doesn't belong here.
+- **Fix**: Deleted `{% include '_tournament_header.html' %}` from line 6. Auth container now appears directly under page header without tournament branding.
+- **Pattern**: Tournament header banner (`_tournament_header.html`) should only appear on public tournament pages (team registration, live view), not on account management pages (account registration, login).
+

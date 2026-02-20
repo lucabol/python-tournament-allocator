@@ -34,9 +34,9 @@
             <button type="button" class="btn btn-sm btn-primary" onclick="showUnpaidTeams()">
                 💰 Unpaid Teams
             </button>
-            <div id="qr-registration" style="display:inline-flex;flex-direction:column;align-items:center;gap:0.25rem;cursor:pointer;" onclick="copyRegistrationLink()" title="Click to copy registration link">
-                <div id="qr-reg-container" style="background:#fff;padding:3px;border-radius:4px;line-height:0;"></div>
-                <span style="font-size:0.7rem;color:var(--text-muted);">📋 Register</span>
+            <div id="qr-registration" class="qr-code-small" onclick="copyRegistrationLink()" title="Click to copy registration link">
+                <div id="qr-reg-container"></div>
+                <span style="font-size:0.75rem;margin-top:0.25rem;">Registration</span>
             </div>
         </div>
     </div>
@@ -266,8 +266,15 @@ function copyRegistrationLink() {
     const username = '{{ current_user }}';
     const slug = '{{ active_tournament }}';
     const url = window.location.origin + `/register/${username}/${slug}`;
-    navigator.clipboard.writeText(url).then(() => {
-        alert('Registration link copied to clipboard!');
+    const qrContainer = document.getElementById('qr-registration');
+    const label = qrContainer ? qrContainer.querySelector('span') : null;
+    
+    navigator.clipboard.writeText(url).then(function() {
+        if (label) {
+            const orig = label.textContent;
+            label.textContent = '✓ Copied!';
+            setTimeout(function() { label.textContent = orig; }, 2000);
+        }
     });
 }
 
@@ -344,8 +351,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (qrContainer && typeof QRCode !== 'undefined') {
         new QRCode(qrContainer, {
             text: regUrl,
-            width: 80,
-            height: 80,
+            width: 56,
+            height: 56,
             colorDark: '#000000',
             colorLight: '#ffffff',
             correctLevel: QRCode.CorrectLevel.M
@@ -553,10 +560,12 @@ async function showUnpaidTeams() {
         // Build the list
         let html = '<div class="unpaid-teams-grid">';
         result.unpaid_teams.forEach(team => {
+            const poolInfo = team.assigned_pool ? `📋 ${team.assigned_pool}` : '⏳ Unassigned';
             html += `
                 <div class="unpaid-team-item">
                     <div class="unpaid-team-name">🏐 ${team.team_name}</div>
                     <div class="unpaid-team-email">✉️ ${team.email || 'No email'}</div>
+                    <div class="unpaid-team-pool">${poolInfo}</div>
                 </div>
             `;
         });

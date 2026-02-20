@@ -48,6 +48,7 @@
             <li><a href="{{ url_for('insta') }}" {% if request.endpoint == 'insta' %}class="active"{% endif %}>Insta</a></li>
             {% if active_tournament %}
             <li><a href="{{ url_for('public_live', username=current_user, slug=active_tournament) }}" {% if request.endpoint == 'live' or request.endpoint == 'public_live' %}class="active"{% endif %}>Live</a></li>
+            <li><a href="{{ url_for('public_register', username=current_user, slug=active_tournament) }}" {% if request.endpoint == 'public_register' %}class="active"{% endif %}>Registration</a></li>
             {% else %}
             <li><a href="{{ url_for('live') }}" {% if request.endpoint == 'live' %}class="active"{% endif %}>Live</a></li>
             {% endif %}

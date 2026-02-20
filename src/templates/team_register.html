@@ -278,17 +278,6 @@
                 {% endif %}
             </div>
             
-            {% if pools %}
-            <div class="pools-info">
-                <h3>Tournament Pools</h3>
-                <div class="pools-list">
-                    {% for pool_name in pools.keys() %}
-                    <div class="pool-tag">{{ pool_name }}</div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-            
             <div id="message-container"></div>
             
             {% if registration_open %}

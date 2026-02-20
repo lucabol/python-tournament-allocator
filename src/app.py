@@ -1566,16 +1566,27 @@ def public_register(username, slug):
     tournament_dir = os.path.join(user_dir, 'tournaments', slug)
     registrations_file = os.path.join(tournament_dir, 'registrations.yaml')
     constraints_file = os.path.join(tournament_dir, 'constraints.yaml')
+    teams_file = os.path.join(tournament_dir, 'teams.yaml')
     
     # Load constraints for tournament info
-    tournament_info = {'name': tournament.get('name', 'Tournament'), 'date': '', 'club': ''}
+    tournament_name = tournament.get('name', 'Tournament')
+    tournament_dates = ''
+    organization_name = ''
+    tournament_location = ''
     if os.path.exists(constraints_file):
         with open(constraints_file, 'r', encoding='utf-8') as f:
             constraints = yaml.safe_load(f)
             if constraints:
-                tournament_info['name'] = constraints.get('tournament_name', tournament_info['name'])
-                tournament_info['date'] = constraints.get('tournament_date', '')
-                tournament_info['club'] = constraints.get('club_name', '')
+                tournament_name = constraints.get('tournament_name', tournament_name)
+                tournament_dates = constraints.get('tournament_date', '')
+                organization_name = constraints.get('club_name', '')
+                tournament_location = constraints.get('tournament_location', '')
+    
+    # Load pools
+    pools = {}
+    if os.path.exists(teams_file):
+        with open(teams_file, 'r', encoding='utf-8') as f:
+            pools = yaml.safe_load(f) or {}
     
     # Load registrations
     if os.path.exists(registrations_file):
@@ -1628,8 +1639,24 @@ def public_register(username, slug):
     
     # GET: render registration form
     registration_open = registrations.get('registration_open', False)
+    
+    # Check for logo in tournament directory
+    logo_prefix = os.path.join(tournament_dir, 'logo')
+    logo_matches = glob.glob(logo_prefix + '.*')
+    if logo_matches:
+        # Serve logo from tournament directory using a public endpoint
+        # We'll use /api/logo with query params for public access
+        logo_url = f'/api/logo?username={username}&slug={slug}'
+    else:
+        logo_url = DEFAULT_LOGO_URL
+    
     return render_template('team_register.html', 
-                          tournament_info=tournament_info, 
+                          tournament_name=tournament_name,
+                          organization_name=organization_name,
+                          tournament_dates=tournament_dates,
+                          tournament_location=tournament_location,
+                          logo_url=logo_url,
+                          pools=pools,
                           registration_open=registration_open,
                           username=username,
                           slug=slug)
@@ -2091,7 +2118,7 @@ def api_update_settings():
 def api_reset_all():
     """Reset all tournament data."""
     # Clear all data files
-    for fname in ['teams.yaml', 'courts.csv', 'results.yaml', 'schedule.yaml', 'constraints.yaml']:
+    for fname in ['teams.yaml', 'courts.csv', 'results.yaml', 'schedule.yaml', 'constraints.yaml', 'registrations.yaml']:
         fpath = _file_path(fname)
         if os.path.exists(fpath):
             os.remove(fpath)
@@ -3569,7 +3596,24 @@ def api_public_live_stream(username, slug):
 
 @app.route('/api/logo')
 def api_logo():
-    """Serve the uploaded logo, or redirect to default."""
+    """Serve the uploaded logo, or redirect to default.
+    
+    Supports public access with ?username=X&slug=Y query params.
+    """
+    username = request.args.get('username')
+    slug = request.args.get('slug')
+    
+    if username and slug:
+        # Public access - serve logo from specific tournament
+        user_dir = os.path.join(USERS_DIR, username)
+        tournament_dir = os.path.join(user_dir, 'tournaments', slug)
+        logo_prefix = os.path.join(tournament_dir, 'logo')
+        matches = glob.glob(logo_prefix + '.*')
+        if matches:
+            return send_file(matches[0])
+        return redirect(DEFAULT_LOGO_URL)
+    
+    # Authenticated access - use active tournament
     logo_path = _find_logo_file()
     if logo_path:
         return send_file(logo_path)
