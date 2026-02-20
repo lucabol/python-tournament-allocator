@@ -2423,7 +2423,13 @@ def api_generate_random_bracket_results():
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
-                                'completed': True
+                                'completed': True,
+                                'team1': team1,
+                                'team2': team2,
+                                'bracket_type': 'winners',
+                                'round': round_name,
+                                'match_number': match_number,
+                                'match_code': match.get('match_code', '')
                             }
                             updated = True
             
@@ -2450,7 +2456,13 @@ def api_generate_random_bracket_results():
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
-                                'completed': True
+                                'completed': True,
+                                'team1': team1,
+                                'team2': team2,
+                                'bracket_type': 'losers',
+                                'round': round_name,
+                                'match_number': match_number,
+                                'match_code': match.get('match_code', '')
                             }
                             updated = True
             
@@ -2475,7 +2487,13 @@ def api_generate_random_bracket_results():
                         'sets': sets,
                         'winner': winner,
                         'loser': loser,
-                        'completed': True
+                        'completed': True,
+                        'team1': team1,
+                        'team2': team2,
+                        'bracket_type': 'grand_final',
+                        'round': 'Grand Final',
+                        'match_number': 1,
+                        'match_code': gf.get('match_code', 'GF')
                     }
                     updated = True
             
@@ -2500,7 +2518,13 @@ def api_generate_random_bracket_results():
                         'sets': sets,
                         'winner': winner,
                         'loser': loser,
-                        'completed': True
+                        'completed': True,
+                        'team1': team1,
+                        'team2': team2,
+                        'bracket_type': 'bracket_reset',
+                        'round': 'Bracket Reset',
+                        'match_number': 1,
+                        'match_code': br.get('match_code', 'BR')
                     }
                     updated = True
         else:
@@ -2527,7 +2551,13 @@ def api_generate_random_bracket_results():
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
-                                'completed': True
+                                'completed': True,
+                                'team1': team1,
+                                'team2': team2,
+                                'bracket_type': 'winners',
+                                'round': round_name,
+                                'match_number': match_number,
+                                'match_code': match.get('match_code', '')
                             }
                             updated = True
     
@@ -2573,7 +2603,13 @@ def api_generate_random_bracket_results():
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
-                                'completed': True
+                                'completed': True,
+                                'team1': team1,
+                                'team2': team2,
+                                'bracket_type': 'silver_winners',
+                                'round': round_name,
+                                'match_number': match_number,
+                                'match_code': match.get('match_code', '')
                             }
                             updated = True
         
@@ -2619,7 +2655,13 @@ def api_generate_random_bracket_results():
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
-                                'completed': True
+                                'completed': True,
+                                'team1': team1,
+                                'team2': team2,
+                                'bracket_type': 'silver_winners',
+                                'round': round_name,
+                                'match_number': match_number,
+                                'match_code': match.get('match_code', '')
                             }
                             updated = True
             
@@ -2646,7 +2688,13 @@ def api_generate_random_bracket_results():
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
-                                'completed': True
+                                'completed': True,
+                                'team1': team1,
+                                'team2': team2,
+                                'bracket_type': 'silver_losers',
+                                'round': round_name,
+                                'match_number': match_number,
+                                'match_code': match.get('match_code', '')
                             }
                             updated = True
             
@@ -2671,7 +2719,13 @@ def api_generate_random_bracket_results():
                         'sets': sets,
                         'winner': winner,
                         'loser': loser,
-                        'completed': True
+                        'completed': True,
+                        'team1': team1,
+                        'team2': team2,
+                        'bracket_type': 'silver_grand_final',
+                        'round': 'Grand Final',
+                        'match_number': 1,
+                        'match_code': gf.get('match_code', 'SGF')
                     }
                     updated = True
             
@@ -2696,7 +2750,13 @@ def api_generate_random_bracket_results():
                         'sets': sets,
                         'winner': winner,
                         'loser': loser,
-                        'completed': True
+                        'completed': True,
+                        'team1': team1,
+                        'team2': team2,
+                        'bracket_type': 'silver_bracket_reset',
+                        'round': 'Bracket Reset',
+                        'match_number': 1,
+                        'match_code': br.get('match_code', 'SBR')
                     }
                     updated = True
         
