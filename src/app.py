@@ -17,6 +17,8 @@ from functools import wraps
 from filelock import FileLock
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file, session, g, abort
 from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from core.models import Team, Court
 from core.allocation import AllocationManager
 from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling
@@ -25,6 +27,7 @@ from generate_matches import generate_pool_play_matches, generate_elimination_ma
 
 app = Flask(__name__)
 csrf = CSRFProtect(app)
+limiter = Limiter(get_remote_address, app=app, default_limits=[])
 
 
 def _get_or_create_secret_key() -> bytes:
@@ -47,7 +50,16 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DATA_DIR = os.environ.get('TOURNAMENT_DATA_DIR', os.path.join(BASE_DIR, 'data'))
 
 app.secret_key = _get_or_create_secret_key()
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=3650)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
 
 # Paths to data files (legacy constants — kept for migration; use _file_path() in routes)
 TEAMS_FILE = os.path.join(DATA_DIR, 'teams.yaml')
@@ -117,8 +129,8 @@ def create_user(username: str, password: str) -> tuple:
     username = username.lower().strip()
     if not re.match(r'^[a-z0-9][a-z0-9-]*$', username) or len(username) < 2:
         return False, 'Username must be at least 2 characters: letters, numbers, hyphens.'
-    if len(password) < 4:
-        return False, 'Password must be at least 4 characters.'
+    if len(password) < 8:
+        return False, 'Password must be at least 8 characters.'
     with _data_lock:
         users = load_users()
         if any(u['username'] == username for u in users):
@@ -1211,6 +1223,7 @@ def inject_tournament_context():
 
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute", methods=["POST"])
 def login_page():
     """Login form and authentication."""
     if 'user' in session:
@@ -3778,6 +3791,9 @@ def api_logo():
     slug = request.args.get('slug')
     
     if username and slug:
+        for part in (username, slug):
+            if '..' in part or '/' in part or '\\' in part:
+                abort(400)
         # Public access - serve logo from specific tournament
         user_dir = os.path.join(USERS_DIR, username)
         tournament_dir = os.path.join(user_dir, 'tournaments', slug)
@@ -4849,4 +4865,4 @@ def api_switch_tournament():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true', port=5000)
