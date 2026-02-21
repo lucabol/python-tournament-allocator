@@ -19,6 +19,7 @@ from app import app, load_teams, save_teams, load_constraints, get_default_const
 def client():
     """Create an authenticated test client."""
     app.config['TESTING'] = True
+    app.config['WTF_CSRF_ENABLED'] = False
     with app.test_client() as client:
         with client.session_transaction() as sess:
             sess['user'] = 'testuser'

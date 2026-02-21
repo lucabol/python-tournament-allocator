@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from filelock import FileLock
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file, session, g, abort
+from flask_wtf.csrf import CSRFProtect
 from core.models import Team, Court
 from core.allocation import AllocationManager
 from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling
@@ -23,6 +24,7 @@ from core.double_elimination import get_double_elimination_bracket_display, gene
 from generate_matches import generate_pool_play_matches, generate_elimination_matches
 
 app = Flask(__name__)
+csrf = CSRFProtect(app)
 
 
 def _get_or_create_secret_key() -> bytes:
@@ -1353,6 +1355,7 @@ def index():
 
 
 @app.route('/teams', methods=['GET', 'POST'])
+@login_required
 def teams():
     """Teams management page."""
     if request.method == 'POST':
@@ -1604,6 +1607,7 @@ def teams():
 
 
 @app.route('/register/<username>/<slug>', methods=['GET', 'POST'])
+@csrf.exempt
 def public_register(username, slug):
     """Public team registration page (no login required)."""
     # Verify tournament exists
@@ -1911,6 +1915,7 @@ def api_unpaid_teams():
 
 
 @app.route('/courts', methods=['GET', 'POST'])
+@login_required
 def courts():
     """Courts management page."""
     if request.method == 'POST':
@@ -1992,6 +1997,7 @@ def courts():
 
 # AJAX API endpoints for auto-save
 @app.route('/api/teams/edit_pool', methods=['POST'])
+@login_required
 def api_edit_pool():
     """AJAX endpoint for editing pool name."""
     data = request.get_json()
@@ -2012,6 +2018,7 @@ def api_edit_pool():
 
 
 @app.route('/api/teams/edit_team', methods=['POST'])
+@login_required
 def api_edit_team():
     """AJAX endpoint for editing team name."""
     data = request.get_json()
@@ -2047,6 +2054,7 @@ def api_edit_team():
 
 
 @app.route('/api/teams/update_advance', methods=['POST'])
+@login_required
 def api_update_advance():
     """AJAX endpoint for updating advance count."""
     data = request.get_json()
@@ -2113,6 +2121,7 @@ def api_export_teams():
 
 
 @app.route('/api/courts/edit', methods=['POST'])
+@login_required
 def api_edit_court():
     """AJAX endpoint for editing court name."""
     data = request.get_json()
@@ -2138,6 +2147,7 @@ def api_edit_court():
 
 
 @app.route('/api/settings/update', methods=['POST'])
+@login_required
 def api_update_settings():
     """AJAX endpoint for updating settings."""
     data = request.get_json()
@@ -2176,6 +2186,7 @@ def api_update_settings():
 
 
 @app.route('/api/reset', methods=['POST'])
+@login_required
 def api_reset_all():
     """Reset all tournament data."""
     # Clear all data files
@@ -2189,6 +2200,7 @@ def api_reset_all():
 
 
 @app.route('/api/test-data', methods=['POST'])
+@login_required
 def api_load_test_data():
     """Load test data for development/testing."""
     # Test teams - 4 pools with 4 teams each
@@ -2231,6 +2243,7 @@ def api_load_test_data():
 
 
 @app.route('/api/test-teams', methods=['POST'])
+@login_required
 def api_load_test_teams():
     """Load test teams for development/testing."""
     test_teams = {
@@ -2282,6 +2295,7 @@ def api_load_test_teams():
 
 
 @app.route('/api/test-courts', methods=['POST'])
+@login_required
 def api_load_test_courts():
     """Load test courts for development/testing."""
     test_courts = [
@@ -2301,6 +2315,7 @@ def api_load_test_courts():
 
 
 @app.route('/api/generate-random-results', methods=['POST'])
+@login_required
 def api_generate_random_results():
     """Generate random results for all scheduled pool matches."""
     import random
@@ -2363,6 +2378,7 @@ def api_generate_random_results():
 
 
 @app.route('/api/generate-random-bracket-results', methods=['POST'])
+@login_required
 def api_generate_random_bracket_results():
     """Generate random results for all playable bracket matches."""
     import random
@@ -2768,6 +2784,7 @@ def api_generate_random_bracket_results():
 
 @app.route('/settings', methods=['GET', 'POST'])
 @app.route('/constraints', methods=['GET', 'POST'])  # Keep old URL for compatibility
+@login_required
 def settings():
     """Settings management page."""
     if request.method == 'POST':
@@ -2849,6 +2866,7 @@ def bracket():
 
 
 @app.route('/schedule', methods=['GET', 'POST'])
+@login_required
 def schedule():
     """Generate and display schedule."""
     schedule_data = None
@@ -3163,6 +3181,7 @@ def messages():
 
 
 @app.route('/api/awards/add', methods=['POST'])
+@login_required
 def api_awards_add():
     """Add a new award."""
     data = request.get_json()
@@ -3188,6 +3207,7 @@ def api_awards_add():
 
 
 @app.route('/api/awards/delete', methods=['POST'])
+@login_required
 def api_awards_delete():
     """Delete an award by ID."""
     data = request.get_json()
@@ -3218,6 +3238,7 @@ def api_awards_delete():
 
 
 @app.route('/api/awards/upload-image', methods=['POST'])
+@login_required
 def api_awards_upload_image():
     """Upload a custom award image."""
     file = request.files.get('image')
@@ -3236,6 +3257,8 @@ def api_awards_upload_image():
 @app.route('/api/awards/image/<filename>')
 def api_awards_image(filename):
     """Serve a custom award image from the tournament directory."""
+    if '/' in filename or '\\' in filename or '..' in filename:
+        abort(400)
     image_path = os.path.join(_tournament_dir(), filename)
     if not os.path.exists(image_path):
         abort(404)
@@ -3243,6 +3266,7 @@ def api_awards_image(filename):
 
 
 @app.route('/api/test-awards', methods=['POST'])
+@login_required
 def api_test_awards():
     """Load sample beach volleyball awards for testing."""
     test_awards = [
@@ -3269,6 +3293,7 @@ def api_awards_samples():
 
 
 @app.route('/api/report-result/<username>/<slug>', methods=['POST'])
+@csrf.exempt
 def api_report_result(username, slug):
     """Public API endpoint for players to report match scores.
     
@@ -3465,6 +3490,7 @@ def api_dismiss_result(username, slug):
 
 
 @app.route('/api/message/<username>/<slug>', methods=['POST'])
+@csrf.exempt
 def api_message(username, slug):
     """Public endpoint for players to send messages to organizers from Live page.
     
@@ -3769,6 +3795,7 @@ def api_logo():
 
 
 @app.route('/api/upload-logo', methods=['POST'])
+@login_required
 def api_upload_logo():
     """Upload a custom logo image."""
     file = request.files.get('logo')
@@ -3829,6 +3856,7 @@ def api_export_schedule_csv():
 
 
 @app.route('/api/results/pool', methods=['POST'])
+@login_required
 def save_pool_result():
     """API endpoint to save a pool play match result."""
     data = request.get_json()
@@ -3911,6 +3939,7 @@ def save_pool_result():
 
 
 @app.route('/api/results/bracket', methods=['POST'])
+@login_required
 def save_bracket_result():
     """API endpoint to save a bracket match result."""
     data = request.get_json()
@@ -3995,6 +4024,7 @@ def save_bracket_result():
 
 
 @app.route('/api/clear-result', methods=['POST'])
+@login_required
 def api_clear_result():
     """API endpoint to clear/delete a match result."""
     data = request.get_json()
@@ -4310,6 +4340,7 @@ def schedule_double_elimination():
 
 
 @app.route('/api/export/tournament')
+@login_required
 def api_export_tournament():
     """Export all tournament data as a downloadable ZIP file."""
     buffer = io.BytesIO()
@@ -4337,6 +4368,7 @@ def api_export_tournament():
 
 
 @app.route('/api/import/tournament', methods=['POST'])
+@login_required
 def api_import_tournament():
     """Import tournament data from an uploaded ZIP file, replacing current data."""
     file = request.files.get('file')
@@ -4584,6 +4616,7 @@ def api_admin_export():
 
 
 @app.route('/api/admin/import', methods=['POST'])
+@csrf.exempt
 @require_backup_key
 def api_admin_import():
     """Import entire DATA_DIR from an uploaded ZIP file (admin restore)."""
@@ -4657,6 +4690,7 @@ def tournaments():
 
 
 @app.route('/api/tournaments/create', methods=['POST'])
+@login_required
 def api_create_tournament():
     """Create a new tournament."""
     name = request.form.get('name', '').strip()
@@ -4699,6 +4733,7 @@ def api_create_tournament():
 
 
 @app.route('/api/tournaments/delete', methods=['POST'])
+@login_required
 def api_delete_tournament():
     """Delete a tournament."""
     slug = request.form.get('slug', '').strip()
@@ -4734,6 +4769,7 @@ def api_delete_tournament():
 
 
 @app.route('/api/tournaments/clone', methods=['POST'])
+@login_required
 def api_clone_tournament():
     """Clone an existing tournament under a new name."""
     source_slug = request.form.get('slug', '').strip()
@@ -4793,6 +4829,7 @@ def api_clone_tournament():
 
 
 @app.route('/api/tournaments/switch', methods=['POST'])
+@login_required
 def api_switch_tournament():
     """Switch active tournament."""
     slug = request.form.get('slug', '').strip()
