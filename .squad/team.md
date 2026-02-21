@@ -17,6 +17,7 @@
 | Fenster | Frontend Dev | `.ai-team/agents/fenster/charter.md` | ✅ Active |
 | Hockney | Tester | `.ai-team/agents/hockney/charter.md` | ✅ Active |
 | Keaton | Azure Deployment | `.ai-team/agents/keaton/charter.md` | ✅ Active |
+| Kobayashi | Security Engineer | `.ai-team/agents/kobayashi/charter.md` | ✅ Active |
 | Scribe | Session Logger | `.ai-team/agents/scribe/charter.md` | 📋 Silent |
 | Ralph | Work Monitor | — | 🔄 Monitor |
 

@@ -12,6 +12,7 @@ How to decide who handles what.
 | Code review | Verbal | Review PRs, check quality, suggest improvements |
 | Testing | Hockney | Write tests, find edge cases, verify fixes |
 | Azure deployment, CI/CD, infrastructure | Keaton | App Service config, GitHub Actions, deployment scripts, monitoring |
+| Security review, auth, input validation, vulnerabilities | Kobayashi | OWASP audit, XSS/CSRF/injection checks, session security, secret management |
 | Scope & priorities | Verbal | What to build next, trade-offs, decisions |
 | Session logging | Scribe | Automatic — never needs routing |
 

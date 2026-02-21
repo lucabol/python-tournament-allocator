@@ -1,0 +1,14 @@
+{
+  "marketplaces": [
+    {
+      "name": "awesome-copilot",
+      "source": "github/awesome-copilot",
+      "added_at": "2026-02-21T09:09:00Z"
+    },
+    {
+      "name": "security-hardening",
+      "source": "github/security-hardening",
+      "added_at": "2026-02-21T09:11:00Z"
+    }
+  ]
+}
