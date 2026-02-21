@@ -1132,6 +1132,7 @@ def set_active_tournament():
     # Skip auth for static files, login, register, and API key authenticated endpoints
     if request.endpoint in ('static', 'login_page', 'register_page', 'public_register',
                             'public_live', 'api_public_live_html', 'api_public_live_stream',
+                            'api_report_result', 'api_message', 'api_logo',
                             'api_admin_export', 'api_admin_import', None):
         return
 
