@@ -81,13 +81,10 @@ def seed_teams_from_pools(pools: Dict[str, Dict], standings: Optional[Dict] = No
                 
                 teams_at_position.append((team_name, pool_name, team_stats))
         
-        # Sort by tiebreaker hierarchy: wins desc, set_diff desc, point_diff desc, pool_name asc
-        def _sort_key(t):
-            stats = t[2]
-            if stats is None:
-                return (0, 0, 0, t[1])
-            return (-stats.get('wins', 0), -stats.get('set_diff', 0), -stats.get('point_diff', 0), t[1])
-        teams_at_position.sort(key=_sort_key)
+        # Sort by pool name only — cross-pool ordering must be deterministic
+        # and match the schedule (generated before standings exist).
+        # Within-pool ordering is handled by calculate_pool_standings.
+        teams_at_position.sort(key=lambda t: t[1])
         
         for team_name, pool_name, _ in teams_at_position:
             seeded_teams.append((team_name, seed, pool_name))
@@ -145,13 +142,9 @@ def seed_silver_bracket_teams(pools: Dict[str, Dict], standings: Optional[Dict] 
                 
                 teams_at_position.append((team_name, pool_name, team_stats))
         
-        # Sort by tiebreaker hierarchy: wins desc, set_diff desc, point_diff desc, pool_name asc
-        def _sort_key(t):
-            stats = t[2]
-            if stats is None:
-                return (0, 0, 0, t[1])
-            return (-stats.get('wins', 0), -stats.get('set_diff', 0), -stats.get('point_diff', 0), t[1])
-        teams_at_position.sort(key=_sort_key)
+        # Sort by pool name only — cross-pool ordering must be deterministic
+        # and match the schedule (generated before standings exist).
+        teams_at_position.sort(key=lambda t: t[1])
         
         for team_name, pool_name, _ in teams_at_position:
             seeded_teams.append((team_name, seed, pool_name))
