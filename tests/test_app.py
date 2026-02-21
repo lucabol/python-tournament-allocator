@@ -2026,3 +2026,167 @@ class TestNavigationWithStaleSession:
         with open(user_reg, 'r') as f:
             updated_tournaments = yaml.safe_load(f)
         assert updated_tournaments['active'] == 'default'
+
+
+class TestBracketScheduleRoundTrip:
+    """Integration test: bracket results saved via API appear correctly in enriched schedule."""
+
+    def _setup_tournament_with_schedule(self, temp_data_dir):
+        """Set up a 4-pool tournament with courts, constraints, and a saved schedule containing bracket matches."""
+        import app as app_module
+
+        pools = {
+            'Pool A': {'teams': ['A1', 'A2', 'A3'], 'advance': 2},
+            'Pool B': {'teams': ['B1', 'B2', 'B3'], 'advance': 2},
+        }
+        teams_file = temp_data_dir / "teams.yaml"
+        teams_file.write_text(yaml.dump(pools, default_flow_style=False))
+
+        courts_file = temp_data_dir / "courts.csv"
+        courts_file.write_text("court_name,start_time,end_time\nCourt 1,08:00,22:00\nCourt 2,08:00,22:00\n")
+
+        constraints = {
+            'match_duration_minutes': 30,
+            'days_number': 1,
+            'min_break_between_matches_minutes': 0,
+            'day_end_time_limit': '22:00',
+            'bracket_type': 'double',
+            'scoring_format': 'single_set',
+            'pool_in_same_court': False,
+            'silver_bracket_enabled': False,
+        }
+        constraints_file = temp_data_dir / "constraints.yaml"
+        constraints_file.write_text(yaml.dump(constraints, default_flow_style=False))
+
+        return pools
+
+    def test_bracket_result_round_trip_via_random_generation(self, client, temp_data_dir):
+        """
+        Full round-trip: generate schedule → random pool results → random bracket results →
+        load enriched schedule → verify every bracket match with a result in results.yaml
+        also appears with that result in the enriched schedule.
+        """
+        import app as app_module
+
+        pools = self._setup_tournament_with_schedule(temp_data_dir)
+
+        # Generate schedule via POST
+        resp = client.post('/schedule', follow_redirects=True)
+        assert resp.status_code == 200
+
+        # Generate random pool results
+        resp = client.post('/api/generate-random-results')
+        assert resp.status_code == 200
+        assert resp.get_json()['success'] is True
+
+        # Generate random bracket results
+        resp = client.post('/api/generate-random-bracket-results')
+        assert resp.status_code == 200
+        assert resp.get_json()['success'] is True
+
+        # Load raw data
+        results = app_module.load_results()
+        bracket_results = results.get('bracket', {})
+        schedule_data, _ = app_module.load_schedule()
+        standings = app_module.calculate_pool_standings(pools, results)
+
+        # Enrich schedule
+        enriched = app_module.enrich_schedule_with_results(schedule_data, results, pools, standings)
+
+        # Collect all bracket matches from the enriched schedule, keyed by match_code
+        schedule_bracket_matches = {}
+        for day, day_data in enriched.items():
+            if day == '_time_slots':
+                continue
+            for court_name, court_data in day_data.items():
+                if court_name == '_time_slots':
+                    continue
+                for match in court_data.get('matches', []):
+                    if match.get('is_bracket') and match.get('match_code'):
+                        schedule_bracket_matches[match['match_code']] = match
+
+        # For every completed bracket result keyed by match_code, verify it shows up in schedule
+        match_codes_checked = 0
+        for key, result in bracket_results.items():
+            if not result.get('completed'):
+                continue
+            mc = result.get('match_code', '')
+            # Only check results stored under their match_code (not the old-format duplicates)
+            if mc and key == mc and mc in schedule_bracket_matches:
+                sched_match = schedule_bracket_matches[mc]
+                sched_result = sched_match.get('result')
+                assert sched_result is not None, \
+                    f"Bracket match {mc} has result in results.yaml but NOT in enriched schedule"
+                assert sched_result['winner'] == result['winner'], \
+                    f"Winner mismatch for {mc}: results.yaml={result['winner']}, schedule={sched_result['winner']}"
+                assert sched_result['completed'] is True
+                match_codes_checked += 1
+
+        # Ensure we actually checked some matches
+        assert match_codes_checked > 0, \
+            "No bracket match codes were verified — test setup may be broken"
+
+    def test_save_bracket_result_uses_match_code_key(self, client, temp_data_dir):
+        """Verify save_bracket_result stores under match_code as primary key."""
+        import app as app_module
+
+        self._setup_tournament_with_schedule(temp_data_dir)
+
+        # Save a bracket result with match_code
+        resp = client.post('/api/results/bracket', json={
+            'team1': 'A1',
+            'team2': 'B2',
+            'round': 'Winners Quarterfinal',
+            'match_number': 1,
+            'bracket_type': 'winners',
+            'match_code': 'W1-M1',
+            'sets': [[21, 15]],
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data['success'] is True
+        assert data['winner'] == 'A1'
+
+        # Verify the result is stored under match_code key
+        results = app_module.load_results()
+        bracket = results.get('bracket', {})
+        assert 'W1-M1' in bracket, "Result should be stored under match_code key"
+        assert bracket['W1-M1']['winner'] == 'A1'
+        # Backward compat: old key should also exist
+        old_key = 'winners_Winners Quarterfinal_1'
+        assert old_key in bracket, "Result should also be stored under old-format key for backward compat"
+
+    def test_clear_bracket_result_removes_both_keys(self, client, temp_data_dir):
+        """Verify clearing a bracket result removes both match_code and old-format keys."""
+        import app as app_module
+
+        self._setup_tournament_with_schedule(temp_data_dir)
+
+        # Save a bracket result
+        client.post('/api/results/bracket', json={
+            'team1': 'A1',
+            'team2': 'B2',
+            'round': 'Winners Semifinal',
+            'match_number': 1,
+            'bracket_type': 'winners',
+            'match_code': 'W2-M1',
+            'sets': [[21, 15]],
+        })
+
+        # Clear by sending empty sets
+        resp = client.post('/api/results/bracket', json={
+            'team1': 'A1',
+            'team2': 'B2',
+            'round': 'Winners Semifinal',
+            'match_number': 1,
+            'bracket_type': 'winners',
+            'match_code': 'W2-M1',
+            'sets': [],
+        })
+        assert resp.status_code == 200
+        assert resp.get_json()['cleared'] is True
+
+        results = app_module.load_results()
+        bracket = results.get('bracket', {})
+        assert 'W2-M1' not in bracket, "match_code key should be cleared"
+        assert 'winners_Winners Semifinal_1' not in bracket, "old-format key should also be cleared"

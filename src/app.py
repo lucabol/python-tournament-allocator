@@ -685,53 +685,10 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
     bracket_results = results.get('bracket', {})
     
     # Build lookups for bracket match results
-    # bracket_results uses keys like "winners_Winners Quarterfinal_1" (from bracket UI)
-    # schedule matches have match_code like "W1-M1" (from execution order generator)
-    # We index by: (1) original key, (2) match_code from stored result, (3) team pair
-    resolved_teams = {}  # match_code or old_key -> result data
+    # Results are now primarily keyed by match_code (e.g. "W1-M1")
+    # with old-format keys kept for backward compat
+    resolved_teams = {}  # match_code -> result data
     bracket_by_teams = {}  # frozenset({team1, team2}) -> result data
-    
-    # Build round_name -> round_index mapping from all bracket results
-    # Group results by bracket_type to determine round ordering
-    round_indices = {}  # (bracket_type_prefix, round_name) -> round_index
-    for prefix in ['winners', 'losers', 'silver_winners', 'silver_losers']:
-        rounds_seen = []
-        for key, result in bracket_results.items():
-            bt = result.get('bracket_type', '')
-            rnd = result.get('round', '')
-            if bt == prefix and rnd and rnd not in rounds_seen:
-                rounds_seen.append(rnd)
-        for idx, rnd in enumerate(rounds_seen):
-            round_indices[(prefix, rnd)] = idx + 1
-    
-    def derive_match_code(result):
-        """Derive match_code from bracket_type, round, match_number."""
-        bt = result.get('bracket_type', '')
-        mn = result.get('match_number', '')
-        if not bt or mn == '' or mn is None:
-            return ''
-        mn = int(mn)
-        rnd = result.get('round', '')
-        
-        if bt == 'grand_final':
-            return 'GF'
-        elif bt == 'bracket_reset':
-            return 'BR'
-        elif bt == 'silver_grand_final':
-            return 'SGF'
-        elif bt == 'silver_bracket_reset':
-            return 'SBR'
-        
-        # Map bracket_type to code prefix
-        prefix_map = {'winners': 'W', 'losers': 'L', 'silver_winners': 'SW', 'silver_losers': 'SL'}
-        code_prefix = prefix_map.get(bt, '')
-        if not code_prefix:
-            return ''
-        
-        ri = round_indices.get((bt, rnd), 0)
-        if ri:
-            return f'{code_prefix}{ri}-M{mn}'
-        return ''
     
     for key, result in bracket_results.items():
         if result.get('completed'):
@@ -741,15 +698,10 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
                 'sets': result.get('sets', [])
             }
             resolved_teams[key] = result_data
-            # Index by stored match_code
+            # Also index by stored match_code field for backward compat
             mc = result.get('match_code', '')
-            if mc:
+            if mc and mc != key:
                 resolved_teams[mc] = result_data
-            # Also try to derive match_code from old fields
-            if not mc:
-                mc = derive_match_code(result)
-                if mc:
-                    resolved_teams[mc] = result_data
             # Also index by team pair for fallback matching
             t1 = result.get('team1', result.get('winner', ''))
             t2 = result.get('team2', result.get('loser', ''))
@@ -2437,8 +2389,10 @@ def api_generate_random_bracket_results():
                         team1, team2 = match['teams']
                         match_number = match['match_number']
                         match_key = f"winners_{round_name}_{match_number}"
+                        mc = match.get('match_code', '')
+                        primary_key = mc if mc else match_key
                         
-                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                        if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                             winner_score = 21
                             loser_score = random.randint(10, 19)
                             
@@ -2449,7 +2403,7 @@ def api_generate_random_bracket_results():
                                 sets = [[loser_score, winner_score]]
                                 winner, loser = team2, team1
                             
-                            bracket_results[match_key] = {
+                            result_entry = {
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
@@ -2459,8 +2413,11 @@ def api_generate_random_bracket_results():
                                 'bracket_type': 'winners',
                                 'round': round_name,
                                 'match_number': match_number,
-                                'match_code': match.get('match_code', '')
+                                'match_code': mc
                             }
+                            bracket_results[primary_key] = result_entry
+                            if match_key != primary_key:
+                                bracket_results[match_key] = result_entry
                             updated = True
             
             # Process losers bracket
@@ -2470,8 +2427,10 @@ def api_generate_random_bracket_results():
                         team1, team2 = match['teams']
                         match_number = match['match_number']
                         match_key = f"losers_{round_name}_{match_number}"
+                        mc = match.get('match_code', '')
+                        primary_key = mc if mc else match_key
                         
-                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                        if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                             winner_score = 21
                             loser_score = random.randint(10, 19)
                             
@@ -2482,7 +2441,7 @@ def api_generate_random_bracket_results():
                                 sets = [[loser_score, winner_score]]
                                 winner, loser = team2, team1
                             
-                            bracket_results[match_key] = {
+                            result_entry = {
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
@@ -2492,8 +2451,11 @@ def api_generate_random_bracket_results():
                                 'bracket_type': 'losers',
                                 'round': round_name,
                                 'match_number': match_number,
-                                'match_code': match.get('match_code', '')
+                                'match_code': mc
                             }
+                            bracket_results[primary_key] = result_entry
+                            if match_key != primary_key:
+                                bracket_results[match_key] = result_entry
                             updated = True
             
             # Process grand final
@@ -2501,8 +2463,10 @@ def api_generate_random_bracket_results():
             if gf and gf.get('is_playable'):
                 team1, team2 = gf['teams']
                 match_key = "grand_final_Grand Final_1"
+                mc = gf.get('match_code', 'GF')
+                primary_key = mc if mc else match_key
                 
-                if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                     winner_score = 21
                     loser_score = random.randint(10, 19)
                     
@@ -2513,7 +2477,7 @@ def api_generate_random_bracket_results():
                         sets = [[loser_score, winner_score]]
                         winner, loser = team2, team1
                     
-                    bracket_results[match_key] = {
+                    result_entry = {
                         'sets': sets,
                         'winner': winner,
                         'loser': loser,
@@ -2523,8 +2487,11 @@ def api_generate_random_bracket_results():
                         'bracket_type': 'grand_final',
                         'round': 'Grand Final',
                         'match_number': 1,
-                        'match_code': gf.get('match_code', 'GF')
+                        'match_code': mc
                     }
+                    bracket_results[primary_key] = result_entry
+                    if match_key != primary_key:
+                        bracket_results[match_key] = result_entry
                     updated = True
             
             # Process bracket reset if needed
@@ -2532,8 +2499,10 @@ def api_generate_random_bracket_results():
             if br and br.get('needs_reset') and br.get('is_playable'):
                 team1, team2 = br['teams']
                 match_key = "bracket_reset_Bracket Reset_1"
+                mc = br.get('match_code', 'BR')
+                primary_key = mc if mc else match_key
                 
-                if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                     winner_score = 21
                     loser_score = random.randint(10, 19)
                     
@@ -2544,7 +2513,7 @@ def api_generate_random_bracket_results():
                         sets = [[loser_score, winner_score]]
                         winner, loser = team2, team1
                     
-                    bracket_results[match_key] = {
+                    result_entry = {
                         'sets': sets,
                         'winner': winner,
                         'loser': loser,
@@ -2554,8 +2523,11 @@ def api_generate_random_bracket_results():
                         'bracket_type': 'bracket_reset',
                         'round': 'Bracket Reset',
                         'match_number': 1,
-                        'match_code': br.get('match_code', 'BR')
+                        'match_code': mc
                     }
+                    bracket_results[primary_key] = result_entry
+                    if match_key != primary_key:
+                        bracket_results[match_key] = result_entry
                     updated = True
         else:
             # Single elimination: Process rounds
@@ -2565,8 +2537,10 @@ def api_generate_random_bracket_results():
                         team1, team2 = match['teams']
                         match_number = match['match_number']
                         match_key = f"winners_{round_name}_{match_number}"
+                        mc = match.get('match_code', '')
+                        primary_key = mc if mc else match_key
                         
-                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                        if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                             winner_score = 21
                             loser_score = random.randint(10, 19)
                             
@@ -2577,7 +2551,7 @@ def api_generate_random_bracket_results():
                                 sets = [[loser_score, winner_score]]
                                 winner, loser = team2, team1
                             
-                            bracket_results[match_key] = {
+                            result_entry = {
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
@@ -2587,8 +2561,11 @@ def api_generate_random_bracket_results():
                                 'bracket_type': 'winners',
                                 'round': round_name,
                                 'match_number': match_number,
-                                'match_code': match.get('match_code', '')
+                                'match_code': mc
                             }
+                            bracket_results[primary_key] = result_entry
+                            if match_key != primary_key:
+                                bracket_results[match_key] = result_entry
                             updated = True
     
     results['bracket'] = bracket_results
@@ -2617,8 +2594,10 @@ def api_generate_random_bracket_results():
                         team1, team2 = match['teams']
                         match_number = match['match_number']
                         match_key = f"silver_{round_name}_{match_number}"
+                        mc = match.get('match_code', '')
+                        primary_key = mc if mc else match_key
                         
-                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                        if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                             winner_score = 21
                             loser_score = random.randint(10, 19)
                             
@@ -2629,7 +2608,7 @@ def api_generate_random_bracket_results():
                                 sets = [[loser_score, winner_score]]
                                 winner, loser = team2, team1
                             
-                            bracket_results[match_key] = {
+                            result_entry = {
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
@@ -2639,8 +2618,11 @@ def api_generate_random_bracket_results():
                                 'bracket_type': 'silver_winners',
                                 'round': round_name,
                                 'match_number': match_number,
-                                'match_code': match.get('match_code', '')
+                                'match_code': mc
                             }
+                            bracket_results[primary_key] = result_entry
+                            if match_key != primary_key:
+                                bracket_results[match_key] = result_entry
                             updated = True
         
         results['bracket'] = bracket_results
@@ -2669,8 +2651,10 @@ def api_generate_random_bracket_results():
                         team1, team2 = match['teams']
                         match_number = match['match_number']
                         match_key = f"silver_winners_{round_name}_{match_number}"
+                        mc = match.get('match_code', '')
+                        primary_key = mc if mc else match_key
                         
-                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                        if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                             winner_score = 21
                             loser_score = random.randint(10, 19)
                             
@@ -2681,7 +2665,7 @@ def api_generate_random_bracket_results():
                                 sets = [[loser_score, winner_score]]
                                 winner, loser = team2, team1
                             
-                            bracket_results[match_key] = {
+                            result_entry = {
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
@@ -2691,8 +2675,11 @@ def api_generate_random_bracket_results():
                                 'bracket_type': 'silver_winners',
                                 'round': round_name,
                                 'match_number': match_number,
-                                'match_code': match.get('match_code', '')
+                                'match_code': mc
                             }
+                            bracket_results[primary_key] = result_entry
+                            if match_key != primary_key:
+                                bracket_results[match_key] = result_entry
                             updated = True
             
             # Process silver losers bracket
@@ -2702,8 +2689,10 @@ def api_generate_random_bracket_results():
                         team1, team2 = match['teams']
                         match_number = match['match_number']
                         match_key = f"silver_losers_{round_name}_{match_number}"
+                        mc = match.get('match_code', '')
+                        primary_key = mc if mc else match_key
                         
-                        if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                        if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                             winner_score = 21
                             loser_score = random.randint(10, 19)
                             
@@ -2714,7 +2703,7 @@ def api_generate_random_bracket_results():
                                 sets = [[loser_score, winner_score]]
                                 winner, loser = team2, team1
                             
-                            bracket_results[match_key] = {
+                            result_entry = {
                                 'sets': sets,
                                 'winner': winner,
                                 'loser': loser,
@@ -2724,8 +2713,11 @@ def api_generate_random_bracket_results():
                                 'bracket_type': 'silver_losers',
                                 'round': round_name,
                                 'match_number': match_number,
-                                'match_code': match.get('match_code', '')
+                                'match_code': mc
                             }
+                            bracket_results[primary_key] = result_entry
+                            if match_key != primary_key:
+                                bracket_results[match_key] = result_entry
                             updated = True
             
             # Process silver grand final
@@ -2733,8 +2725,10 @@ def api_generate_random_bracket_results():
             if gf and gf.get('is_playable'):
                 team1, team2 = gf['teams']
                 match_key = "silver_grand_final_Grand Final_1"
+                mc = gf.get('match_code', 'SGF')
+                primary_key = mc if mc else match_key
                 
-                if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                     winner_score = 21
                     loser_score = random.randint(10, 19)
                     
@@ -2745,7 +2739,7 @@ def api_generate_random_bracket_results():
                         sets = [[loser_score, winner_score]]
                         winner, loser = team2, team1
                     
-                    bracket_results[match_key] = {
+                    result_entry = {
                         'sets': sets,
                         'winner': winner,
                         'loser': loser,
@@ -2755,8 +2749,11 @@ def api_generate_random_bracket_results():
                         'bracket_type': 'silver_grand_final',
                         'round': 'Grand Final',
                         'match_number': 1,
-                        'match_code': gf.get('match_code', 'SGF')
+                        'match_code': mc
                     }
+                    bracket_results[primary_key] = result_entry
+                    if match_key != primary_key:
+                        bracket_results[match_key] = result_entry
                     updated = True
             
             # Process silver bracket reset if needed
@@ -2764,8 +2761,10 @@ def api_generate_random_bracket_results():
             if br and br.get('needs_reset') and br.get('is_playable'):
                 team1, team2 = br['teams']
                 match_key = "silver_bracket_reset_Bracket Reset_1"
+                mc = br.get('match_code', 'SBR')
+                primary_key = mc if mc else match_key
                 
-                if match_key not in bracket_results or not bracket_results[match_key].get('completed'):
+                if primary_key not in bracket_results or not bracket_results[primary_key].get('completed'):
                     winner_score = 21
                     loser_score = random.randint(10, 19)
                     
@@ -2776,7 +2775,7 @@ def api_generate_random_bracket_results():
                         sets = [[loser_score, winner_score]]
                         winner, loser = team2, team1
                     
-                    bracket_results[match_key] = {
+                    result_entry = {
                         'sets': sets,
                         'winner': winner,
                         'loser': loser,
@@ -2786,8 +2785,11 @@ def api_generate_random_bracket_results():
                         'bracket_type': 'silver_bracket_reset',
                         'round': 'Bracket Reset',
                         'match_number': 1,
-                        'match_code': br.get('match_code', 'SBR')
+                        'match_code': mc
                     }
+                    bracket_results[primary_key] = result_entry
+                    if match_key != primary_key:
+                        bracket_results[match_key] = result_entry
                     updated = True
         
         results['bracket'] = bracket_results
@@ -3972,8 +3974,9 @@ def save_bracket_result():
     if not team1 or not team2:
         return jsonify({'error': 'Missing team names'}), 400
     
-    # Generate match key
-    match_key = f"{bracket_type}_{round_name}_{match_number}"
+    # Primary key is match_code; keep old format for backward compat
+    old_match_key = f"{bracket_type}_{round_name}_{match_number}"
+    primary_key = match_code if match_code else old_match_key
     
     # Load existing results
     results = load_results()
@@ -3986,13 +3989,14 @@ def save_bracket_result():
     )
     
     if all_empty or not sets:
-        # Clear the result
-        results['bracket'].pop(match_key, None)
+        # Clear result under both keys
+        results['bracket'].pop(primary_key, None)
+        results['bracket'].pop(old_match_key, None)
         save_results(results)
         
         return jsonify({
             'success': True,
-            'match_key': match_key,
+            'match_key': primary_key,
             'cleared': True
         })
     
@@ -4015,8 +4019,8 @@ def save_bracket_result():
         winner = team2
         loser = team1
     
-    # Save result
-    results['bracket'][match_key] = {
+    # Save result under match_code as primary key
+    result_data = {
         'sets': sets,
         'winner': winner,
         'loser': loser,
@@ -4028,12 +4032,16 @@ def save_bracket_result():
         'bracket_type': bracket_type,
         'match_code': match_code
     }
+    results['bracket'][primary_key] = result_data
+    # Also store under old key format for backward compat
+    if old_match_key != primary_key:
+        results['bracket'][old_match_key] = result_data
     
     save_results(results)
     
     return jsonify({
         'success': True,
-        'match_key': match_key,
+        'match_key': primary_key,
         'winner': winner,
         'loser': loser,
         'set_wins': set_wins

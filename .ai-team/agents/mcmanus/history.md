@@ -28,3 +28,19 @@ Fixed all 7 MEDIUM severity findings from Kobayashi's security audit:
 - **F10 — Secret key:** Already loaded from `SECRET_KEY` env var with file fallback — no change needed.
 
 All 110 app tests pass. F05 and F07 have minor visible UX impact (login every 30 days, 8-char passwords); all others invisible.
+
+### 2025-07-22 — Bracket Result Key Unification
+Unified the bracket result key system so the Bracket tab and Schedule tab always show the same data. Root cause was three different key formats for the same match (match_code like `W1-M1`, match_key like `winners_Winners Quarterfinal_1`, and round_name internal tracking).
+
+**Changes:**
+- **`save_bracket_result()`**: Primary key is now `match_code` (e.g. `W1-M1`). Old-format key stored as secondary for backward compat.
+- **`api_generate_random_bracket_results()`**: All 10 result-saving blocks now use `match_code` as primary key with old-format fallback.
+- **`enrich_schedule_with_results()`**: Removed `derive_match_code()` heuristic function and `round_indices` mapping (~30 lines). Results now looked up directly by match_code key. Team-pair fallback kept for old-format results.
+- **3 new integration tests**: Full round-trip test (schedule → pool results → bracket results → enriched schedule verification), save-under-match_code verification, and clear-both-keys verification.
+
+All 113 app tests pass, all 144 bracket consistency tests pass.
+
+## Learnings (Bracket Keys)
+
+- When multiple code paths store data under different key formats, the key unification approach is: pick one canonical key, store under it as primary, and store under old keys as secondary for backward compat. This is safer than building translation layers between formats.
+- The `derive_match_code()` heuristic was fragile because it reconstructed match_code from round_indices built by iterating results in insertion order. Eliminating heuristic reconstruction in favor of direct storage is always preferable.
