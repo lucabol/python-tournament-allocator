@@ -507,6 +507,29 @@ def save_registrations(registrations):
         yaml.dump(registrations, f, default_flow_style=False)
 
 
+def load_solo_players(data_dir_path: str = None):
+    """Load solo player registrations from YAML file."""
+    if data_dir_path:
+        path = os.path.join(data_dir_path, 'solo_players.yaml')
+    else:
+        path = _file_path('solo_players.yaml')
+    if not os.path.exists(path):
+        return []
+    with open(path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        return data if isinstance(data, list) else []
+
+
+def save_solo_players(players, data_dir_path: str = None):
+    """Save solo player registrations to YAML file."""
+    if data_dir_path:
+        path = os.path.join(data_dir_path, 'solo_players.yaml')
+    else:
+        path = _file_path('solo_players.yaml')
+    with open(path, 'w', encoding='utf-8') as f:
+        yaml.dump(players, f, default_flow_style=False)
+
+
 def load_pending_results(data_dir: str = None):
     """Load pending score reports from YAML file.
     
@@ -1083,7 +1106,8 @@ def set_active_tournament():
     """Set g.data_dir to the active tournament's data directory."""
     # Skip auth for static files, login, register, and API key authenticated endpoints
     if request.endpoint in ('static', 'login_page', 'register_page', 'public_register',
-                            'public_live', 'api_public_live_html', 'api_public_live_stream',
+                            'public_live', 'public_solo_register',
+                            'api_public_live_html', 'api_public_live_stream',
                             'api_report_result', 'api_message', 'api_logo',
                             'api_admin_export', 'api_admin_import', None):
         return
@@ -1689,6 +1713,103 @@ def public_register(username, slug):
                           logo_url=logo_url,
                           pools=pools,
                           registration_open=registration_open,
+                          username=username,
+                          slug=slug)
+
+
+@app.route('/solo-register/<username>/<slug>', methods=['GET', 'POST'])
+@csrf.exempt
+def public_solo_register(username, slug):
+    """Public solo player registration page (no login required)."""
+    # Verify tournament exists
+    user_dir = os.path.join(USERS_DIR, username)
+    tournaments_file = os.path.join(user_dir, 'tournaments.yaml')
+    if not os.path.exists(tournaments_file):
+        abort(404)
+
+    try:
+        with open(tournaments_file, 'r', encoding='utf-8') as f:
+            tournaments_data = yaml.safe_load(f)
+            if not tournaments_data or not tournaments_data.get('tournaments'):
+                abort(404)
+            tournament = next((t for t in tournaments_data['tournaments'] if t['slug'] == slug), None)
+            if not tournament:
+                abort(404)
+    except Exception:
+        abort(404)
+
+    tournament_dir = os.path.join(user_dir, 'tournaments', slug)
+    constraints_file = os.path.join(tournament_dir, 'constraints.yaml')
+
+    tournament_name = tournament.get('name', 'Tournament')
+    tournament_dates = ''
+    organization_name = ''
+    tournament_location = ''
+    if os.path.exists(constraints_file):
+        with open(constraints_file, 'r', encoding='utf-8') as f:
+            constraints = yaml.safe_load(f)
+            if constraints:
+                tournament_name = constraints.get('tournament_name', tournament_name)
+                tournament_dates = constraints.get('tournament_date', '')
+                organization_name = constraints.get('club_name', '')
+                tournament_location = constraints.get('tournament_location', '')
+
+    solo_players = load_solo_players(tournament_dir)
+
+    if request.method == 'POST':
+        data = request.get_json()
+        action = data.get('action', 'add')
+
+        if action == 'delete':
+            idx = data.get('index')
+            if idx is not None and 0 <= idx < len(solo_players):
+                solo_players.pop(idx)
+                lock_file = os.path.join(tournament_dir, '.lock')
+                lock = FileLock(lock_file, timeout=10)
+                with lock:
+                    save_solo_players(solo_players, tournament_dir)
+                return jsonify({'success': True, 'players': solo_players})
+            return jsonify({'success': False, 'error': 'Invalid player index.'}), 400
+
+        # Add new player
+        name = data.get('name', '').strip()
+        if not name:
+            return jsonify({'success': False, 'error': 'Name is required.'}), 400
+
+        # Check for duplicate names
+        if any(p['name'] == name for p in solo_players):
+            return jsonify({'success': False, 'error': 'This name is already registered.'}), 400
+
+        new_player = {
+            'name': name,
+            'language': data.get('language', '').strip() or None,
+            'age_group': data.get('age_group', '').strip() or None,
+            'telephone': data.get('telephone', '').strip() or None,
+            'email': data.get('email', '').strip() or None,
+            'comment': data.get('comment', '').strip() or None,
+            'registered_at': datetime.now().isoformat(),
+        }
+        solo_players.append(new_player)
+
+        lock_file = os.path.join(tournament_dir, '.lock')
+        lock = FileLock(lock_file, timeout=10)
+        with lock:
+            save_solo_players(solo_players, tournament_dir)
+
+        return jsonify({'success': True, 'message': 'Registration successful!', 'players': solo_players})
+
+    # GET: render page
+    logo_prefix = os.path.join(tournament_dir, 'logo')
+    logo_matches = glob.glob(logo_prefix + '.*')
+    logo_url = f'/api/logo?username={username}&slug={slug}' if logo_matches else DEFAULT_LOGO_URL
+
+    return render_template('solo_register.html',
+                          tournament_name=tournament_name,
+                          organization_name=organization_name,
+                          tournament_dates=tournament_dates,
+                          tournament_location=tournament_location,
+                          logo_url=logo_url,
+                          solo_players=solo_players,
                           username=username,
                           slug=slug)
 
