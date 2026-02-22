@@ -368,6 +368,15 @@
                     </div>
                     
                     <div class="form-group">
+                        <label for="sex">Sex <span class="optional">(optional)</span></label>
+                        <select id="sex" name="sex">
+                            <option value="">-- Select --</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
                         <label for="age_group">Age Group <span class="optional">(optional)</span></label>
                         <select id="age_group" name="age_group">
                             <option value="">-- Select --</option>
@@ -412,6 +421,7 @@
                             <tr>
                                 <th data-sort="name">Name <span class="sort-icon">↕</span></th>
                                 <th data-sort="language">Language <span class="sort-icon">↕</span></th>
+                                <th data-sort="sex">Sex <span class="sort-icon">↕</span></th>
                                 <th data-sort="age_group">Age <span class="sort-icon">↕</span></th>
                                 <th data-sort="telephone">Phone <span class="sort-icon">↕</span></th>
                                 <th data-sort="email">Email <span class="sort-icon">↕</span></th>
@@ -469,6 +479,7 @@
                 return '<tr>' +
                     '<td>' + esc(p.name) + '</td>' +
                     '<td>' + esc(p.language || '') + '</td>' +
+                    '<td>' + esc(p.sex || '') + '</td>' +
                     '<td>' + esc(p.age_group || '') + '</td>' +
                     '<td>' + esc(p.telephone || '') + '</td>' +
                     '<td>' + esc(p.email || '') + '</td>' +
@@ -548,6 +559,7 @@
             const formData = {
                 name: document.getElementById('name').value.trim(),
                 language: document.getElementById('language').value.trim(),
+                sex: document.getElementById('sex').value,
                 age_group: document.getElementById('age_group').value,
                 telephone: document.getElementById('telephone').value.trim(),
                 email: document.getElementById('email').value.trim(),

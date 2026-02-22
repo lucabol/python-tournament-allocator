@@ -1783,6 +1783,7 @@ def public_solo_register(username, slug):
         new_player = {
             'name': name,
             'language': data.get('language', '').strip() or None,
+            'sex': data.get('sex', '').strip() or None,
             'age_group': data.get('age_group', '').strip() or None,
             'telephone': data.get('telephone', '').strip() or None,
             'email': data.get('email', '').strip() or None,
