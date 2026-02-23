@@ -21,7 +21,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from core.models import Team, Court
 from core.allocation import AllocationManager
-from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling
+from core.elimination import get_elimination_bracket_display, generate_elimination_matches_for_scheduling, generate_all_single_bracket_matches_for_scheduling, seed_teams_from_pools, seed_silver_bracket_teams
 from core.double_elimination import get_double_elimination_bracket_display, generate_double_elimination_matches_for_scheduling, generate_all_bracket_matches_for_scheduling, generate_bracket_execution_order, generate_silver_bracket_execution_order
 from generate_matches import generate_pool_play_matches, generate_elimination_matches
 
@@ -707,6 +707,31 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
     pool_results = results.get('pool_play', {})
     bracket_results = results.get('bracket', {})
     
+    # Build bracket match_code → actual teams mapping using the same generators
+    # that the bracket page uses. This ensures schedule/live tabs show identical
+    # matchups to the bracket tab (stats-based seeding).
+    bracket_team_map = {}  # match_code -> [team1, team2]
+    if standings and pools:
+        from core.double_elimination import generate_bracket_execution_order
+        from core.elimination import seed_silver_bracket_teams as _seed_silver
+        constraints_data = load_constraints()
+        bracket_type = constraints_data.get('bracket_type', 'double')
+        include_silver = constraints_data.get('silver_bracket_enabled', False)
+        
+        if bracket_type == 'double':
+            gold = generate_bracket_execution_order(pools, standings, prefix="", phase_name="Bracket")
+            for m in gold:
+                mc = m.get('match_code', '')
+                if mc:
+                    bracket_team_map[mc] = list(m['teams'])
+            if include_silver:
+                from core.double_elimination import generate_silver_bracket_execution_order
+                silver = generate_silver_bracket_execution_order(pools, standings)
+                for m in silver:
+                    mc = m.get('match_code', '')
+                    if mc:
+                        bracket_team_map[mc] = list(m['teams'])
+    
     # Build lookups for bracket match results
     # Results are now primarily keyed by match_code (e.g. "W1-M1")
     # with old-format keys kept for backward compat
@@ -749,13 +774,23 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
                 is_bracket = match.get('is_bracket', False)
                 
                 if is_bracket:
-                    # Resolve bracket placeholders
-                    new_teams = list(teams)
-                    for i, team in enumerate(teams):
+                    # Resolve bracket placeholders using stats-based mapping
+                    match_code = match.get('match_code', '')
+                    
+                    # If we have a stats-based team mapping for this match_code,
+                    # use it directly (overrides placeholder resolution)
+                    if match_code and match_code in bracket_team_map:
+                        new_teams = list(bracket_team_map[match_code])
+                        match['is_placeholder'] = False
+                    else:
+                        new_teams = list(teams)
+                    
+                    # Resolve remaining placeholders (Winner/Loser refs, Grand Final, etc.)
+                    for i, team in enumerate(new_teams):
                         if isinstance(team, str):
                             # Check if this is a pool ranking placeholder like "#1 Pool A"
                             if team.startswith('#') and ' Pool ' in team:
-                                # Parse "#1 Pool A" -> rank=1, pool="Pool A"
+                                # Fallback: direct standings lookup
                                 import re
                                 match_obj = re.match(r'#(\d+) (Pool .+)', team)
                                 if match_obj:

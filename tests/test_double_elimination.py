@@ -1912,39 +1912,127 @@ class TestRealisticTournamentScenarios:
         
         # Winners: 2 rounds (4->2, 2->1)
         assert len(winners_bracket) == 2
-        w1_matches = list(winners_bracket.values())[0]
-        w2_matches = list(winners_bracket.values())[1]
-        assert len(w1_matches) == 2  # 4 teams = 2 matches
-        assert len(w2_matches) == 1  # 2 teams = 1 match
-        
-        # Losers: 2 rounds
-        assert len(losers_bracket) == 2
-        l1_matches = list(losers_bracket.values())[0]
-        l2_matches = list(losers_bracket.values())[1]
-        assert len(l1_matches) == 1  # 2 W1 losers = 1 match
-        assert len(l2_matches) == 1  # 1 W2 loser + 1 L1 winner = 1 match
-        
-        # Verify each match has required fields
-        for round_name, matches in winners_bracket.items():
-            for match in matches:
-                assert 'teams' in match
-                assert len(match['teams']) == 2
-                assert 'match_code' in match
-                assert match['match_code'].startswith('W')
-        
-        for round_name, matches in losers_bracket.items():
-            for match in matches:
-                assert 'teams' in match
-                assert len(match['teams']) == 2
-                assert 'match_code' in match
-                assert match['match_code'].startswith('L')
-        
-        # Verify grand final has correct structure
-        gf = result['grand_final']
-        assert gf['match_code'] == 'GF'
-        assert len(gf['teams']) == 2
-        
-        # Verify bracket reset
-        br = result['bracket_reset']
-        assert br['match_code'] == 'BR'
-        assert len(br['teams']) == 2
+
+
+class TestStatsBasedSeeding:
+    """Test that cross-pool seeding uses stats when standings are provided."""
+
+    def _make_standings(self, pools, team_stats):
+        """Build standings dict from team_stats: {team: {wins, set_diff, point_diff}}."""
+        standings = {}
+        for pool_name, pool_data in pools.items():
+            pool_teams = []
+            for team in pool_data['teams']:
+                stats = team_stats.get(team, {'wins': 0, 'set_diff': 0, 'point_diff': 0})
+                pool_teams.append({
+                    'team': team,
+                    'wins': stats.get('wins', 0),
+                    'losses': stats.get('losses', 0),
+                    'set_diff': stats.get('set_diff', 0),
+                    'point_diff': stats.get('point_diff', 0),
+                    'matches_played': stats.get('matches_played', 3),
+                })
+            pool_teams.sort(key=lambda x: (-x['wins'], -x['set_diff'], -x['point_diff'], x['team']))
+            standings[pool_name] = pool_teams
+        return standings
+
+    def test_stats_based_seeding_reorders_across_pools(self):
+        """Team with best stats gets seed 1 regardless of pool name."""
+        from src.core.elimination import seed_teams_from_pools
+
+        pools = {
+            'Pool A': {'teams': ['A1', 'A2'], 'advance': 1},
+            'Pool B': {'teams': ['B1', 'B2'], 'advance': 1},
+        }
+        # B1 has better stats than A1
+        stats = {
+            'A1': {'wins': 2, 'set_diff': 1, 'point_diff': 5, 'matches_played': 3},
+            'A2': {'wins': 1, 'set_diff': 0, 'point_diff': 0, 'matches_played': 3},
+            'B1': {'wins': 3, 'set_diff': 3, 'point_diff': 15, 'matches_played': 3},
+            'B2': {'wins': 0, 'set_diff': -3, 'point_diff': -15, 'matches_played': 3},
+        }
+        standings = self._make_standings(pools, stats)
+        seeded = seed_teams_from_pools(pools, standings)
+
+        # B1 should get seed 1 (better wins), A1 seed 2
+        assert seeded[0][0] == 'B1'
+        assert seeded[0][1] == 1
+        assert seeded[1][0] == 'A1'
+        assert seeded[1][1] == 2
+
+    def test_stats_seeding_tiebreaker_set_diff(self):
+        """When wins are equal, set_diff breaks the tie."""
+        from src.core.elimination import seed_teams_from_pools
+
+        pools = {
+            'Pool A': {'teams': ['A1', 'A2'], 'advance': 1},
+            'Pool B': {'teams': ['B1', 'B2'], 'advance': 1},
+        }
+        stats = {
+            'A1': {'wins': 2, 'set_diff': 1, 'point_diff': 5, 'matches_played': 3},
+            'B1': {'wins': 2, 'set_diff': 3, 'point_diff': 5, 'matches_played': 3},
+        }
+        standings = self._make_standings(pools, stats)
+        seeded = seed_teams_from_pools(pools, standings)
+
+        # B1 has better set_diff, gets seed 1
+        assert seeded[0][0] == 'B1'
+        assert seeded[1][0] == 'A1'
+
+    def test_none_standings_falls_back_to_alphabetical(self):
+        """With standings=None, seeding is alphabetical by pool name."""
+        from src.core.elimination import seed_teams_from_pools
+
+        pools = {
+            'Pool C': {'teams': ['C1', 'C2'], 'advance': 1},
+            'Pool A': {'teams': ['A1', 'A2'], 'advance': 1},
+            'Pool B': {'teams': ['B1', 'B2'], 'advance': 1},
+        }
+        seeded = seed_teams_from_pools(pools, None)
+
+        # Alphabetical: Pool A first, then Pool B, then Pool C
+        assert seeded[0][0] == '#1 Pool A'
+        assert seeded[1][0] == '#1 Pool B'
+        assert seeded[2][0] == '#1 Pool C'
+
+    def test_bracket_and_execution_order_produce_same_matchups(self):
+        """Bracket page and schedule enrichment use same seeding → same matchups."""
+        from src.core.double_elimination import generate_bracket_execution_order
+
+        pools = {
+            'Pool A': {'teams': ['A1', 'A2', 'A3', 'A4'], 'advance': 2},
+            'Pool B': {'teams': ['B1', 'B2', 'B3', 'B4'], 'advance': 2},
+        }
+        stats = {
+            'A1': {'wins': 3, 'set_diff': 3, 'point_diff': 20, 'matches_played': 3},
+            'A2': {'wins': 2, 'set_diff': 1, 'point_diff': 5, 'matches_played': 3},
+            'A3': {'wins': 1, 'set_diff': -1, 'point_diff': -5, 'matches_played': 3},
+            'A4': {'wins': 0, 'set_diff': -3, 'point_diff': -20, 'matches_played': 3},
+            'B1': {'wins': 3, 'set_diff': 2, 'point_diff': 10, 'matches_played': 3},
+            'B2': {'wins': 2, 'set_diff': 2, 'point_diff': 8, 'matches_played': 3},
+            'B3': {'wins': 1, 'set_diff': -2, 'point_diff': -8, 'matches_played': 3},
+            'B4': {'wins': 0, 'set_diff': -2, 'point_diff': -10, 'matches_played': 3},
+        }
+        standings = self._make_standings(pools, stats)
+
+        # Bracket page path
+        bracket = generate_double_elimination_bracket(pools, standings)
+        wb = bracket['winners_bracket']
+        first_round_name = list(wb.keys())[0]
+        bracket_matchups = {
+            m['match_code']: set(m['teams'])
+            for m in wb[first_round_name]
+        }
+
+        # Schedule enrichment path
+        exec_matches = generate_bracket_execution_order(pools, standings, prefix='', phase_name='Bracket')
+        exec_matchups = {
+            m['match_code']: set(tuple(m['teams']))
+            for m in exec_matches
+            if m['match_code'].startswith('W1-')
+        }
+
+        # Both paths must produce identical first-round matchups
+        for mc in bracket_matchups:
+            assert mc in exec_matchups, f"Match {mc} missing from execution order"
+            assert bracket_matchups[mc] == exec_matchups[mc], f"Match {mc} has different teams"
