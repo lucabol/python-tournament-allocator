@@ -29,7 +29,12 @@
                 </div>
                 <div class="form-group">
                     <label for="player_name">Player Name</label>
-                    <input type="text" id="player_name" placeholder="e.g. John Smith" required>
+                    <input type="text" id="player_name" list="player_list" placeholder="e.g. John Smith" required>
+                    <datalist id="player_list">
+                        {% for player in all_players %}
+                        <option value="{{ player }}">
+                        {% endfor %}
+                    </datalist>
                 </div>
             </div>
 

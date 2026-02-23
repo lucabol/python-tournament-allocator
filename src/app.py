@@ -1691,12 +1691,38 @@ def public_register(username, slug):
             return jsonify({'success': False, 'error': 'Registration is currently closed.'}), 400
         
         data = request.get_json()
+        player1_name = data.get('player1_name', '').strip()
+        player1_sex = data.get('player1_sex', '').strip()
+        player2_name = data.get('player2_name', '').strip()
+        player2_sex = data.get('player2_sex', '').strip()
         team_name = data.get('team_name', '').strip()
         email = data.get('email', '').strip()
         phone = data.get('phone', '').strip()
         
+        # Backward compat: if no player fields, use team_name directly
+        if player1_name and player2_name:
+            team_name = f"{player1_name} - {player2_name}"
+        
         if not team_name or not email:
-            return jsonify({'success': False, 'error': 'Team name and email are required.'}), 400
+            return jsonify({'success': False, 'error': 'Player names and email are required.'}), 400
+        
+        # Server-side gender validation
+        tournament_category = 'free'
+        if os.path.exists(constraints_file):
+            with open(constraints_file, 'r', encoding='utf-8') as f:
+                c = yaml.safe_load(f)
+                if c:
+                    tournament_category = c.get('tournament_category', 'free')
+        
+        if player1_sex and player2_sex:
+            if tournament_category == 'men' and not (player1_sex == 'Male' and player2_sex == 'Male'):
+                return jsonify({'success': False, 'error': 'This is a Men tournament — both players must be Male.'}), 400
+            if tournament_category == 'female' and not (player1_sex == 'Female' and player2_sex == 'Female'):
+                return jsonify({'success': False, 'error': 'This is a Female tournament — both players must be Female.'}), 400
+            if tournament_category == 'mixed':
+                sexes = {player1_sex, player2_sex}
+                if sexes != {'Male', 'Female'}:
+                    return jsonify({'success': False, 'error': 'This is a Mixed tournament — the team must have one Male and one Female player.'}), 400
         
         # Check for duplicates
         existing_teams = [t['team_name'] for t in registrations.get('teams', [])]
@@ -1706,6 +1732,10 @@ def public_register(username, slug):
         # Add registration
         new_registration = {
             'team_name': team_name,
+            'player1_name': player1_name or None,
+            'player1_sex': player1_sex or None,
+            'player2_name': player2_name or None,
+            'player2_sex': player2_sex or None,
             'email': email,
             'phone': phone if phone else None,
             'registered_at': datetime.now().isoformat(),
@@ -1740,11 +1770,20 @@ def public_register(username, slug):
     else:
         logo_url = DEFAULT_LOGO_URL
     
+    # Load tournament_category from constraints
+    tournament_category = 'free'
+    if os.path.exists(constraints_file):
+        with open(constraints_file, 'r', encoding='utf-8') as f:
+            c = yaml.safe_load(f)
+            if c:
+                tournament_category = c.get('tournament_category', 'free')
+    
     return render_template('team_register.html', 
                           tournament_name=tournament_name,
                           organization_name=organization_name,
                           tournament_dates=tournament_dates,
                           tournament_location=tournament_location,
+                          tournament_category=tournament_category,
                           logo_url=logo_url,
                           pools=pools,
                           registration_open=registration_open,
@@ -2303,6 +2342,10 @@ def api_update_settings():
         constraints_data['tournament_name'] = data['tournament_name']
     if 'tournament_date' in data:
         constraints_data['tournament_date'] = data['tournament_date']
+    if 'tournament_category' in data:
+        constraints_data['tournament_category'] = data['tournament_category']
+    if 'tournament_location' in data:
+        constraints_data['tournament_location'] = data.get('tournament_location', '')
     
     save_constraints(constraints_data)
     return jsonify({'success': True})
@@ -3335,7 +3378,27 @@ def tracking():
 def awards():
     """Awards management page."""
     awards_data = load_awards()
-    return render_template('awards.html', awards=awards_data.get('awards', []))
+    # Collect all player names from registrations and teams for dropdown
+    all_players = set()
+    registrations = load_registrations()
+    for reg in registrations.get('teams', []):
+        if reg.get('player1_name'):
+            all_players.add(reg['player1_name'])
+        if reg.get('player2_name'):
+            all_players.add(reg['player2_name'])
+        # Fallback: split team_name by ' - ' for old registrations without player fields
+        if not reg.get('player1_name') and reg.get('team_name'):
+            parts = reg['team_name'].split(' - ')
+            for p in parts:
+                all_players.add(p.strip())
+    pools = load_teams()
+    for pool_data in pools.values():
+        for team_name in pool_data.get('teams', []):
+            parts = team_name.split(' - ')
+            for p in parts:
+                all_players.add(p.strip())
+    return render_template('awards.html', awards=awards_data.get('awards', []),
+                          all_players=sorted(all_players))
 
 
 @app.route('/messages')

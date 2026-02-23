@@ -247,6 +247,34 @@
         .hidden {
             display: none;
         }
+        
+        .category-banner {
+            text-align: center;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 1rem;
+            margin-bottom: 1.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .category-men { background: #dbeafe; color: #1e40af; border: 2px solid #3b82f6; }
+        .category-female { background: #fce7f3; color: #9d174d; border: 2px solid #ec4899; }
+        .category-mixed { background: #f0fdf4; color: #166534; border: 2px solid #22c55e; }
+        .category-free { background: #f5f3ff; color: #5b21b6; border: 2px solid #8b5cf6; }
+        
+        .player-row {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-end;
+        }
+        .player-row .form-group { flex: 1; }
+        .player-row .form-group.sex-select { flex: 0 0 100px; }
+        
+        @media (max-width: 480px) {
+            .player-row { flex-direction: column; gap: 0; }
+            .player-row .form-group.sex-select { flex: 1; }
+        }
     </style>
 </head>
 <body>
@@ -280,11 +308,44 @@
             
             <div id="message-container"></div>
             
+            {% set cat = tournament_category | default('free') %}
+            {% set cat_labels = {'men': '♂ Men Tournament', 'female': '♀ Female Tournament', 'mixed': '♂♀ Mixed Tournament (1 man + 1 woman)', 'free': '🏐 Free Tournament (any combination)'} %}
+            <div class="category-banner category-{{ cat }}">
+                {{ cat_labels.get(cat, '🏐 Free Tournament') }}
+            </div>
+            
             {% if registration_open %}
             <form id="register-form">
-                <div class="form-group">
-                    <label for="team_name">Team Name <span class="required">*</span></label>
-                    <input type="text" id="team_name" name="team_name" required maxlength="100" placeholder="Enter your team name">
+                <h3 style="margin-bottom:0.75rem;font-size:0.95rem;color:#475569;">Player 1</h3>
+                <div class="player-row">
+                    <div class="form-group">
+                        <label for="player1_name">Name <span class="required">*</span></label>
+                        <input type="text" id="player1_name" name="player1_name" required maxlength="50" placeholder="First player name">
+                    </div>
+                    <div class="form-group sex-select">
+                        <label for="player1_sex">Sex <span class="required">*</span></label>
+                        <select id="player1_sex" name="player1_sex" required>
+                            <option value="">--</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <h3 style="margin-bottom:0.75rem;font-size:0.95rem;color:#475569;">Player 2</h3>
+                <div class="player-row">
+                    <div class="form-group">
+                        <label for="player2_name">Name <span class="required">*</span></label>
+                        <input type="text" id="player2_name" name="player2_name" required maxlength="50" placeholder="Second player name">
+                    </div>
+                    <div class="form-group sex-select">
+                        <label for="player2_sex">Sex <span class="required">*</span></label>
+                        <select id="player2_sex" name="player2_sex" required>
+                            <option value="">--</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -320,20 +381,54 @@
             
             const submitBtn = document.getElementById('submit-btn');
             const messageContainer = document.getElementById('message-container');
+            const category = '{{ tournament_category | default("free") }}';
+            
+            function validateGender(s1, s2) {
+                if (category === 'men') return s1 === 'Male' && s2 === 'Male';
+                if (category === 'female') return s1 === 'Female' && s2 === 'Female';
+                if (category === 'mixed') return (s1 === 'Male' && s2 === 'Female') || (s1 === 'Female' && s2 === 'Male');
+                return true; // free
+            }
+            
+            function genderError() {
+                if (category === 'men') return 'This is a Men tournament — both players must be Male.';
+                if (category === 'female') return 'This is a Female tournament — both players must be Female.';
+                if (category === 'mixed') return 'This is a Mixed tournament — the team must have one Male and one Female player.';
+                return '';
+            }
             
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 
-                // Disable button
                 submitBtn.disabled = true;
                 submitBtn.textContent = 'Submitting...';
-                
-                // Clear previous messages
                 messageContainer.innerHTML = '';
                 
-                // Get form data
+                const p1Name = document.getElementById('player1_name').value.trim();
+                const p1Sex = document.getElementById('player1_sex').value;
+                const p2Name = document.getElementById('player2_name').value.trim();
+                const p2Sex = document.getElementById('player2_sex').value;
+                
+                if (!p1Name || !p2Name || !p1Sex || !p2Sex) {
+                    messageContainer.innerHTML = '<div class="message message-error">✕ All player names and sex fields are required.</div>';
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Register Team';
+                    return;
+                }
+                
+                if (!validateGender(p1Sex, p2Sex)) {
+                    messageContainer.innerHTML = '<div class="message message-error">✕ ' + genderError() + '</div>';
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Register Team';
+                    return;
+                }
+                
                 const formData = {
-                    team_name: document.getElementById('team_name').value.trim(),
+                    player1_name: p1Name,
+                    player1_sex: p1Sex,
+                    player2_name: p2Name,
+                    player2_sex: p2Sex,
+                    team_name: p1Name + ' - ' + p2Name,
                     email: document.getElementById('email').value.trim(),
                     phone: document.getElementById('phone').value.trim()
                 };
@@ -341,51 +436,26 @@
                 try {
                     const response = await fetch(window.location.pathname, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(formData)
                     });
                     
                     const result = await response.json();
                     
                     if (result.success) {
-                        // Success message
-                        messageContainer.innerHTML = `
-                            <div class="message message-success">
-                                ✓ Registration successful! Your team "${formData.team_name}" has been registered.
-                                The organizer will assign you to a pool soon.
-                            </div>
-                        `;
-                        
-                        // Reset form
+                        messageContainer.innerHTML = '<div class="message message-success">✓ Registration successful! Team "' + formData.team_name + '" has been registered.</div>';
                         form.reset();
-                        
-                        // Re-enable button after delay
                         setTimeout(() => {
                             submitBtn.disabled = false;
                             submitBtn.textContent = 'Register Another Team';
                         }, 2000);
                     } else {
-                        // Error message
-                        messageContainer.innerHTML = `
-                            <div class="message message-error">
-                                ✕ ${result.error || 'Registration failed. Please try again.'}
-                            </div>
-                        `;
-                        
-                        // Re-enable button
+                        messageContainer.innerHTML = '<div class="message message-error">✕ ' + (result.error || 'Registration failed.') + '</div>';
                         submitBtn.disabled = false;
                         submitBtn.textContent = 'Register Team';
                     }
                 } catch (error) {
-                    messageContainer.innerHTML = `
-                        <div class="message message-error">
-                            ✕ Network error. Please check your connection and try again.
-                        </div>
-                    `;
-                    
-                    // Re-enable button
+                    messageContainer.innerHTML = '<div class="message message-error">✕ Network error. Please try again.</div>';
                     submitBtn.disabled = false;
                     submitBtn.textContent = 'Register Team';
                 }
