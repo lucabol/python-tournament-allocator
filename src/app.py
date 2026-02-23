@@ -15,7 +15,7 @@ import zipfile
 from datetime import datetime, timedelta
 from functools import wraps
 from filelock import FileLock
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file, session, g, abort
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, Response, stream_with_context, send_file, session, g, abort, make_response
 from flask_wtf.csrf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -1778,7 +1778,7 @@ def public_register(username, slug):
             if c:
                 tournament_category = c.get('tournament_category', 'free')
     
-    return render_template('team_register.html', 
+    resp = make_response(render_template('team_register.html', 
                           tournament_name=tournament_name,
                           organization_name=organization_name,
                           tournament_dates=tournament_dates,
@@ -1788,7 +1788,9 @@ def public_register(username, slug):
                           pools=pools,
                           registration_open=registration_open,
                           username=username,
-                          slug=slug)
+                          slug=slug))
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
 
 
 @app.route('/solo-register/<username>/<slug>', methods=['GET', 'POST'])
