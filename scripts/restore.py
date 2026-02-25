@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
 # Configuration
 API_KEY = os.getenv('BACKUP_API_KEY')

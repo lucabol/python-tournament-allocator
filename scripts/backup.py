@@ -27,8 +27,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 from pathlib import Path
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (override=True ensures .env wins over shell env)
+load_dotenv(override=True)
 
 # Configuration
 API_KEY = os.getenv('BACKUP_API_KEY')
