@@ -307,6 +307,19 @@ def _create_default_tournament_files(tournament_dir: str, tournament_name: str =
 
 ensure_tournament_structure()
 
+# Auto-create admin account if ADMIN_PASSWORD env var is set and admin doesn't exist
+_admin_password = os.environ.get('ADMIN_PASSWORD')
+if _admin_password:
+    _existing_users = load_users()
+    if not any(u['username'] == 'admin' for u in _existing_users):
+        _ok, _msg = create_user('admin', _admin_password)
+        if _ok:
+            print('[STARTUP] Admin account created.')
+        else:
+            print(f'[STARTUP] Admin account creation failed: {_msg}')
+    else:
+        print('[STARTUP] Admin account already exists.')
+
 
 def _find_logo_file():
     """Find uploaded logo file in data directory (any extension)."""

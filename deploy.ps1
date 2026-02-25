@@ -302,6 +302,29 @@ if (-not $existingKey) {
     Write-Host "SECRET_KEY already set, skipping (preserves user sessions)." -ForegroundColor DarkGray
 }
 
+# Auto-create admin account — generate password if not already set
+Write-Host "Checking admin account configuration..." -ForegroundColor Yellow
+$existingAdminPwd = az webapp config appsettings list `
+    --name $appName `
+    --resource-group $resourceGroup `
+    --query "[?name=='ADMIN_PASSWORD'].value" -o tsv
+
+if (-not $existingAdminPwd) {
+    Write-Host "Generating admin account password..." -ForegroundColor Yellow
+    $adminBytes = [byte[]]::new(16)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($adminBytes)
+    $adminPassword = [System.BitConverter]::ToString($adminBytes).Replace("-", "").Substring(0, 16).ToLower()
+    
+    az webapp config appsettings set `
+        --name $appName `
+        --resource-group $resourceGroup `
+        --settings "ADMIN_PASSWORD=$adminPassword" `
+        --output none
+} else {
+    $adminPassword = $existingAdminPwd
+    Write-Host "ADMIN_PASSWORD already set in Azure." -ForegroundColor DarkGray
+}
+
 # Wait for config changes to propagate (config changes trigger async container restarts)
 Write-Host "Waiting for config changes to propagate..." -ForegroundColor Yellow
 Start-Sleep -Seconds 15
@@ -323,6 +346,10 @@ try {
 Write-Host ""
 Write-Host "=== Deployment Complete ===" -ForegroundColor Green
 Write-Host "App URL: $url" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "=== Admin Account ===" -ForegroundColor Yellow
+Write-Host "Username: admin" -ForegroundColor White
+Write-Host "Password: $adminPassword" -ForegroundColor White
 Write-Host ""
 Write-Host "To view logs: az webapp log tail --name $appName --resource-group $resourceGroup"
 if ($latestDeploymentId) {
