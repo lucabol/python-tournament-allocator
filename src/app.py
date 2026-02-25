@@ -4850,11 +4850,8 @@ def admin_dashboard():
     
     # Load all users
     users_data = []
-    if os.path.exists(USERS_FILE):
-        with open(USERS_FILE, 'r', encoding='utf-8') as f:
-            all_users = yaml.safe_load(f) or {}
-    else:
-        all_users = {}
+    all_users_list = load_users()  # Returns list of {username, password_hash, created}
+    user_info_map = {u['username']: u for u in all_users_list}
     
     total_tournaments = 0
     total_teams = 0
@@ -4862,11 +4859,13 @@ def admin_dashboard():
     # Scan each user directory
     if os.path.exists(USERS_DIR):
         for username in sorted(os.listdir(USERS_DIR)):
+            if username == 'admin':
+                continue
             user_path = os.path.join(USERS_DIR, username)
             if not os.path.isdir(user_path):
                 continue
             
-            user_info = all_users.get(username, {})
+            user_info = user_info_map.get(username, {})
             tournaments_file = os.path.join(user_path, 'tournaments.yaml')
             tournaments = []
             
