@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🛡️ Admin Dashboard</h1>
+</div>
+
+<section class="section">
+    <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:2rem;">
+        <div class="form-card" style="flex:1;min-width:150px;text-align:center;padding:1.5rem;">
+            <div style="font-size:2rem;font-weight:700;color:#667eea;">{{ total_users }}</div>
+            <div style="color:#64748b;font-size:0.875rem;">Users</div>
+        </div>
+        <div class="form-card" style="flex:1;min-width:150px;text-align:center;padding:1.5rem;">
+            <div style="font-size:2rem;font-weight:700;color:#22c55e;">{{ total_tournaments }}</div>
+            <div style="color:#64748b;font-size:0.875rem;">Tournaments</div>
+        </div>
+        <div class="form-card" style="flex:1;min-width:150px;text-align:center;padding:1.5rem;">
+            <div style="font-size:2rem;font-weight:700;color:#f59e0b;">{{ total_teams }}</div>
+            <div style="color:#64748b;font-size:0.875rem;">Total Teams</div>
+        </div>
+    </div>
+</section>
+
+<section class="section">
+    <h2>Site Actions</h2>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:2rem;">
+        <a href="{{ url_for('api_admin_backup_ui') }}" class="btn btn-primary">
+            📥 Download Backup
+        </a>
+        <button class="btn btn-success" onclick="document.getElementById('restore-input').click()">
+            📤 Restore from Backup
+        </button>
+        <input type="file" id="restore-input" accept=".zip" style="display:none;" onchange="restoreSite(this)">
+    </div>
+</section>
+
+<section class="section">
+    <h2>Users ({{ total_users }})</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Username</th>
+                <th>Tournaments</th>
+                <th>Teams</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr class="user-row" onclick="toggleUserDetail('{{ user.username }}')" style="cursor:pointer;">
+                <td><span id="arrow-{{ user.username }}" style="display:inline-block;transition:transform 0.2s;">▶</span></td>
+                <td><strong>{{ user.username }}</strong>{% if user.username == 'admin' %} 🛡️{% endif %}</td>
+                <td>{{ user.tournament_count }}</td>
+                <td>{{ user.team_count }}</td>
+                <td>{{ user.created[:10] if user.created else '—' }}</td>
+                <td>
+                    {% if user.username != 'admin' %}
+                    <button class="btn btn-sm" style="background:#dc2626;color:white;" onclick="event.stopPropagation();deleteUser('{{ user.username }}')">
+                        🗑️ Delete
+                    </button>
+                    {% else %}
+                    <span style="color:#94a3b8;">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr id="detail-{{ user.username }}" style="display:none;">
+                <td colspan="6" style="padding:0.5rem 1rem 1rem 2.5rem;background:#f8fafc;">
+                    {% if user.tournaments %}
+                    <table style="width:100%;font-size:0.875rem;">
+                        <thead>
+                            <tr style="color:#64748b;">
+                                <th style="text-align:left;padding:0.25rem 0.5rem;">Tournament</th>
+                                <th style="text-align:left;padding:0.25rem 0.5rem;">Teams</th>
+                                <th style="text-align:left;padding:0.25rem 0.5rem;">Registrations</th>
+                                <th style="text-align:left;padding:0.25rem 0.5rem;">Schedule</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in user.tournaments %}
+                            <tr>
+                                <td style="padding:0.25rem 0.5rem;">{{ t.name }}</td>
+                                <td style="padding:0.25rem 0.5rem;">{{ t.teams }}</td>
+                                <td style="padding:0.25rem 0.5rem;">{{ t.registrations }}</td>
+                                <td style="padding:0.25rem 0.5rem;">{% if t.has_schedule %}✅{% else %}—{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <em style="color:#94a3b8;">No tournaments</em>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<script>
+function toggleUserDetail(username) {
+    const row = document.getElementById('detail-' + username);
+    const arrow = document.getElementById('arrow-' + username);
+    if (row.style.display === 'none') {
+        row.style.display = '';
+        arrow.style.transform = 'rotate(90deg)';
+    } else {
+        row.style.display = 'none';
+        arrow.style.transform = 'rotate(0deg)';
+    }
+}
+
+function deleteUser(username) {
+    if (!confirm('Delete user "' + username + '" and ALL their tournament data? This cannot be undone.')) return;
+    if (!confirm('Are you REALLY sure? This will permanently delete all data for "' + username + '".')) return;
+    
+    fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to delete user.');
+        }
+    })
+    .catch(() => alert('Network error.'));
+}
+
+function restoreSite(input) {
+    if (!input.files || !input.files[0]) return;
+    if (!confirm('Restore site from backup? A pre-restore backup will be created automatically.')) {
+        input.value = '';
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', input.files[0]);
+    
+    fetch('/api/admin/restore-ui', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert(data.error || 'Restore failed.');
+        }
+    })
+    .catch(() => alert('Network error.'));
+    
+    input.value = '';
+}
+</script>
+{% endblock %}

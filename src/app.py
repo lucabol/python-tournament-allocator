@@ -1157,6 +1157,17 @@ def set_active_tournament():
         return
 
     username = session['user']
+    
+    # Admin user gets redirected to admin dashboard (separate UI)
+    if username == 'admin':
+        admin_endpoints = {'admin_dashboard', 'api_admin_delete_user',
+                          'api_admin_export', 'api_admin_import',
+                          'api_admin_backup_ui', 'api_admin_restore_ui',
+                          'logout', None}
+        if request.endpoint not in admin_endpoints and not str(request.endpoint or '').startswith('static'):
+            return redirect(url_for('admin_dashboard'))
+        return
+
     user_dir = os.path.join(USERS_DIR, username)
     g.user_dir = user_dir
     g.user_tournaments_file = os.path.join(user_dir, 'tournaments.yaml')
@@ -4815,6 +4826,195 @@ def api_import_user():
 
     flash('User tournaments imported successfully.', 'success')
     return redirect(url_for('tournaments'))
+
+
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    """Admin dashboard — site-wide control panel."""
+    if session.get('user') != 'admin':
+        return redirect(url_for('index'))
+    
+    # Load all users
+    users_data = []
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            all_users = yaml.safe_load(f) or {}
+    else:
+        all_users = {}
+    
+    total_tournaments = 0
+    total_teams = 0
+    
+    # Scan each user directory
+    if os.path.exists(USERS_DIR):
+        for username in sorted(os.listdir(USERS_DIR)):
+            user_path = os.path.join(USERS_DIR, username)
+            if not os.path.isdir(user_path):
+                continue
+            
+            user_info = all_users.get(username, {})
+            tournaments_file = os.path.join(user_path, 'tournaments.yaml')
+            tournaments = []
+            
+            if os.path.exists(tournaments_file):
+                with open(tournaments_file, 'r', encoding='utf-8') as f:
+                    t_data = yaml.safe_load(f) or {}
+                for t in t_data.get('tournaments', []):
+                    t_slug = t.get('slug', '')
+                    t_dir = os.path.join(user_path, 'tournaments', t_slug)
+                    team_count = 0
+                    reg_count = 0
+                    has_schedule = False
+                    
+                    if os.path.isdir(t_dir):
+                        # Count teams
+                        teams_file = os.path.join(t_dir, 'teams.yaml')
+                        if os.path.exists(teams_file):
+                            with open(teams_file, 'r', encoding='utf-8') as f:
+                                pools = yaml.safe_load(f) or {}
+                            for pool_data in pools.values():
+                                if isinstance(pool_data, dict):
+                                    team_count += len(pool_data.get('teams', []))
+                        
+                        # Count registrations
+                        reg_file = os.path.join(t_dir, 'registrations.yaml')
+                        if os.path.exists(reg_file):
+                            with open(reg_file, 'r', encoding='utf-8') as f:
+                                regs = yaml.safe_load(f) or {}
+                            reg_count = len(regs.get('teams', []))
+                        
+                        has_schedule = os.path.exists(os.path.join(t_dir, 'schedule.yaml'))
+                    
+                    tournaments.append({
+                        'name': t.get('name', t_slug),
+                        'slug': t_slug,
+                        'teams': team_count,
+                        'registrations': reg_count,
+                        'has_schedule': has_schedule,
+                    })
+                    total_teams += team_count
+            
+            total_tournaments += len(tournaments)
+            users_data.append({
+                'username': username,
+                'created': user_info.get('created', ''),
+                'tournaments': tournaments,
+                'tournament_count': len(tournaments),
+                'team_count': sum(t['teams'] for t in tournaments),
+            })
+    
+    return render_template('admin_dashboard.html',
+                          users=users_data,
+                          total_users=len(users_data),
+                          total_tournaments=total_tournaments,
+                          total_teams=total_teams)
+
+
+@app.route('/api/admin/delete-user', methods=['POST'])
+@login_required
+def api_admin_delete_user():
+    """Delete a user and all their data (admin only)."""
+    if session.get('user') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required.'}), 403
+    
+    data = request.get_json()
+    username = data.get('username', '').strip().lower()
+    
+    if not username:
+        return jsonify({'success': False, 'error': 'Username required.'}), 400
+    if username == 'admin':
+        return jsonify({'success': False, 'error': 'Cannot delete admin user.'}), 400
+    
+    # Remove user directory
+    user_dir = os.path.join(USERS_DIR, username)
+    if os.path.exists(user_dir):
+        import shutil
+        shutil.rmtree(user_dir)
+    
+    # Remove from users.yaml
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            all_users = yaml.safe_load(f) or {}
+        if username in all_users:
+            del all_users[username]
+            with open(USERS_FILE, 'w', encoding='utf-8') as f:
+                yaml.dump(all_users, f, default_flow_style=False)
+    
+    return jsonify({'success': True, 'message': f'User "{username}" deleted.'})
+
+
+@app.route('/api/admin/backup-ui')
+@login_required
+def api_admin_backup_ui():
+    """Download site backup ZIP (admin session auth, no API key needed)."""
+    if session.get('user') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required.'}), 403
+    
+    if not os.path.exists(DATA_DIR):
+        return jsonify({'error': 'No data directory found'}), 404
+    
+    import io, zipfile
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(DATA_DIR):
+            dirs[:] = [d for d in dirs if d != '__pycache__']
+            for file in files:
+                if file.endswith('.lock'):
+                    continue
+                file_path = os.path.join(root, file)
+                arcname = os.path.relpath(file_path, DATA_DIR)
+                zf.write(file_path, arcname)
+    
+    memory_file.seek(0)
+    from datetime import datetime
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    return send_file(memory_file, mimetype='application/zip',
+                    as_attachment=True, download_name=f'site_backup_{timestamp}.zip')
+
+
+@app.route('/api/admin/restore-ui', methods=['POST'])
+@login_required
+def api_admin_restore_ui():
+    """Restore site from uploaded ZIP (admin session auth)."""
+    if session.get('user') != 'admin':
+        return jsonify({'success': False, 'error': 'Admin access required.'}), 403
+    
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file uploaded.'}), 400
+    
+    file = request.files['file']
+    if not file.filename or not file.filename.endswith('.zip'):
+        return jsonify({'success': False, 'error': 'Please upload a .zip file.'}), 400
+    
+    import io, zipfile, shutil
+    from datetime import datetime
+    
+    zip_data = io.BytesIO(file.read())
+    try:
+        with zipfile.ZipFile(zip_data, 'r') as zf:
+            # Validate ZIP contents
+            names = zf.namelist()
+            if not any('users.yaml' in n or 'tournaments.yaml' in n for n in names):
+                return jsonify({'success': False, 'error': 'Invalid backup: no users.yaml or tournaments.yaml found.'}), 400
+            
+            # Create pre-restore backup
+            backup_dir = os.path.join(os.path.dirname(DATA_DIR), 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_path = os.path.join(backup_dir, f'pre-restore-{timestamp}')
+            if os.path.exists(DATA_DIR):
+                shutil.copytree(DATA_DIR, backup_path)
+            
+            # Extract ZIP to DATA_DIR
+            for info in zf.infolist():
+                if info.filename.startswith('..') or os.path.isabs(info.filename):
+                    continue
+                zf.extract(info, DATA_DIR)
+        
+        return jsonify({'success': True, 'message': f'Site restored. Pre-restore backup at: {backup_path}'})
+    except zipfile.BadZipFile:
+        return jsonify({'success': False, 'error': 'Invalid ZIP file.'}), 400
 
 
 @app.route('/api/admin/export')

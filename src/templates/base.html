@@ -64,6 +64,15 @@
                 <span></span><span></span><span></span>
             </button>
         </div>
+        {% if current_user == 'admin' %}
+        <ul class="nav-links">
+            <li><a href="{{ url_for('admin_dashboard') }}" class="active">Admin Dashboard</a></li>
+        </ul>
+        <div class="nav-user">
+            <span>🛡️ admin</span>
+            <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
+        </div>
+        {% else %}
         <ul class="nav-links">
             <li><a href="{{ url_for('tournaments') }}" {% if request.endpoint == 'tournaments' %}class="active"{% endif %}>Tournaments</a></li>
             <li><a href="{{ url_for('index') }}" {% if request.endpoint == 'index' %}class="active"{% endif %}>Dashboard</a></li>
@@ -95,6 +104,7 @@
             <span>👤 {{ current_user }}</span>
             <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
         </div>
+        {% endif %}
         {% endif %}
     </nav>
     
