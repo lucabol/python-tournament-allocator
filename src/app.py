@@ -4667,6 +4667,21 @@ def api_import_tournament():
                 flash('ZIP contains unsafe file paths. Import aborted.', 'error')
                 return redirect(url_for('index'))
 
+        # Create pre-import backup of current tournament data
+        tournament_dir = _tournament_dir()
+        backup_dir = os.path.join(tournament_dir, '_backups')
+        os.makedirs(backup_dir, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_path = os.path.join(backup_dir, f'pre-import-{timestamp}')
+        os.makedirs(backup_path, exist_ok=True)
+        import shutil
+        for fname in os.listdir(tournament_dir):
+            if fname.startswith('_') or fname.endswith('.lock'):
+                continue
+            src = os.path.join(tournament_dir, fname)
+            if os.path.isfile(src):
+                shutil.copy2(src, os.path.join(backup_path, fname))
+
         # Extract allowed data files
         exportable = _get_exportable_files()
         for name in names:
@@ -5018,6 +5033,15 @@ def api_admin_restore_ui():
             if os.path.exists(DATA_DIR):
                 shutil.copytree(DATA_DIR, backup_path)
             
+            # Clear DATA_DIR for true replace (not overlay)
+            if os.path.exists(DATA_DIR):
+                for item in os.listdir(DATA_DIR):
+                    item_path = os.path.join(DATA_DIR, item)
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path)
+                    else:
+                        os.remove(item_path)
+            
             # Extract ZIP to DATA_DIR
             for info in zf.infolist():
                 if info.filename.startswith('..') or os.path.isabs(info.filename):
@@ -5118,6 +5142,15 @@ def api_admin_import():
                 else:
                     if not item.endswith(('.lock', '.pyc')):
                         shutil.copy2(src, dst)
+        
+        # Clear DATA_DIR for true replace (not overlay)
+        if os.path.exists(DATA_DIR):
+            for item in os.listdir(DATA_DIR):
+                item_path = os.path.join(DATA_DIR, item)
+                if os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+                else:
+                    os.remove(item_path)
         
         # Extract uploaded ZIP to DATA_DIR
         os.makedirs(DATA_DIR, exist_ok=True)

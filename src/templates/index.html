@@ -238,6 +238,9 @@
     <form id="import-form" method="POST" action="{{ url_for('api_import_tournament') }}" enctype="multipart/form-data" style="display:none">
         <input type="file" id="import-file" name="file" accept=".zip" onchange="confirmImport(this)">
     </form>
+    <p style="font-size:0.8125rem;color:#94a3b8;margin-top:0.5rem;">
+        Import <strong>replaces</strong> this tournament's data. A backup is created automatically before import.
+    </p>
 </section>
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>

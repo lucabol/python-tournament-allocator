@@ -85,6 +85,9 @@
         <a href="{{ url_for('api_export_user') }}" class="btn btn-secondary btn-sm">💾 Export All Tournaments</a>
         <button onclick="document.getElementById('import-all-file').click()" class="btn btn-secondary btn-sm">📂 Import Tournaments</button>
     </div>
+    <p style="font-size:0.8125rem;color:#94a3b8;margin-top:0.5rem;">
+        Import adds new tournaments and updates existing ones. Your other tournaments are preserved.
+    </p>
     <form id="import-all-form" method="POST" action="{{ url_for('api_import_user') }}" enctype="multipart/form-data" style="display:none">
         <input type="file" id="import-all-file" name="file" accept=".zip" onchange="confirmImport(this)">
     </form>
