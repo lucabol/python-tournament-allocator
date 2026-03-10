@@ -1321,8 +1321,8 @@ def page_not_found(e):
 @app.route('/health')
 @csrf.exempt
 def health_check():
-    """Health check endpoint for Azure App Service."""
-    return jsonify({'status': 'healthy'}), 200
+    """A lightweight endpoint to keep the app awake."""
+    return {"status": "up", "message": "Stay awake, Render!"}, 200
 
 
 @app.route('/login', methods=['GET', 'POST'])
