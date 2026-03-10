@@ -776,8 +776,13 @@
             if (data.success) {
                 markAsReported(matchKey);
                 form.remove();
-                // Add pending badge and score to the match
-                if (!matchItem.querySelector('.pending-badge')) {
+                // Add or update pending badge and score on the match
+                var existingBadge = matchItem.querySelector('.pending-badge');
+                var existingScore = matchItem.querySelector('.pending-score');
+                var scoreText = sets.map(function(s) { return s[0] + '-' + s[1]; }).join(', ');
+                if (existingScore) {
+                    existingScore.textContent = scoreText;
+                } else if (!existingBadge) {
                     var badge = document.createElement('span');
                     badge.className = 'pending-badge';
                     badge.textContent = '⏳';
@@ -786,7 +791,7 @@
                     var scoreSpan = document.createElement('span');
                     scoreSpan.className = 'pending-score';
                     scoreSpan.style.cssText = 'color:#aaa;font-size:0.8em;';
-                    scoreSpan.textContent = sets.map(function(s) { return s[0] + '-' + s[1]; }).join(', ');
+                    scoreSpan.textContent = scoreText;
                     var header = matchItem.querySelector('.match-list-meta, .hero-match-meta');
                     if (header) { header.appendChild(badge); header.appendChild(scoreSpan); }
                     else { matchItem.insertAdjacentElement('afterbegin', scoreSpan); matchItem.insertAdjacentElement('afterbegin', badge); }
