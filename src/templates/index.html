@@ -59,8 +59,8 @@
 
     <div class="card">
         <h2>⚙️ Format</h2>
-        <div class="stat-number" style="font-size:1.2rem">{{ constraints.bracket_type|capitalize }}</div>
-        <p>{{ 'Best of 3' if constraints.scoring_format == 'best_of_3' else 'Single set' }}{% if constraints.silver_bracket_enabled %} + Silver{% endif %}</p>
+        <div class="stat-number" style="font-size:1.2rem">{% if constraints.bracket_type == 'none' %}Pool Play Only{% else %}{{ constraints.bracket_type|capitalize }}{% endif %}</div>
+        <p>{{ 'Best of 3' if constraints.scoring_format == 'best_of_3' else 'Single set' }}{% if constraints.bracket_type != 'none' and constraints.silver_bracket_enabled %} + Silver{% endif %}</p>
         <a href="{{ url_for('settings') }}" class="btn btn-primary btn-sm">Settings</a>
     </div>
 
@@ -89,7 +89,7 @@
     </div>
     {% endif %}
 
-    {% if schedule_stats %}
+    {% if schedule_stats and constraints.bracket_type != 'none' %}
     <div class="card">
         <h2>🏆 Bracket</h2>
         {% if bracket_data and bracket_data.champion %}

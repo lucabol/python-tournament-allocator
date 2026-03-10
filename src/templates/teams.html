@@ -528,6 +528,7 @@ async function togglePaid(checkbox, teamName) {
 }
 
 // Show unpaid teams overlay
+var _unpaidTeamsData = [];
 async function showUnpaidTeams() {
     const modal = document.getElementById('unpaid-teams-modal');
     const listContainer = document.getElementById('unpaid-teams-list');
@@ -553,12 +554,16 @@ async function showUnpaidTeams() {
         }
         
         if (!result.unpaid_teams || result.unpaid_teams.length === 0) {
+            _unpaidTeamsData = [];
             listContainer.innerHTML = '<p class="success-message">✅ All teams have paid!</p>';
             return;
         }
         
-        // Build the list
-        let html = '<div class="unpaid-teams-grid">';
+        _unpaidTeamsData = result.unpaid_teams;
+        
+        // Build the list with export button
+        let html = '<div style="text-align:right;margin-bottom:0.75rem;"><button class="btn btn-sm" onclick="exportUnpaidCsv()">📥 Export CSV</button></div>';
+        html += '<div class="unpaid-teams-grid">';
         result.unpaid_teams.forEach(team => {
             const poolInfo = team.assigned_pool ? `📋 ${team.assigned_pool}` : '⏳ Unassigned';
             html += `
@@ -576,6 +581,22 @@ async function showUnpaidTeams() {
         console.error('Show unpaid teams error:', error);
         listContainer.innerHTML = `<p class="error-message">Error loading unpaid teams: ${error.message}</p>`;
     }
+}
+
+function exportUnpaidCsv() {
+    if (!_unpaidTeamsData.length) return;
+    var csv = 'Team Name,Email,Phone,Pool\n';
+    _unpaidTeamsData.forEach(function(t) {
+        csv += '"' + (t.team_name||'').replace(/"/g,'""') + '","' +
+               (t.email||'').replace(/"/g,'""') + '","' +
+               (t.phone||'').replace(/"/g,'""') + '","' +
+               (t.assigned_pool||'').replace(/"/g,'""') + '"\n';
+    });
+    var blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'unpaid_teams.csv';
+    link.click();
 }
 </script>
 {% endblock %}

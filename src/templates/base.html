@@ -7,6 +7,21 @@
     <title>{% block title %}Tournament Allocator{% endblock %}</title>
     <link rel="icon" href="/api/logo">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+    .nav-user-dropdown { display:none; position:absolute; right:0; top:100%; margin-top:4px; background:var(--card-bg, #fff); border:1px solid var(--border, #e5e7eb); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:160px; z-index:100; overflow:hidden; }
+    @media (max-width: 768px) { .nav-user-dropdown { top:auto; bottom:100%; margin-top:0; margin-bottom:4px; } }
+    .nav-user-dropdown.show { display:block; }
+    .nav-user-dropdown a { display:block; padding:0.625rem 1rem; color:var(--text, #1e293b); text-decoration:none; font-size:0.875rem; white-space:nowrap; }
+    .nav-user-dropdown a:hover { background:var(--hover-bg, #f1f5f9); }
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center; }
+    .modal-overlay.show { display:flex; }
+    .modal-box { background:var(--card-bg, #fff); border-radius:12px; padding:2rem; max-width:400px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+    .modal-box h3 { margin:0 0 1rem; }
+    .modal-box input { width:100%; padding:0.625rem 2.5rem 0.625rem 0.75rem; border:2px solid var(--border, #e2e8f0); border-radius:8px; font-size:0.875rem; margin-bottom:0.75rem; box-sizing:border-box; }
+    .pw-eye { position:absolute; right:0.75rem; top:0.55rem; cursor:pointer; font-size:1.1rem; user-select:none; opacity:0.6; }
+    .pw-eye:hover { opacity:1; }
+    .modal-box .modal-actions { display:flex; gap:0.5rem; justify-content:flex-end; margin-top:0.5rem; }
+    </style>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
         // Apply saved theme immediately to prevent flash
@@ -68,9 +83,12 @@
         <ul class="nav-links">
             <li><a href="{{ url_for('admin_dashboard') }}" class="active">Admin Dashboard</a></li>
         </ul>
-        <div class="nav-user">
-            <span>🛡️ admin</span>
-            <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
+        <div class="nav-user" style="position:relative;">
+            <span class="nav-user-toggle" onclick="document.getElementById('user-menu').classList.toggle('show')" style="cursor:pointer;">🛡️ admin ▾</span>
+            <div id="user-menu" class="nav-user-dropdown">
+                <a href="#" onclick="showChangePassword();return false;">🔑 Change Password</a>
+                <a href="{{ url_for('logout') }}">🚪 Logout</a>
+            </div>
         </div>
         {% else %}
         <ul class="nav-links">
@@ -81,7 +99,9 @@
             <li><a href="{{ url_for('settings') }}" {% if request.endpoint == 'settings' %}class="active"{% endif %}>Settings</a></li>
             <li><a href="{{ url_for('schedule') }}" {% if request.endpoint == 'schedule' %}class="active"{% endif %}>Schedule</a></li>
             <li><a href="{{ url_for('tracking') }}" {% if request.endpoint == 'tracking' %}class="active"{% endif %}>Pools</a></li>
+            {% if bracket_type != 'none' %}
             <li><a href="{{ url_for('bracket') }}" {% if request.endpoint == 'bracket' or request.endpoint == 'sbracket' or request.endpoint == 'dbracket' or request.endpoint == 'schedule_single_elimination' or request.endpoint == 'schedule_double_elimination' %}class="active"{% endif %}>Bracket</a></li>
+            {% endif %}
             <li><a href="{{ url_for('awards') }}" {% if request.endpoint == 'awards' %}class="active"{% endif %}>Awards</a></li>
             <li>
                 <a href="{{ url_for('messages') }}" {% if request.endpoint == 'messages' %}class="active"{% endif %}>
@@ -100,9 +120,12 @@
             <li><a href="{{ url_for('live') }}" {% if request.endpoint == 'live' %}class="active"{% endif %}>Live</a></li>
             {% endif %}
         </ul>
-        <div class="nav-user">
-            <span>👤 {{ current_user }}</span>
-            <a href="{{ url_for('logout') }}" class="btn btn-sm">Logout</a>
+        <div class="nav-user" style="position:relative;">
+            <span class="nav-user-toggle" onclick="document.getElementById('user-menu').classList.toggle('show')" style="cursor:pointer;">👤 {{ current_user }} ▾</span>
+            <div id="user-menu" class="nav-user-dropdown">
+                <a href="#" onclick="event.preventDefault();showChangePassword()">🔑 Change Password</a>
+                <a href="{{ url_for('logout') }}">🚪 Logout</a>
+            </div>
         </div>
         {% endif %}
         {% endif %}
@@ -115,6 +138,19 @@
     <footer class="footer">
         <p>Tournament Allocator &copy; 2026</p>
     </footer>
+    <div id="change-pw-modal" class="modal-overlay" onclick="if(event.target===this)hideChangePassword()">
+        <div class="modal-box">
+            <h3>🔑 Change Password</h3>
+            <div id="pw-msg"></div>
+            <div style="position:relative;"><input type="password" id="pw-current" placeholder="Current password"><span class="pw-eye" onclick="togglePwVis('pw-current',this)">👁</span></div>
+            <div style="position:relative;"><input type="password" id="pw-new" placeholder="New password (min 8 characters)"><span class="pw-eye" onclick="togglePwVis('pw-new',this)">👁</span></div>
+            <div style="position:relative;"><input type="password" id="pw-confirm" placeholder="Confirm new password"><span class="pw-eye" onclick="togglePwVis('pw-confirm',this)">👁</span></div>
+            <div class="modal-actions">
+                <button class="btn btn-sm" onclick="hideChangePassword()">Cancel</button>
+                <button class="btn btn-sm btn-primary" onclick="submitChangePassword()">Change</button>
+            </div>
+        </div>
+    </div>
     <script>
     function toggleTheme() {
         var html = document.documentElement;
@@ -134,6 +170,48 @@
         var btn = document.querySelector('.theme-toggle');
         if (btn && localStorage.getItem('theme') === 'dark') btn.textContent = '☀️';
     })();
+    // Close user dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        var menu = document.getElementById('user-menu');
+        if (menu && !e.target.closest('.nav-user')) menu.classList.remove('show');
+    });
+    function togglePwVis(id, el) {
+        var inp = document.getElementById(id);
+        if (inp.type === 'password') { inp.type = 'text'; el.textContent = '🙈'; }
+        else { inp.type = 'password'; el.textContent = '👁'; }
+    }
+    function showChangePassword() {
+        document.getElementById('user-menu').classList.remove('show');
+        document.getElementById('pw-current').value = '';
+        document.getElementById('pw-new').value = '';
+        document.getElementById('pw-confirm').value = '';
+        document.getElementById('pw-msg').innerHTML = '';
+        document.getElementById('change-pw-modal').classList.add('show');
+    }
+    function hideChangePassword() {
+        document.getElementById('change-pw-modal').classList.remove('show');
+    }
+    function submitChangePassword() {
+        var cur = document.getElementById('pw-current').value;
+        var nw = document.getElementById('pw-new').value;
+        var cf = document.getElementById('pw-confirm').value;
+        var msg = document.getElementById('pw-msg');
+        if (!cur || !nw || !cf) { msg.innerHTML = '<p style="color:#dc2626;font-size:0.875rem;">All fields required.</p>'; return; }
+        if (nw !== cf) { msg.innerHTML = '<p style="color:#dc2626;font-size:0.875rem;">New passwords do not match.</p>'; return; }
+        if (nw.length < 8) { msg.innerHTML = '<p style="color:#dc2626;font-size:0.875rem;">Password must be at least 8 characters.</p>'; return; }
+        fetch('/api/change-password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({current_password: cur, new_password: nw})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.success) {
+                msg.innerHTML = '<p style="color:#22c55e;font-size:0.875rem;">Password changed successfully!</p>';
+                setTimeout(hideChangePassword, 1500);
+            } else {
+                msg.innerHTML = '<p style="color:#dc2626;font-size:0.875rem;">' + (data.error || 'Failed.') + '</p>';
+            }
+        }).catch(function() { msg.innerHTML = '<p style="color:#dc2626;font-size:0.875rem;">Network error.</p>'; });
+    }
     </script>
 </body>
 </html>

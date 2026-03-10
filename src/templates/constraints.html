@@ -73,7 +73,8 @@
             
             <div class="form-group">
                 <label for="bracket_type">Elimination Bracket Type</label>
-                <select id="bracket_type" name="bracket_type" onchange="updateSetting('bracket_type', this.value)">
+                <select id="bracket_type" name="bracket_type" onchange="updateSetting('bracket_type', this.value); document.querySelectorAll('.bracket-only').forEach(function(el){el.style.display=this.value==='none'?'none':'';}.bind(this));">
+                    <option value="none" {% if constraints.bracket_type == 'none' %}selected{% endif %}>None (Pool Play Only)</option>
                     <option value="single" {% if constraints.bracket_type == 'single' %}selected{% endif %}>Single Elimination</option>
                     <option value="double" {% if constraints.bracket_type == 'double' %}selected{% endif %}>Double Elimination</option>
                 </select>
@@ -97,7 +98,7 @@
                 </select>
             </div>
             
-            <div class="form-group">
+            <div class="form-group bracket-only" {% if constraints.bracket_type == 'none' %}style="display:none"{% endif %}>
                 <label for="pool_to_bracket_delay">Pool to Bracket Delay (minutes)
                     <span class="help-icon" title="Time delay between the end of pool play and the start of bracket play. Use this for lunch breaks, etc.">?</span>
                 </label>
@@ -116,9 +117,9 @@
                 </label>
             </div>
             
-            <div class="form-group">
+            <div class="form-group bracket-only" {% if constraints.bracket_type == 'none' %}style="display:none"{% endif %}>
                 <label class="checkbox-label">
-                    <input type="checkbox" id="silver_bracket_enabled" name="silver_bracket_enabled" 
+                    <input type="checkbox" id="silver_bracket_enabled" name="silver_bracket_enabled"
                            {% if constraints.silver_bracket_enabled %}checked{% endif %}
                            onchange="updateSetting('silver_bracket_enabled', this.checked)">
                     Silver Bracket
@@ -217,15 +218,22 @@
 </section>
 
 <script>
+var _pendingSettings = {};
+var _settingsTimer = null;
+
 function updateSetting(field, value) {
-    const data = {};
-    data[field] = value;
-    
-    fetch('/api/settings/update', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
-    });
+    _pendingSettings[field] = value;
+    if (_settingsTimer) clearTimeout(_settingsTimer);
+    _settingsTimer = setTimeout(function() {
+        var data = Object.assign({}, _pendingSettings);
+        var needsReload = 'bracket_type' in data;
+        _pendingSettings = {};
+        fetch('/api/settings/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        }).then(function() { if (needsReload) location.reload(); });
+    }, 300);
 }
 
 function uploadLogo(input) {

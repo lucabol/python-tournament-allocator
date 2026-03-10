@@ -302,28 +302,39 @@ if (-not $existingKey) {
     Write-Host "SECRET_KEY already set, skipping (preserves user sessions)." -ForegroundColor DarkGray
 }
 
-# Auto-create admin account — generate password if not already set
+# Auto-create admin account — generate password into .env if not already set
 Write-Host "Checking admin account configuration..." -ForegroundColor Yellow
-$existingAdminPwd = az webapp config appsettings list `
-    --name $appName `
-    --resource-group $resourceGroup `
-    --query "[?name=='ADMIN_PASSWORD'].value" -o tsv
 
-if (-not $existingAdminPwd) {
-    Write-Host "Generating admin account password..." -ForegroundColor Yellow
+if (-not $env:ADMIN_PASSWORD) {
+    Write-Host "Generating admin password into .env..." -ForegroundColor Yellow
     $adminBytes = [byte[]]::new(16)
     [System.Security.Cryptography.RandomNumberGenerator]::Fill($adminBytes)
     $adminPassword = [System.BitConverter]::ToString($adminBytes).Replace("-", "").Substring(0, 16).ToLower()
-    
-    az webapp config appsettings set `
-        --name $appName `
-        --resource-group $resourceGroup `
-        --settings "ADMIN_PASSWORD=$adminPassword" `
-        --output none
+    # Append to .env file
+    Add-Content -Path $envFile -Value "`nADMIN_PASSWORD=$adminPassword"
+    $env:ADMIN_PASSWORD = $adminPassword
 } else {
-    $adminPassword = $existingAdminPwd
-    Write-Host "ADMIN_PASSWORD already set in Azure." -ForegroundColor DarkGray
+    $adminPassword = $env:ADMIN_PASSWORD
+    Write-Host "ADMIN_PASSWORD found in .env." -ForegroundColor DarkGray
 }
+
+# Set ADMIN_PASSWORD in Azure App Settings
+$appSettings = @("ADMIN_PASSWORD=$adminPassword")
+
+# Handle ADMIN_PASSWORD_RESET flag from .env
+if ($env:ADMIN_PASSWORD_RESET -eq 'true') {
+    Write-Host "ADMIN_PASSWORD_RESET=true detected — admin password will be reset on next startup." -ForegroundColor Yellow
+    $appSettings += "ADMIN_PASSWORD_RESET=true"
+} else {
+    # Clear the reset flag in Azure if it was previously set
+    $appSettings += "ADMIN_PASSWORD_RESET=false"
+}
+
+az webapp config appsettings set `
+    --name $appName `
+    --resource-group $resourceGroup `
+    --settings $appSettings `
+    --output none
 
 # Wait for config changes to propagate (config changes trigger async container restarts)
 Write-Host "Waiting for config changes to propagate..." -ForegroundColor Yellow
@@ -349,7 +360,12 @@ Write-Host "App URL: $url" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "=== Admin Account ===" -ForegroundColor Yellow
 Write-Host "Username: admin" -ForegroundColor White
-Write-Host "Password: $adminPassword" -ForegroundColor White
+Write-Host "Password: $adminPassword (from .env)" -ForegroundColor White
+if ($env:ADMIN_PASSWORD_RESET -eq 'true') {
+    Write-Host "NOTE: Password reset flag is active. Remove ADMIN_PASSWORD_RESET from .env after login." -ForegroundColor Magenta
+} else {
+    Write-Host "NOTE: This password is only used on first admin creation. Change via UI after login." -ForegroundColor DarkGray
+}
 Write-Host ""
 Write-Host "To view logs: az webapp log tail --name $appName --resource-group $resourceGroup"
 if ($latestDeploymentId) {

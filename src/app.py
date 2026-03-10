@@ -307,18 +307,32 @@ def _create_default_tournament_files(tournament_dir: str, tournament_name: str =
 
 ensure_tournament_structure()
 
-# Auto-create admin account if ADMIN_PASSWORD env var is set and admin doesn't exist
+# Auto-create admin account if ADMIN_PASSWORD env var is set
 _admin_password = os.environ.get('ADMIN_PASSWORD')
 if _admin_password:
+    from werkzeug.security import generate_password_hash as _gen_hash
     _existing_users = load_users()
-    if not any(u['username'] == 'admin' for u in _existing_users):
-        _ok, _msg = create_user('admin', _admin_password)
-        if _ok:
-            print('[STARTUP] Admin account created.')
-        else:
-            print(f'[STARTUP] Admin account creation failed: {_msg}')
+    _admin_user = next((u for u in _existing_users if u['username'] == 'admin'), None)
+    _reset_flag = os.environ.get('ADMIN_PASSWORD_RESET', '').lower() == 'true'
+    if _admin_user and _reset_flag:
+        # Emergency reset: overwrite password from env var
+        _admin_user['password_hash'] = _gen_hash(_admin_password)
+        save_users(_existing_users)
+        print('[STARTUP] Admin password reset from ADMIN_PASSWORD env var.')
+    elif _admin_user:
+        # Admin exists, no reset flag — leave password untouched
+        print('[STARTUP] Admin account already exists (password unchanged).')
     else:
-        print('[STARTUP] Admin account already exists.')
+        # Create admin — bypass min-length for env-var-driven creation
+        _existing_users.append({
+            'username': 'admin',
+            'password_hash': _gen_hash(_admin_password),
+            'created': datetime.now().isoformat()
+        })
+        save_users(_existing_users)
+        admin_dir = os.path.join(USERS_DIR, 'admin')
+        os.makedirs(os.path.join(admin_dir, 'tournaments'), exist_ok=True)
+        print('[STARTUP] Admin account created.')
 
 
 def _find_logo_file():
@@ -344,11 +358,15 @@ def load_print_settings():
     path = _file_path('print_settings.yaml')
     if not os.path.exists(path):
         return defaults
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        if not data:
-            return defaults
-        return {**defaults, **data}
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            if not data:
+                return defaults
+            return {**defaults, **data}
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {path}: {e}')
+        return defaults
 
 
 def load_teams():
@@ -356,20 +374,22 @@ def load_teams():
     path = _file_path('teams.yaml')
     if not os.path.exists(path):
         return {}
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        if not data:
-            return {}
-        # Normalize format: each pool has 'teams' list and 'advance' count
-        normalized = {}
-        for pool_name, pool_data in data.items():
-            if isinstance(pool_data, list):
-                # Old format: just a list of teams
-                normalized[pool_name] = {'teams': pool_data, 'advance': 2}
-            else:
-                # New format: dict with teams and advance
-                normalized[pool_name] = pool_data
-        return normalized
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            if not data:
+                return {}
+            # Normalize format: each pool has 'teams' list and 'advance' count
+            normalized = {}
+            for pool_name, pool_data in data.items():
+                if isinstance(pool_data, list):
+                    normalized[pool_name] = {'teams': pool_data, 'advance': 2}
+                else:
+                    normalized[pool_name] = pool_data
+            return normalized
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {path}: {e}')
+        return {}
 
 
 def save_teams(pools_data):
@@ -414,40 +434,52 @@ def load_constraints():
     path = _file_path('constraints.yaml')
     if not os.path.exists(path):
         return defaults
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        if not data:
-            return defaults
-        # Merge with defaults to ensure all keys exist
-        for key, value in defaults.items():
-            if key not in data:
-                data[key] = value
-        return data
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            if not data:
+                return defaults
+            # Merge with defaults to ensure all keys exist
+            for key, value in defaults.items():
+                if key not in data:
+                    data[key] = value
+            return data
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {path}: {e}')
+        return defaults
 
 
 def save_constraints(constraints):
     """Save constraints to YAML file."""
-    with open(_file_path('constraints.yaml'), 'w', encoding='utf-8') as f:
-        yaml.dump(constraints, f, default_flow_style=False)
+    path = _file_path('constraints.yaml')
+    lock_path = path + '.lock'
+    lock = FileLock(lock_path, timeout=5)
+    with lock:
+        with open(path, 'w', encoding='utf-8') as f:
+            yaml.dump(constraints, f, default_flow_style=False)
 
 
 def load_results():
     """Load match results from YAML file."""
+    defaults = {'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'}
     path = _file_path('results.yaml')
     if not os.path.exists(path):
-        return {'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'}
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        if not data:
-            return {'pool_play': {}, 'bracket': {}, 'bracket_type': 'single'}
-        # Ensure all sections exist
-        if 'pool_play' not in data:
-            data['pool_play'] = {}
-        if 'bracket' not in data:
-            data['bracket'] = {}
-        if 'bracket_type' not in data:
-            data['bracket_type'] = 'single'
-        return data
+        return defaults
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            if not data:
+                return defaults
+            if 'pool_play' not in data:
+                data['pool_play'] = {}
+            if 'bracket' not in data:
+                data['bracket'] = {}
+            if 'bracket_type' not in data:
+                data['bracket_type'] = 'single'
+            return data
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {path}: {e}')
+        return defaults
 
 
 def save_results(results):
@@ -461,13 +493,17 @@ def load_awards() -> dict:
     path = _file_path('awards.yaml')
     if not os.path.exists(path):
         return {'awards': []}
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        if not data:
-            return {'awards': []}
-        if 'awards' not in data:
-            data['awards'] = []
-        return data
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            if not data:
+                return {'awards': []}
+            if 'awards' not in data:
+                data['awards'] = []
+            return data
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {path}: {e}')
+        return {'awards': []}
 
 
 def save_awards(data: dict):
@@ -481,11 +517,15 @@ def load_messages():
     path = _file_path('messages.yaml')
     if not os.path.exists(path):
         return []
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        if not data or 'messages' not in data:
-            return []
-        return data['messages']
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            if not data or 'messages' not in data:
+                return []
+            return data['messages']
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {path}: {e}')
+        return []
 
 
 def save_messages(messages):
@@ -496,22 +536,26 @@ def save_messages(messages):
 
 def load_registrations():
     """Load team registrations from YAML file."""
+    defaults = {'registration_open': False, 'teams': []}
     path = _file_path('registrations.yaml')
     if not os.path.exists(path):
-        return {'registration_open': False, 'teams': []}
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        if not data:
-            return {'registration_open': False, 'teams': []}
-        if 'registration_open' not in data:
-            data['registration_open'] = False
-        if 'teams' not in data:
-            data['teams'] = []
-        # Ensure all teams have paid field (default to False)
-        for team in data['teams']:
-            if 'paid' not in team:
-                team['paid'] = False
-        return data
+        return defaults
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            if not data:
+                return defaults
+            if 'registration_open' not in data:
+                data['registration_open'] = False
+            if 'teams' not in data:
+                data['teams'] = []
+            for team in data['teams']:
+                if 'paid' not in team:
+                    team['paid'] = False
+            return data
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {path}: {e}')
+        return defaults
 
 
 def save_registrations(registrations):
@@ -528,9 +572,13 @@ def load_solo_players(data_dir_path: str = None):
         path = _file_path('solo_players.yaml')
     if not os.path.exists(path):
         return []
-    with open(path, 'r', encoding='utf-8') as f:
-        data = yaml.safe_load(f)
-        return data if isinstance(data, list) else []
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+            return data if isinstance(data, list) else []
+    except Exception as e:
+        app.logger.warning(f'Failed to parse {path}: {e}')
+        return []
 
 
 def save_solo_players(players, data_dir_path: str = None):
@@ -731,7 +779,9 @@ def enrich_schedule_with_results(schedule_data, results, pools, standings):
         bracket_type = constraints_data.get('bracket_type', 'double')
         include_silver = constraints_data.get('silver_bracket_enabled', False)
         
-        if bracket_type == 'double':
+        if bracket_type == 'none':
+            pass  # No bracket phase — skip team mapping
+        elif bracket_type == 'double':
             gold = generate_bracket_execution_order(pools, standings, prefix="", phase_name="Bracket")
             for m in gold:
                 mc = m.get('match_code', '')
@@ -1157,7 +1207,7 @@ def set_active_tournament():
                             'public_live', 'public_solo_register',
                             'api_public_live_html', 'api_public_live_stream',
                             'api_report_result', 'api_message', 'api_logo',
-                            'api_admin_export', 'api_admin_import', None):
+                            'api_admin_export', 'api_admin_import', 'health_check', None):
         return
 
     # Ensure tournament structure exists (idempotent)
@@ -1176,6 +1226,7 @@ def set_active_tournament():
         admin_endpoints = {'admin_dashboard', 'api_admin_delete_user',
                           'api_admin_export', 'api_admin_import',
                           'api_admin_backup_ui', 'api_admin_restore_ui',
+                          'api_change_password',
                           'logout', None}
         if request.endpoint not in admin_endpoints and not str(request.endpoint or '').startswith('static'):
             return redirect(url_for('admin_dashboard'))
@@ -1235,9 +1286,11 @@ def inject_tournament_context():
     """Make tournament and user info available to all templates."""
     show_test_buttons = False
     unread_messages_count = 0
+    bracket_type = 'double'
     try:
         constraints = load_constraints()
         show_test_buttons = constraints.get('show_test_buttons', False)
+        bracket_type = constraints.get('bracket_type', 'double')
     except Exception:
         pass
     
@@ -1255,7 +1308,21 @@ def inject_tournament_context():
         'current_user': session.get('user'),
         'show_test_buttons': show_test_buttons,
         'unread_messages_count': unread_messages_count,
+        'bracket_type': bracket_type,
     }
+
+
+@app.errorhandler(404)
+def page_not_found(e):
+    """Custom 404 page."""
+    return render_template('404.html'), 404
+
+
+@app.route('/health')
+@csrf.exempt
+def health_check():
+    """Health check endpoint for Azure App Service."""
+    return jsonify({'status': 'healthy'}), 200
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -1305,6 +1372,32 @@ def logout():
     return redirect(url_for('login_page'))
 
 
+@app.route('/api/change-password', methods=['POST'])
+@login_required
+def api_change_password():
+    """Change the current user's password."""
+    from werkzeug.security import check_password_hash, generate_password_hash
+    data = request.get_json()
+    current_pw = data.get('current_password', '')
+    new_pw = data.get('new_password', '')
+    
+    if not current_pw or not new_pw:
+        return jsonify({'success': False, 'error': 'Both fields are required.'}), 400
+    if len(new_pw) < 8:
+        return jsonify({'success': False, 'error': 'New password must be at least 8 characters.'}), 400
+    
+    username = session.get('user')
+    with _data_lock:
+        users = load_users()
+        user = next((u for u in users if u['username'] == username), None)
+        if not user or not check_password_hash(user['password_hash'], current_pw):
+            return jsonify({'success': False, 'error': 'Current password is incorrect.'}), 400
+        user['password_hash'] = generate_password_hash(new_pw)
+        save_users(users)
+    
+    return jsonify({'success': True, 'message': 'Password changed successfully.'})
+
+
 @app.route('/api/delete-account', methods=['POST'])
 @login_required
 def api_delete_account():
@@ -1343,19 +1436,20 @@ def index():
     if pools:
         bracket_type = constraints.get('bracket_type', 'double')
         bracket_results = results.get('bracket', {})
-        try:
-            if bracket_type == 'double':
-                from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
-                bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
-                if constraints.get('silver_bracket_enabled'):
-                    silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
-            else:
-                from core.elimination import generate_bracket_with_results, generate_silver_bracket_with_results
-                bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
-                if constraints.get('silver_bracket_enabled'):
-                    silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
-        except Exception:
-            pass  # Bracket data is optional for dashboard
+        if bracket_type != 'none':
+            try:
+                if bracket_type == 'double':
+                    from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
+                    bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
+                    if constraints.get('silver_bracket_enabled'):
+                        silver_bracket_data = generate_silver_double_bracket_with_results(pools, standings, bracket_results)
+                else:
+                    from core.elimination import generate_bracket_with_results, generate_silver_bracket_with_results
+                    bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
+                    if constraints.get('silver_bracket_enabled'):
+                        silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
+            except Exception:
+                pass  # Bracket data is optional for dashboard
 
     # Determine tournament phase
     phase = determine_tournament_phase(schedule_data, results, bracket_data)
@@ -2339,41 +2433,49 @@ def api_edit_court():
 def api_update_settings():
     """AJAX endpoint for updating settings."""
     data = request.get_json()
-    constraints_data = load_constraints()
     
-    # Update all provided fields
-    if 'match_duration' in data:
-        constraints_data['match_duration_minutes'] = int(data['match_duration'])
-    if 'days_number' in data:
-        constraints_data['days_number'] = int(data['days_number'])
-    if 'min_break' in data:
-        constraints_data['min_break_between_matches_minutes'] = int(data['min_break'])
-    if 'day_end_time' in data:
-        constraints_data['day_end_time_limit'] = data['day_end_time']
-    if 'bracket_type' in data:
-        constraints_data['bracket_type'] = data['bracket_type']
-    if 'scoring_format' in data:
-        constraints_data['scoring_format'] = data['scoring_format']
-    if 'pool_in_same_court' in data:
-        constraints_data['pool_in_same_court'] = data['pool_in_same_court']
-    if 'silver_bracket_enabled' in data:
-        constraints_data['silver_bracket_enabled'] = data['silver_bracket_enabled']
-    if 'show_test_buttons' in data:
-        constraints_data['show_test_buttons'] = data['show_test_buttons']
-    if 'pool_to_bracket_delay' in data:
-        constraints_data['pool_to_bracket_delay_minutes'] = int(data['pool_to_bracket_delay'])
-    if 'club_name' in data:
-        constraints_data['club_name'] = data['club_name']
-    if 'tournament_name' in data:
-        constraints_data['tournament_name'] = data['tournament_name']
-    if 'tournament_date' in data:
-        constraints_data['tournament_date'] = data['tournament_date']
-    if 'tournament_category' in data:
-        constraints_data['tournament_category'] = data['tournament_category']
-    if 'tournament_location' in data:
-        constraints_data['tournament_location'] = data.get('tournament_location', '')
+    # Lock the entire read-modify-write cycle to prevent concurrent corruption
+    path = _file_path('constraints.yaml')
+    lock_path = path + '.lock'
+    lock = FileLock(lock_path, timeout=5)
+    with lock:
+        constraints_data = load_constraints()
+        
+        # Update all provided fields
+        if 'match_duration' in data:
+            constraints_data['match_duration_minutes'] = int(data['match_duration'])
+        if 'days_number' in data:
+            constraints_data['days_number'] = int(data['days_number'])
+        if 'min_break' in data:
+            constraints_data['min_break_between_matches_minutes'] = int(data['min_break'])
+        if 'day_end_time' in data:
+            constraints_data['day_end_time_limit'] = data['day_end_time']
+        if 'bracket_type' in data:
+            constraints_data['bracket_type'] = data['bracket_type']
+        if 'scoring_format' in data:
+            constraints_data['scoring_format'] = data['scoring_format']
+        if 'pool_in_same_court' in data:
+            constraints_data['pool_in_same_court'] = data['pool_in_same_court']
+        if 'silver_bracket_enabled' in data:
+            constraints_data['silver_bracket_enabled'] = data['silver_bracket_enabled']
+        if 'show_test_buttons' in data:
+            constraints_data['show_test_buttons'] = data['show_test_buttons']
+        if 'pool_to_bracket_delay' in data:
+            constraints_data['pool_to_bracket_delay_minutes'] = int(data['pool_to_bracket_delay'])
+        if 'club_name' in data:
+            constraints_data['club_name'] = data['club_name']
+        if 'tournament_name' in data:
+            constraints_data['tournament_name'] = data['tournament_name']
+        if 'tournament_date' in data:
+            constraints_data['tournament_date'] = data['tournament_date']
+        if 'tournament_category' in data:
+            constraints_data['tournament_category'] = data['tournament_category']
+        if 'tournament_location' in data:
+            constraints_data['tournament_location'] = data.get('tournament_location', '')
+        
+        with open(path, 'w', encoding='utf-8') as f:
+            yaml.dump(constraints_data, f, default_flow_style=False)
     
-    save_constraints(constraints_data)
     return jsonify({'success': True})
 
 
@@ -2581,6 +2683,9 @@ def api_generate_random_bracket_results():
     bracket_results = {}
     constraints = load_constraints()
     bracket_type = constraints.get('bracket_type', 'double')
+    
+    if bracket_type == 'none':
+        return jsonify({'success': False, 'error': 'No bracket phase for this tournament.'})
     
     # Get standings for seeding
     standings = calculate_pool_standings(pools, results)
@@ -3102,6 +3207,9 @@ def bracket():
     """Redirect to appropriate bracket based on settings."""
     constraints_data = load_constraints()
     bracket_type = constraints_data.get('bracket_type', 'single')
+    if bracket_type == 'none':
+        flash('This tournament has no bracket phase (pool play only).', 'info')
+        return redirect(url_for('index'))
     if bracket_type == 'double':
         return redirect(url_for('dbracket'))
     return redirect(url_for('sbracket'))
@@ -3183,7 +3291,10 @@ def schedule():
                 bracket_type = constraints_data.get('bracket_type', 'double')
                 include_silver = constraints_data.get('silver_bracket_enabled', False)
                 
-                if bracket_type == 'double':
+                if bracket_type == 'none':
+                    gold_matches = []
+                    silver_matches = []
+                elif bracket_type == 'double':
                     # Use new execution order function for correct match ordering
                     gold_matches = generate_bracket_execution_order(pools, None, prefix="", phase_name="Bracket")
                     silver_matches = generate_silver_bracket_execution_order(pools, None) if include_silver else []
@@ -3870,7 +3981,7 @@ def _get_live_data() -> dict:
     silver_bracket_data = None
     bracket_results = results.get('bracket', {})
 
-    if pools:
+    if pools and bracket_type != 'none':
         if bracket_type == 'double':
             from core.double_elimination import generate_double_bracket_with_results, generate_silver_double_bracket_with_results
             bracket_data = generate_double_bracket_with_results(pools, standings, bracket_results)
@@ -3881,6 +3992,9 @@ def _get_live_data() -> dict:
             bracket_data = generate_bracket_with_results(pools, standings, bracket_results)
             if silver_bracket_enabled:
                 silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
+
+    pending_list = load_pending_results()
+    pending_keys = set(item.get('match_key', '') for item in pending_list) if pending_list else set()
 
     return dict(
         pools=pools,
@@ -3893,6 +4007,7 @@ def _get_live_data() -> dict:
         print_settings=load_print_settings(),
         constraints=constraints,
         awards=load_awards().get('awards', []),
+        pending_keys=pending_keys,
     )
 
 

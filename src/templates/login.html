@@ -20,7 +20,10 @@
             </div>
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <div style="position:relative;">
+                    <input type="password" id="password" name="password" required style="padding-right:2.5rem;">
+                    <span class="pw-eye" onclick="togglePwVis('password',this)" style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);cursor:pointer;font-size:1.1rem;user-select:none;opacity:0.6;">👁</span>
+                </div>
             </div>
             <button type="submit" class="btn btn-primary btn-block">Login</button>
         </form>
