@@ -102,21 +102,29 @@
             {% elif court_ns.next_pool %}
                 <span class="meta-pool">{{ court_ns.next_pool }}</span>
             {% endif %}
-            <button class="btn-report-score" onclick="toggleReportForm(this)" title="Report score">📝 Report</button>
             {% if pending_keys is defined and full_match_key in pending_keys %}
             <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
-            {% if pending_scores is defined and full_match_key in pending_scores %}
-            <span class="pending-score" style="color:#aaa;font-size:1.3em;">{{ pending_scores[full_match_key]|map('join', '-')|join(', ') }}</span>
-            {% endif %}
             {% endif %}
         </div>
+        {% set pending_sets = pending_scores.get(full_match_key, []) if pending_scores is defined else [] %}
+        {% set num_sets = 1 if constraints.get('scoring_format', 'best_of_3') == 'single_set' else 3 %}
         <div class="hero-match-row">
             <span class="team-name">{{ team1 }}</span>
-            <span class="hero-score">-</span>
+            {% for si in range(num_sets) %}
+            <input type="number" class="inline-score {% if pending_sets and si < pending_sets|length %}pending{% endif %}"
+                   data-team="0" data-set="{{ si }}" min="0" max="99" inputmode="numeric"
+                   placeholder="-" value="{{ pending_sets[si][0] if pending_sets and si < pending_sets|length else '' }}"
+                   onblur="autoSubmitScore(this)">
+            {% endfor %}
         </div>
         <div class="hero-match-row">
             <span class="team-name">{{ team2 }}</span>
-            <span class="hero-score">-</span>
+            {% for si in range(num_sets) %}
+            <input type="number" class="inline-score {% if pending_sets and si < pending_sets|length %}pending{% endif %}"
+                   data-team="1" data-set="{{ si }}" min="0" max="99" inputmode="numeric"
+                   placeholder="-" value="{{ pending_sets[si][1] if pending_sets and si < pending_sets|length else '' }}"
+                   onblur="autoSubmitScore(this)">
+            {% endfor %}
         </div>
     </div>
     {% else %}
@@ -168,26 +176,36 @@
             <div class="match-list-meta">
                 <span>{{ time_slot }} · {{ court_name }}</span>
                 {% if pool_name %}<span>{{ pool_name }}</span>{% endif %}
-                {% if not is_completed %}
-                <button class="btn-report-score" onclick="toggleReportForm(this)" title="Report score">📝 Report</button>
-                {% endif %}
                 {% if not is_completed and pending_keys is defined and full_match_key in pending_keys %}
                 <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
-                {% if pending_scores is defined and full_match_key in pending_scores %}
-                <span class="pending-score" style="color:#aaa;font-size:1.3em;">{{ pending_scores[full_match_key]|map('join', '-')|join(', ') }}</span>
-                {% endif %}
                 {% endif %}
             </div>
+            {% set pending_sets = pending_scores.get(full_match_key, []) if pending_scores is defined else [] %}
+            {% set num_sets = 1 if constraints.get('scoring_format', 'best_of_3') == 'single_set' else 3 %}
             <div class="match-list-row">
                 <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
-                {% if match_result.sets %}
-                <span class="list-score">{{ match_result.sets[0][0] if match_result.sets[0] else '-' }}</span>
+                {% if is_completed %}
+                    {% for s in match_result.sets %}<span class="list-score">{{ s[0] }}</span>{% endfor %}
+                {% else %}
+                    {% for si in range(num_sets) %}
+                    <input type="number" class="inline-score {% if pending_sets and si < pending_sets|length %}pending{% endif %}"
+                           data-team="0" data-set="{{ si }}" min="0" max="99" inputmode="numeric"
+                           placeholder="-" value="{{ pending_sets[si][0] if pending_sets and si < pending_sets|length else '' }}"
+                           onblur="autoSubmitScore(this)">
+                    {% endfor %}
                 {% endif %}
             </div>
             <div class="match-list-row">
                 <span class="team-name {% if match_result.winner == team2 %}winner{% endif %}">{{ team2 }}</span>
-                {% if match_result.sets %}
-                <span class="list-score">{{ match_result.sets[0][1] if match_result.sets[0] else '-' }}</span>
+                {% if is_completed %}
+                    {% for s in match_result.sets %}<span class="list-score">{{ s[1] }}</span>{% endfor %}
+                {% else %}
+                    {% for si in range(num_sets) %}
+                    <input type="number" class="inline-score {% if pending_sets and si < pending_sets|length %}pending{% endif %}"
+                           data-team="1" data-set="{{ si }}" min="0" max="99" inputmode="numeric"
+                           placeholder="-" value="{{ pending_sets[si][1] if pending_sets and si < pending_sets|length else '' }}"
+                           onblur="autoSubmitScore(this)">
+                    {% endfor %}
                 {% endif %}
             </div>
         </div>
@@ -218,26 +236,36 @@
             <div class="match-list-meta">
                 <span>{{ time_slot }} · {{ court_name }}</span>
                 {% if match.round %}<span>{{ match.round }}</span>{% endif %}
-                {% if not is_completed and not match.get('is_placeholder') %}
-                <button class="btn-report-score" onclick="toggleReportForm(this)" title="Report score">📝 Report</button>
-                {% endif %}
                 {% if not is_completed and pending_keys is defined and bracket_match_key in pending_keys %}
                 <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
-                {% if pending_scores is defined and bracket_match_key in pending_scores %}
-                <span class="pending-score" style="color:#aaa;font-size:1.3em;">{{ pending_scores[bracket_match_key]|map('join', '-')|join(', ') }}</span>
-                {% endif %}
                 {% endif %}
             </div>
+            {% set pending_sets = pending_scores.get(bracket_match_key, []) if pending_scores is defined else [] %}
+            {% set num_sets = 1 if constraints.get('scoring_format', 'best_of_3') == 'single_set' else 3 %}
             <div class="match-list-row">
                 <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
-                {% if match_result.sets %}
-                <span class="list-score">{{ match_result.sets[0][0] if match_result.sets[0] else '-' }}</span>
+                {% if is_completed %}
+                    {% for s in match_result.sets %}<span class="list-score">{{ s[0] }}</span>{% endfor %}
+                {% elif not match.get('is_placeholder') %}
+                    {% for si in range(num_sets) %}
+                    <input type="number" class="inline-score {% if pending_sets and si < pending_sets|length %}pending{% endif %}"
+                           data-team="0" data-set="{{ si }}" min="0" max="99" inputmode="numeric"
+                           placeholder="-" value="{{ pending_sets[si][0] if pending_sets and si < pending_sets|length else '' }}"
+                           onblur="autoSubmitScore(this)">
+                    {% endfor %}
                 {% endif %}
             </div>
             <div class="match-list-row">
                 <span class="team-name {% if match_result.winner == team2 %}winner{% endif %}">{{ team2 }}</span>
-                {% if match_result.sets %}
-                <span class="list-score">{{ match_result.sets[0][1] if match_result.sets[0] else '-' }}</span>
+                {% if is_completed %}
+                    {% for s in match_result.sets %}<span class="list-score">{{ s[1] }}</span>{% endfor %}
+                {% elif not match.get('is_placeholder') %}
+                    {% for si in range(num_sets) %}
+                    <input type="number" class="inline-score {% if pending_sets and si < pending_sets|length %}pending{% endif %}"
+                           data-team="1" data-set="{{ si }}" min="0" max="99" inputmode="numeric"
+                           placeholder="-" value="{{ pending_sets[si][1] if pending_sets and si < pending_sets|length else '' }}"
+                           onblur="autoSubmitScore(this)">
+                    {% endfor %}
                 {% endif %}
             </div>
         </div>
@@ -681,83 +709,25 @@
         }
     }
 
-    window.toggleReportForm = function(btn) {
-        var matchItem = btn.closest('.match-list-item, .hero-match-card');
+    window.autoSubmitScore = function(input) {
+        var matchItem = input.closest('.match-list-item, .hero-match-card');
         var matchKey = matchItem.dataset.matchCode || matchItem.dataset.matchKey;
-        
-        // Check if form already exists
-        var existingForm = matchItem.querySelector('.report-score-form');
-        if (existingForm) {
-            existingForm.remove();
-            return;
-        }
-
-        // Build form
         var team1 = matchItem.dataset.team1;
         var team2 = matchItem.dataset.team2;
         var pool = matchItem.dataset.pool;
-        
         var numSets = scoringFormat === 'single_set' ? 1 : 3;
-        var formHtml = '<div class="report-score-form">';
-        formHtml += '<div class="report-form-header">Report Score</div>';
-        
-        // Team 1 row
-        formHtml += '<div class="report-form-row">';
-        formHtml += '<span class="report-team-name">' + team1 + '</span>';
-        formHtml += '<div class="report-score-inputs">';
-        for (var i = 0; i < numSets; i++) {
-            formHtml += '<input type="number" class="report-score-input" data-team="0" data-set="' + i + '" min="0" max="99" inputmode="numeric" placeholder="-">';
-        }
-        formHtml += '</div></div>';
-        
-        // Team 2 row
-        formHtml += '<div class="report-form-row">';
-        formHtml += '<span class="report-team-name">' + team2 + '</span>';
-        formHtml += '<div class="report-score-inputs">';
-        for (var i = 0; i < numSets; i++) {
-            formHtml += '<input type="number" class="report-score-input" data-team="1" data-set="' + i + '" min="0" max="99" inputmode="numeric" placeholder="-">';
-        }
-        formHtml += '</div></div>';
-        
-        formHtml += '<div class="report-form-actions">';
-        formHtml += '<button class="btn-report-submit" onclick="submitReport(this)">Submit</button>';
-        formHtml += '<button class="btn-report-cancel" onclick="cancelReport(this)">Cancel</button>';
-        formHtml += '</div></div>';
-        
-        matchItem.insertAdjacentHTML('beforeend', formHtml);
-    };
 
-    window.submitReport = function(btn) {
-        var form = btn.closest('.report-score-form');
-        var matchItem = form.closest('.match-list-item, .hero-match-card');
-        // For bracket matches, prefer the explicit match_code over the general match_key
-        var matchKey = matchItem.dataset.matchCode || matchItem.dataset.matchKey;
-        var team1 = matchItem.dataset.team1;
-        var team2 = matchItem.dataset.team2;
-        var pool = matchItem.dataset.pool;
-        
-        // Collect scores
-        var inputs = form.querySelectorAll('.report-score-input');
+        // Collect filled sets
         var sets = [];
-        var numSets = scoringFormat === 'single_set' ? 1 : 3;
-        
         for (var i = 0; i < numSets; i++) {
-            var t1Input = form.querySelector('[data-team="0"][data-set="' + i + '"]');
-            var t2Input = form.querySelector('[data-team="1"][data-set="' + i + '"]');
-            var score1 = t1Input.value ? parseInt(t1Input.value) : null;
-            var score2 = t2Input.value ? parseInt(t2Input.value) : null;
-            
-            if (score1 !== null && score2 !== null) {
-                sets.push([score1, score2]);
+            var t1 = matchItem.querySelector('.inline-score[data-team="0"][data-set="' + i + '"]');
+            var t2 = matchItem.querySelector('.inline-score[data-team="1"][data-set="' + i + '"]');
+            if (t1 && t2 && t1.value !== '' && t2.value !== '') {
+                sets.push([parseInt(t1.value), parseInt(t2.value)]);
             }
         }
-        
-        if (sets.length === 0) {
-            console.warn('Score submission validation failed: no sets entered');
-            return;
-        }
-        
-        // Send to server
+        if (sets.length === 0) return;
+
         var payload = {
             match_key: matchKey,
             team1: team1,
@@ -765,7 +735,7 @@
             pool: pool,
             sets: sets
         };
-        
+
         fetch(reportApiUrl, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
@@ -775,45 +745,31 @@
         .then(function(data) {
             if (data.success) {
                 markAsReported(matchKey);
-                form.remove();
-                // Add or update pending badge and score on the match
-                var existingBadge = matchItem.querySelector('.pending-badge');
-                var existingScore = matchItem.querySelector('.pending-score');
-                var scoreText = sets.map(function(s) { return s[0] + '-' + s[1]; }).join(', ');
-                if (existingScore) {
-                    existingScore.textContent = scoreText;
-                } else if (!existingBadge) {
+                // Mark inputs as pending (grey)
+                matchItem.querySelectorAll('.inline-score').forEach(function(inp) {
+                    if (inp.value !== '') inp.classList.add('pending');
+                });
+                // Add pending badge if not present
+                if (!matchItem.querySelector('.pending-badge')) {
                     var badge = document.createElement('span');
                     badge.className = 'pending-badge';
                     badge.textContent = '⏳';
                     badge.title = 'Score reported, waiting for approval';
                     badge.style.cssText = 'font-size:1.3em;line-height:1;';
-                    var scoreSpan = document.createElement('span');
-                    scoreSpan.className = 'pending-score';
-                    scoreSpan.style.cssText = 'color:#aaa;font-size:0.8em;';
-                    scoreSpan.textContent = scoreText;
                     var header = matchItem.querySelector('.match-list-meta, .hero-match-meta');
-                    if (header) { header.appendChild(badge); header.appendChild(scoreSpan); }
-                    else { matchItem.insertAdjacentElement('afterbegin', scoreSpan); matchItem.insertAdjacentElement('afterbegin', badge); }
+                    if (header) header.appendChild(badge);
                 }
-                // Show toast
+                // Toast
                 var toast = document.createElement('div');
                 toast.textContent = '✅ Score reported. Waiting for approval.';
                 toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#065f46;color:#fff;padding:12px 24px;border-radius:12px;font-size:0.9rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
                 document.body.appendChild(toast);
                 setTimeout(function() { toast.remove(); }, 3000);
-            } else {
-                console.error('Score submission error:', data.error);
             }
         })
         .catch(function(err) {
-            console.error('Failed to submit report:', err);
+            console.error('Failed to submit score:', err);
         });
-    };
-
-    window.cancelReport = function(btn) {
-        var form = btn.closest('.report-score-form');
-        form.remove();
     };
 
     // Message Form Handlers
