@@ -795,7 +795,7 @@
 
     // Show pending scores in light grey inside the match badge
     function showPendingScores(matchItem, sets) {
-        if (!sets || sets.length === 0) return;
+        if (!sets || sets.length === 0 || !Array.isArray(sets[0]) || sets[0].length < 2) return;
         var rows = matchItem.querySelectorAll('.match-list-row, .hero-match-row');
         if (rows.length >= 2) {
             // Team 1 score
