@@ -106,7 +106,7 @@
             {% if pending_keys is defined and full_match_key in pending_keys %}
             <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
             {% if pending_scores is defined and full_match_key in pending_scores %}
-            <span class="pending-score" style="color:#aaa;font-size:0.8em;">{{ pending_scores[full_match_key]|map('join', '-')|join(', ') }}</span>
+            <span class="pending-score" style="color:#aaa;font-size:1.3em;">{{ pending_scores[full_match_key]|map('join', '-')|join(', ') }}</span>
             {% endif %}
             {% endif %}
         </div>
@@ -174,7 +174,7 @@
                 {% if not is_completed and pending_keys is defined and full_match_key in pending_keys %}
                 <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
                 {% if pending_scores is defined and full_match_key in pending_scores %}
-                <span class="pending-score" style="color:#aaa;font-size:0.8em;">{{ pending_scores[full_match_key]|map('join', '-')|join(', ') }}</span>
+                <span class="pending-score" style="color:#aaa;font-size:1.3em;">{{ pending_scores[full_match_key]|map('join', '-')|join(', ') }}</span>
                 {% endif %}
                 {% endif %}
             </div>
@@ -224,7 +224,7 @@
                 {% if not is_completed and pending_keys is defined and bracket_match_key in pending_keys %}
                 <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
                 {% if pending_scores is defined and bracket_match_key in pending_scores %}
-                <span class="pending-score" style="color:#aaa;font-size:0.8em;">{{ pending_scores[bracket_match_key]|map('join', '-')|join(', ') }}</span>
+                <span class="pending-score" style="color:#aaa;font-size:1.3em;">{{ pending_scores[bracket_match_key]|map('join', '-')|join(', ') }}</span>
                 {% endif %}
                 {% endif %}
             </div>
