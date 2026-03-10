@@ -484,6 +484,19 @@ body {
     height: 36px;
 }
 
+/* --- Pending match background --- */
+.match-pending {
+    background: #fef9c3 !important;
+    border-left: 3px solid #eab308;
+}
+
+/* --- Score hint beside Up Next --- */
+.score-hint {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #9ca3af;
+}
+
 /* ============================================================
    Message Form Styles
    ============================================================ */

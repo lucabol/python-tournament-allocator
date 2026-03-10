@@ -20,7 +20,7 @@
 {# Hide entirely when the tournament is finished (champion crowned) #}
 {% if schedule and not (bracket_data and bracket_data.champion) %}
 <div class="now-playing-hero">
-    <div class="hero-title"><span class="live-dot"></span> Up Next</div>
+    <div class="hero-title"><span class="live-dot"></span> Up Next <span class="score-hint">— tap scores to enter results</span></div>
 
     {# Build ordered list of (day_key, day_data) entries — pool days first, then bracket #}
     {% set pool_days = schedule.keys() | reject('equalto', 'Bracket Phase') | list %}
@@ -91,7 +91,7 @@
         {% set pool_name = court_ns.next_pool if court_ns.next_pool else '' %}
         {% set full_match_key = match_key_check ~ '_' ~ pool_name if pool_name else match_key_check %}
     {% endif %}
-    <div class="hero-match-card" data-teams="{{ team1 }} {{ team2 }}" 
+    <div class="hero-match-card {% if pending_keys is defined and full_match_key in pending_keys %}match-pending{% endif %}" data-teams="{{ team1 }} {{ team2 }}" 
          data-match-key="{{ full_match_key }}" data-team1="{{ team1 }}" data-team2="{{ team2 }}" data-pool="{{ pool_name }}"
          {% if m.get('match_code') %}data-match-code="{{ m.match_code }}"{% endif %}>
         <div class="hero-match-meta">
@@ -101,9 +101,6 @@
                 <span class="meta-pool">{{ court_ns.next_round }}</span>
             {% elif court_ns.next_pool %}
                 <span class="meta-pool">{{ court_ns.next_pool }}</span>
-            {% endif %}
-            {% if pending_keys is defined and full_match_key in pending_keys %}
-            <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
             {% endif %}
         </div>
         {% set pending_sets = pending_scores.get(full_match_key, []) if pending_scores is defined else [] %}
@@ -170,15 +167,12 @@
         {% endif %}
         {% set match_result = results.get(full_match_key, {}) %}
         {% set is_completed = match_result.get('completed', false) %}
-        <div class="match-list-item {% if is_completed %}match-completed{% endif %}" data-teams="{{ team1 }} {{ team2 }}" 
+        <div class="match-list-item {% if is_completed %}match-completed{% endif %} {% if not is_completed and pending_keys is defined and full_match_key in pending_keys %}match-pending{% endif %}" data-teams="{{ team1 }} {{ team2 }}" 
              data-match-key="{{ full_match_key }}" data-team1="{{ team1 }}" data-team2="{{ team2 }}" data-pool="{{ pool_name }}"
              {% if match.get('match_code') %}data-match-code="{{ match.match_code }}"{% endif %}>
             <div class="match-list-meta">
                 <span>{{ time_slot }} · {{ court_name }}</span>
                 {% if pool_name %}<span>{{ pool_name }}</span>{% endif %}
-                {% if not is_completed and pending_keys is defined and full_match_key in pending_keys %}
-                <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
-                {% endif %}
             </div>
             {% set pending_sets = pending_scores.get(full_match_key, []) if pending_scores is defined else [] %}
             {% set num_sets = 1 if constraints.get('scoring_format', 'best_of_3') == 'single_set' else 3 %}
@@ -230,15 +224,12 @@
         {% set is_completed = match_result.get('completed', false) %}
         {% set bracket_match_key = match.get('match_code', '') %}
         {% set bracket_pool = match.get('pool', '') %}
-        <div class="match-list-item {% if is_completed %}match-completed{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %}" data-teams="{{ team1 }} {{ team2 }}"
+        <div class="match-list-item {% if is_completed %}match-completed{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if not is_completed and pending_keys is defined and bracket_match_key in pending_keys %}match-pending{% endif %}" data-teams="{{ team1 }} {{ team2 }}"
              data-match-key="{{ bracket_match_key }}" data-team1="{{ team1 }}" data-team2="{{ team2 }}" data-pool="{{ bracket_pool }}"
              data-match-code="{{ bracket_match_key }}">
             <div class="match-list-meta">
                 <span>{{ time_slot }} · {{ court_name }}</span>
                 {% if match.round %}<span>{{ match.round }}</span>{% endif %}
-                {% if not is_completed and pending_keys is defined and bracket_match_key in pending_keys %}
-                <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
-                {% endif %}
             </div>
             {% set pending_sets = pending_scores.get(bracket_match_key, []) if pending_scores is defined else [] %}
             {% set num_sets = 1 if constraints.get('scoring_format', 'best_of_3') == 'single_set' else 3 %}
@@ -749,16 +740,8 @@
                 matchItem.querySelectorAll('.inline-score').forEach(function(inp) {
                     if (inp.value !== '') inp.classList.add('pending');
                 });
-                // Add pending badge if not present
-                if (!matchItem.querySelector('.pending-badge')) {
-                    var badge = document.createElement('span');
-                    badge.className = 'pending-badge';
-                    badge.textContent = '⏳';
-                    badge.title = 'Score reported, waiting for approval';
-                    badge.style.cssText = 'font-size:1.3em;line-height:1;';
-                    var header = matchItem.querySelector('.match-list-meta, .hero-match-meta');
-                    if (header) header.appendChild(badge);
-                }
+                // Mark the card as pending (background color change)
+                matchItem.classList.add('match-pending');
                 // Toast
                 var toast = document.createElement('div');
                 toast.textContent = '✅ Score reported. Waiting for approval.';
