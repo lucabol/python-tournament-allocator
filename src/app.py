@@ -3995,6 +3995,7 @@ def _get_live_data() -> dict:
 
     pending_list = load_pending_results()
     pending_keys = set(item.get('match_key', '') for item in pending_list) if pending_list else set()
+    pending_scores = {item['match_key']: item.get('sets', []) for item in pending_list} if pending_list else {}
 
     return dict(
         pools=pools,
@@ -4008,6 +4009,7 @@ def _get_live_data() -> dict:
         constraints=constraints,
         awards=load_awards().get('awards', []),
         pending_keys=pending_keys,
+        pending_scores=pending_scores,
     )
 
 

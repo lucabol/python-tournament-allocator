@@ -105,6 +105,9 @@
             <button class="btn-report-score" onclick="toggleReportForm(this)" title="Report score">📝 Report</button>
             {% if pending_keys is defined and full_match_key in pending_keys %}
             <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
+            {% if pending_scores is defined and full_match_key in pending_scores %}
+            <span class="pending-score" style="color:#aaa;font-size:0.8em;">{{ pending_scores[full_match_key]|map('join', '-')|join(', ') }}</span>
+            {% endif %}
             {% endif %}
         </div>
         <div class="hero-match-row">
@@ -170,6 +173,9 @@
                 {% endif %}
                 {% if not is_completed and pending_keys is defined and full_match_key in pending_keys %}
                 <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
+                {% if pending_scores is defined and full_match_key in pending_scores %}
+                <span class="pending-score" style="color:#aaa;font-size:0.8em;">{{ pending_scores[full_match_key]|map('join', '-')|join(', ') }}</span>
+                {% endif %}
                 {% endif %}
             </div>
             <div class="match-list-row">
@@ -217,6 +223,9 @@
                 {% endif %}
                 {% if not is_completed and pending_keys is defined and bracket_match_key in pending_keys %}
                 <span class="pending-badge" title="Score reported, waiting for approval" style="font-size:1.3em;line-height:1;">⏳</span>
+                {% if pending_scores is defined and bracket_match_key in pending_scores %}
+                <span class="pending-score" style="color:#aaa;font-size:0.8em;">{{ pending_scores[bracket_match_key]|map('join', '-')|join(', ') }}</span>
+                {% endif %}
                 {% endif %}
             </div>
             <div class="match-list-row">
@@ -767,16 +776,20 @@
             if (data.success) {
                 markAsReported(matchKey);
                 form.remove();
-                // Add pending badge to the match
+                // Add pending badge and score to the match
                 if (!matchItem.querySelector('.pending-badge')) {
                     var badge = document.createElement('span');
                     badge.className = 'pending-badge';
                     badge.textContent = '⏳';
                     badge.title = 'Score reported, waiting for approval';
                     badge.style.cssText = 'font-size:1.3em;line-height:1;';
+                    var scoreSpan = document.createElement('span');
+                    scoreSpan.className = 'pending-score';
+                    scoreSpan.style.cssText = 'color:#aaa;font-size:0.8em;';
+                    scoreSpan.textContent = sets.map(function(s) { return s[0] + '-' + s[1]; }).join(', ');
                     var header = matchItem.querySelector('.match-list-meta, .hero-match-meta');
-                    if (header) header.appendChild(badge);
-                    else matchItem.insertAdjacentElement('afterbegin', badge);
+                    if (header) { header.appendChild(badge); header.appendChild(scoreSpan); }
+                    else { matchItem.insertAdjacentElement('afterbegin', scoreSpan); matchItem.insertAdjacentElement('afterbegin', badge); }
                 }
                 // Show toast
                 var toast = document.createElement('div');
