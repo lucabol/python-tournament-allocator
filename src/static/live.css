@@ -300,6 +300,16 @@ body {
     text-align: center;
 }
 
+/* Pending (reported but unconfirmed) scores shown in light grey */
+.pending-score {
+    color: #9ca3af !important;
+    font-style: italic;
+}
+
+.match-pending {
+    border-left-color: #9ca3af;
+}
+
 /* --- Standings inside drill-down --- */
 .pool-card {
     margin-bottom: 1rem;

@@ -3882,6 +3882,14 @@ def _get_live_data() -> dict:
             if silver_bracket_enabled:
                 silver_bracket_data = generate_silver_bracket_with_results(pools, standings, bracket_results)
 
+    # Build pending results lookup keyed by match_key (only 'pending' status)
+    pending_list = load_pending_results()
+    pending_results = {
+        item['match_key']: item
+        for item in pending_list
+        if item.get('status') == 'pending'
+    }
+
     return dict(
         pools=pools,
         standings=standings,
@@ -3893,6 +3901,7 @@ def _get_live_data() -> dict:
         print_settings=load_print_settings(),
         constraints=constraints,
         awards=load_awards().get('awards', []),
+        pending_results=pending_results,
     )
 
 
@@ -3920,7 +3929,7 @@ def _get_data_file_mtimes() -> dict:
     Returns:
         Dictionary mapping file path to its mtime (float), or 0.0 if missing.
     """
-    names = ['results.yaml', 'schedule.yaml', 'teams.yaml', 'constraints.yaml']
+    names = ['results.yaml', 'schedule.yaml', 'teams.yaml', 'constraints.yaml', 'pending_results.yaml']
     files = [_file_path(n) for n in names]
     return {f: os.path.getmtime(f) if os.path.exists(f) else 0.0 for f in files}
 
@@ -4005,7 +4014,7 @@ def api_public_live_stream(username, slug):
     data_dir = _resolve_public_tournament_dir(username, slug)
     if not data_dir:
         abort(404)
-    names = ['results.yaml', 'schedule.yaml', 'teams.yaml', 'constraints.yaml']
+    names = ['results.yaml', 'schedule.yaml', 'teams.yaml', 'constraints.yaml', 'pending_results.yaml']
     watched_files = [os.path.join(data_dir, n) for n in names]
 
     def generate():

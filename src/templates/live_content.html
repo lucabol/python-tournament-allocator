@@ -104,13 +104,22 @@
             {% endif %}
             <button class="btn-report-score" onclick="toggleReportForm(this)" title="Report score">📝 Report</button>
         </div>
+        {% set hero_pending = pending_results.get(full_match_key) if pending_results is defined else none %}
         <div class="hero-match-row">
             <span class="team-name">{{ team1 }}</span>
+            {% if hero_pending and hero_pending.sets %}
+            <span class="hero-score pending-score">{{ hero_pending.sets[0][0] }}</span>
+            {% else %}
             <span class="hero-score">-</span>
+            {% endif %}
         </div>
         <div class="hero-match-row">
             <span class="team-name">{{ team2 }}</span>
+            {% if hero_pending and hero_pending.sets %}
+            <span class="hero-score pending-score">{{ hero_pending.sets[0][1] }}</span>
+            {% else %}
             <span class="hero-score">-</span>
+            {% endif %}
         </div>
     </div>
     {% else %}
@@ -156,7 +165,8 @@
         {% endif %}
         {% set match_result = results.get(full_match_key, {}) %}
         {% set is_completed = match_result.get('completed', false) %}
-        <div class="match-list-item {% if is_completed %}match-completed{% endif %}" data-teams="{{ team1 }} {{ team2 }}" 
+        {% set list_pending = pending_results.get(full_match_key) if pending_results is defined and not is_completed else none %}
+        <div class="match-list-item {% if is_completed %}match-completed{% endif %} {% if list_pending %}match-pending{% endif %}" data-teams="{{ team1 }} {{ team2 }}" 
              data-match-key="{{ full_match_key }}" data-team1="{{ team1 }}" data-team2="{{ team2 }}" data-pool="{{ pool_name }}"
              {% if match.get('match_code') %}data-match-code="{{ match.match_code }}"{% endif %}>
             <div class="match-list-meta">
@@ -170,12 +180,16 @@
                 <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
                 {% if match_result.sets %}
                 <span class="list-score">{{ match_result.sets[0][0] if match_result.sets[0] else '-' }}</span>
+                {% elif list_pending and list_pending.sets %}
+                <span class="list-score pending-score">{{ list_pending.sets[0][0] }}</span>
                 {% endif %}
             </div>
             <div class="match-list-row">
                 <span class="team-name {% if match_result.winner == team2 %}winner{% endif %}">{{ team2 }}</span>
                 {% if match_result.sets %}
                 <span class="list-score">{{ match_result.sets[0][1] if match_result.sets[0] else '-' }}</span>
+                {% elif list_pending and list_pending.sets %}
+                <span class="list-score pending-score">{{ list_pending.sets[0][1] }}</span>
                 {% endif %}
             </div>
         </div>
@@ -200,7 +214,8 @@
         {% set is_completed = match_result.get('completed', false) %}
         {% set bracket_match_key = match.get('match_code', '') %}
         {% set bracket_pool = match.get('pool', '') %}
-        <div class="match-list-item {% if is_completed %}match-completed{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %}" data-teams="{{ team1 }} {{ team2 }}"
+        {% set bracket_pending = pending_results.get(bracket_match_key) if pending_results is defined and not is_completed else none %}
+        <div class="match-list-item {% if is_completed %}match-completed{% endif %} {% if match.get('is_placeholder') %}match-placeholder{% endif %} {% if bracket_pending %}match-pending{% endif %}" data-teams="{{ team1 }} {{ team2 }}"
              data-match-key="{{ bracket_match_key }}" data-team1="{{ team1 }}" data-team2="{{ team2 }}" data-pool="{{ bracket_pool }}"
              data-match-code="{{ bracket_match_key }}">
             <div class="match-list-meta">
@@ -214,12 +229,16 @@
                 <span class="team-name {% if match_result.winner == team1 %}winner{% endif %}">{{ team1 }}</span>
                 {% if match_result.sets %}
                 <span class="list-score">{{ match_result.sets[0][0] if match_result.sets[0] else '-' }}</span>
+                {% elif bracket_pending and bracket_pending.sets %}
+                <span class="list-score pending-score">{{ bracket_pending.sets[0][0] }}</span>
                 {% endif %}
             </div>
             <div class="match-list-row">
                 <span class="team-name {% if match_result.winner == team2 %}winner{% endif %}">{{ team2 }}</span>
                 {% if match_result.sets %}
                 <span class="list-score">{{ match_result.sets[0][1] if match_result.sets[0] else '-' }}</span>
+                {% elif bracket_pending and bracket_pending.sets %}
+                <span class="list-score pending-score">{{ bracket_pending.sets[0][1] }}</span>
                 {% endif %}
             </div>
         </div>
@@ -757,6 +776,9 @@
         .then(function(data) {
             if (data.success) {
                 form.remove();
+                markAsReported(matchKey);
+                // Show submitted scores in light grey immediately
+                showPendingScores(matchItem, sets);
             } else {
                 console.error('Score submission error:', data.error);
             }
@@ -770,6 +792,37 @@
         var form = btn.closest('.report-score-form');
         form.remove();
     };
+
+    // Show pending scores in light grey inside the match badge
+    function showPendingScores(matchItem, sets) {
+        if (!sets || sets.length === 0) return;
+        var rows = matchItem.querySelectorAll('.match-list-row, .hero-match-row');
+        if (rows.length >= 2) {
+            // Team 1 score
+            var score1El = rows[0].querySelector('.list-score, .hero-score');
+            if (score1El) {
+                score1El.textContent = sets[0][0];
+                score1El.classList.add('pending-score');
+            } else {
+                var span = document.createElement('span');
+                span.className = (matchItem.classList.contains('hero-match-card') ? 'hero-score' : 'list-score') + ' pending-score';
+                span.textContent = sets[0][0];
+                rows[0].appendChild(span);
+            }
+            // Team 2 score
+            var score2El = rows[1].querySelector('.list-score, .hero-score');
+            if (score2El) {
+                score2El.textContent = sets[0][1];
+                score2El.classList.add('pending-score');
+            } else {
+                var span = document.createElement('span');
+                span.className = (matchItem.classList.contains('hero-match-card') ? 'hero-score' : 'list-score') + ' pending-score';
+                span.textContent = sets[0][1];
+                rows[1].appendChild(span);
+            }
+        }
+        matchItem.classList.add('match-pending');
+    }
 
     // Message Form Handlers
     var messageTextarea = document.getElementById('message-text');
