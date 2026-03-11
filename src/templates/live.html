@@ -5,7 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <meta name="theme-color" content="#ffffff">
     <title>Live Tournament</title>
+    {% if public_mode %}
+    <link rel="icon" href="/t/{{ public_slug }}/api/logo?username={{ public_username }}&slug={{ public_slug }}">
+    {% else %}
     <link rel="icon" href="{{ tournament_base }}/api/logo">
+    {% endif %}
     <link rel="stylesheet" href="{{ url_for('static', filename='live.css') }}">
 </head>
 <body>

@@ -1,5 +1,9 @@
 <div class="print-header-logo">
-    <img src="/api/logo" alt="{{ constraints.club_name | default('Tournament') }}" class="print-logo">
+    {% if public_mode is defined and public_mode %}
+    <img src="/t/{{ public_slug }}/api/logo?username={{ public_username }}&slug={{ public_slug }}" alt="{{ constraints.club_name | default('Tournament') }}" class="print-logo">
+    {% else %}
+    <img src="{{ tournament_base }}/api/logo" alt="{{ constraints.club_name | default('Tournament') }}" class="print-logo">
+    {% endif %}
     <div class="print-titles">
         <div class="organization-name">{{ constraints.club_name | default('') }}</div>
         <h1 class="header-title">{{ constraints.tournament_name | default('Tournament') }}</h1>

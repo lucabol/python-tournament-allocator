@@ -8,7 +8,7 @@
 
         {# ---- HEADER ---- #}
         <div class="insta-header">
-            <img src="/api/logo" alt="" class="insta-logo">
+            <img src="{{ tournament_base }}/api/logo" alt="" class="insta-logo">
             <div class="insta-header-text">
                 {% if constraints.club_name %}<div class="insta-club">{{ constraints.club_name }}</div>{% endif %}
                 <h1 class="insta-title">{{ constraints.tournament_name | default('Tournament') }}</h1>
