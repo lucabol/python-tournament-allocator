@@ -129,7 +129,7 @@ async function saveCourtName(input, oldName) {
     const newName = input.value.trim();
     if (newName === oldName) return;
     
-    const response = await fetch('/api/courts/edit', {
+    const response = await fetch('{{ tournament_base }}/api/courts/edit', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({old_name: oldName, new_name: newName})
@@ -144,7 +144,7 @@ async function saveCourtName(input, oldName) {
 }
 
 function loadTestCourts() {
-    fetch('/api/test-courts', {
+    fetch('{{ tournament_base }}/api/test-courts', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
     })

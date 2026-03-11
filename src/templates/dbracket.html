@@ -1082,7 +1082,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        fetch('/api/results/bracket', {
+        fetch('{{ tournament_base }}/api/results/bracket', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -1111,7 +1111,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function generateRandomBracketResults() {
-    fetch('/api/generate-random-bracket-results', {
+    fetch('{{ tournament_base }}/api/generate-random-bracket-results', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
     })

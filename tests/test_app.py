@@ -200,7 +200,7 @@ class TestTeamsRoutes:
     
     def test_add_pool_with_advance_count(self, client, temp_data_dir):
         """Test adding a pool with custom advance count."""
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'new_pool',
             'advance_count': '3'
@@ -215,7 +215,7 @@ class TestTeamsRoutes:
     
     def test_add_pool_default_advance_count(self, client, temp_data_dir):
         """Test adding a pool with default advance count."""
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'default_pool'
         }, follow_redirects=True)
@@ -229,14 +229,14 @@ class TestTeamsRoutes:
     def test_update_advance_count(self, client, temp_data_dir):
         """Test updating advance count for existing pool."""
         # First create a pool
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'test_pool',
             'advance_count': '2'
         })
         
         # Update advance count
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'update_advance',
             'pool_name': 'test_pool',
             'advance_count': '4'
@@ -250,14 +250,14 @@ class TestTeamsRoutes:
     def test_add_team_to_new_format_pool(self, client, temp_data_dir):
         """Test adding a team to a pool in new format."""
         # Create pool
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'my_pool',
             'advance_count': '2'
         })
         
         # Add team
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'add_team',
             'pool_name': 'my_pool',
             'team_name': 'New Team'
@@ -272,19 +272,19 @@ class TestTeamsRoutes:
     def test_delete_team_preserves_advance(self, client, temp_data_dir):
         """Test that deleting a team preserves the advance count."""
         # Create pool with team
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'del_pool',
             'advance_count': '3'
         })
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_team',
             'pool_name': 'del_pool',
             'team_name': 'Team To Delete'
         })
         
         # Delete team
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'delete_team',
             'pool_name': 'del_pool',
             'team_name': 'Team To Delete'
@@ -299,18 +299,18 @@ class TestTeamsRoutes:
     def test_edit_team_name(self, client, temp_data_dir):
         """Test editing a team name."""
         # Create pool with team
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'edit_pool'
         })
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_team',
             'pool_name': 'edit_pool',
             'team_name': 'Original Name'
         })
         
         # Edit team name
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'edit_team',
             'pool_name': 'edit_pool',
             'old_team_name': 'Original Name',
@@ -326,23 +326,23 @@ class TestTeamsRoutes:
     def test_edit_team_name_duplicate_error(self, client, temp_data_dir):
         """Test that renaming to existing team name shows error."""
         # Create pool with two teams
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'dup_edit_pool'
         })
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_team',
             'pool_name': 'dup_edit_pool',
             'team_name': 'Team Alpha'
         })
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_team',
             'pool_name': 'dup_edit_pool',
             'team_name': 'Team Beta'
         })
         
         # Try to rename Team Beta to Team Alpha
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'edit_team',
             'pool_name': 'dup_edit_pool',
             'old_team_name': 'Team Beta',
@@ -360,13 +360,13 @@ class TestTeamsRoutes:
     def test_duplicate_pool_shows_error(self, client, temp_data_dir):
         """Test that adding duplicate pool shows error message."""
         # Create pool
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'dup_pool'
         })
         
         # Try to create same pool again
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'dup_pool'
         }, follow_redirects=True)
@@ -377,22 +377,22 @@ class TestTeamsRoutes:
     def test_duplicate_team_shows_error(self, client, temp_data_dir):
         """Test that adding duplicate team shows error message."""
         # Create pool and team
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'pool_a'
         })
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_team',
             'pool_name': 'pool_a',
             'team_name': 'Same Team'
         })
         
         # Create another pool and try to add same team
-        client.post('/teams', data={
+        client.post('/t/default/teams', data={
             'action': 'add_pool',
             'pool_name': 'pool_b'
         })
-        response = client.post('/teams', data={
+        response = client.post('/t/default/teams', data={
             'action': 'add_team',
             'pool_name': 'pool_b',
             'team_name': 'Same Team'
@@ -422,7 +422,7 @@ pool2:
 """
         teams_file.write_text(yaml_content)
         
-        response = client.get('/')
+        response = client.get('/t/default/')
         
         assert response.status_code == 200
         # Page should show 3 total teams
@@ -435,7 +435,7 @@ class TestCourtsRoutes:
     def test_edit_court_name(self, client, temp_data_dir):
         """Test editing a court name."""
         # Add a court
-        client.post('/courts', data={
+        client.post('/t/default/courts', data={
             'action': 'add_court',
             'court_name': 'Court 1',
             'start_time': '08:00',
@@ -443,7 +443,7 @@ class TestCourtsRoutes:
         })
         
         # Edit court name
-        response = client.post('/courts', data={
+        response = client.post('/t/default/courts', data={
             'action': 'edit_court',
             'old_court_name': 'Court 1',
             'new_court_name': 'Main Court'
@@ -455,13 +455,13 @@ class TestCourtsRoutes:
     def test_edit_court_duplicate_error(self, client, temp_data_dir):
         """Test that renaming to existing court name shows error."""
         # Add two courts
-        client.post('/courts', data={
+        client.post('/t/default/courts', data={
             'action': 'add_court',
             'court_name': 'Court A',
             'start_time': '08:00',
             'end_time': '20:00'
         })
-        client.post('/courts', data={
+        client.post('/t/default/courts', data={
             'action': 'add_court',
             'court_name': 'Court B',
             'start_time': '09:00',
@@ -469,7 +469,7 @@ class TestCourtsRoutes:
         })
         
         # Try to rename Court B to Court A
-        response = client.post('/courts', data={
+        response = client.post('/t/default/courts', data={
             'action': 'edit_court',
             'old_court_name': 'Court B',
             'new_court_name': 'Court A'
@@ -495,7 +495,7 @@ class TestSettingsRoute:
 """
         teams_file.write_text(yaml_content)
         
-        response = client.get('/settings')
+        response = client.get('/t/default/settings')
         
         assert response.status_code == 200
         assert b'Alpha Team' in response.data or b'alpha' in response.data.lower()
@@ -506,13 +506,13 @@ class TestLiveRoute:
     
     def test_live_page_loads(self, client, temp_data_dir):
         """Test live page loads successfully."""
-        response = client.get('/live')
+        response = client.get('/t/default/live')
         assert response.status_code == 200
         assert b'Live Tournament' in response.data
     
     def test_live_page_shows_empty_state(self, client, temp_data_dir):
         """Test live page shows empty state when no teams configured."""
-        response = client.get('/live')
+        response = client.get('/t/default/live')
         assert response.status_code == 200
         assert b'Tournament Not Started' in response.data or b'No teams' in response.data.lower()
     
@@ -529,7 +529,7 @@ class TestLiveRoute:
 """
         teams_file.write_text(yaml_content)
         
-        response = client.get('/live')
+        response = client.get('/t/default/live')
         
         assert response.status_code == 200
         assert b'Pool Standings' in response.data
@@ -539,10 +539,10 @@ class TestLiveRoute:
     
     def test_live_page_has_sse(self, client, temp_data_dir):
         """Test live page uses EventSource (SSE) for live updates."""
-        response = client.get('/live')
+        response = client.get('/t/default/live')
         assert response.status_code == 200
         assert b'EventSource' in response.data
-        assert b'/api/live-stream' in response.data
+        assert b'/t/default/api/live-stream' in response.data
     
     def test_live_page_is_read_only(self, client, temp_data_dir):
         """Test live page does not contain score input fields."""
@@ -557,7 +557,7 @@ class TestLiveRoute:
 """
         teams_file.write_text(yaml_content)
         
-        response = client.get('/live')
+        response = client.get('/t/default/live')
         
         assert response.status_code == 200
         # Should not have score input fields (which are in the manager views)
@@ -569,7 +569,7 @@ class TestLiveSSE:
 
     def test_live_html_returns_partial(self, client, temp_data_dir):
         """Test /api/live-html returns partial HTML without full page wrapper."""
-        response = client.get('/api/live-html')
+        response = client.get('/t/default/api/live-html')
         assert response.status_code == 200
         html = response.data
         # Partial should not contain full-page elements
@@ -592,14 +592,14 @@ class TestLiveSSE:
 """
         teams_file.write_text(yaml_content)
 
-        response = client.get('/api/live-html')
+        response = client.get('/t/default/api/live-html')
         assert response.status_code == 200
         assert b'Pool A' in response.data
         assert b'Team Alpha' in response.data
 
     def test_live_stream_returns_event_stream(self, client, temp_data_dir):
         """Test /api/live-stream returns the correct content type."""
-        response = client.get('/api/live-stream')
+        response = client.get('/t/default/api/live-stream')
         assert response.status_code == 200
         assert 'text/event-stream' in response.content_type
 
@@ -734,13 +734,13 @@ class TestEnhancedDashboard:
 
     def test_dashboard_loads_with_no_data(self, client, temp_data_dir):
         """Test dashboard returns 200 with no data files."""
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         assert b'Setup' in response.data  # Phase indicator
 
     def test_dashboard_shows_phase_indicator(self, client, temp_data_dir):
         """Test dashboard shows the phase indicator."""
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         assert b'phase-step' in response.data
         assert b'Pool Play' in response.data
@@ -757,7 +757,7 @@ class TestEnhancedDashboard:
             'tournament_date': 'Feb 2026',
         }))
 
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         assert b'Test Club' in response.data
         assert b'Test Tournament' in response.data
@@ -790,14 +790,14 @@ class TestEnhancedDashboard:
             'bracket': {},
         }))
 
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         assert b'Team X' in response.data
         assert b'1-0' in response.data  # Win-Loss record
 
     def test_dashboard_shows_export_bar(self, client, temp_data_dir):
         """Test dashboard shows quick action buttons."""
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         assert b'Quick Actions' in response.data
         assert b'Live Page' in response.data
@@ -811,7 +811,7 @@ class TestExportScheduleCSV:
         import app as app_module
         app_module.SCHEDULE_FILE = str(temp_data_dir / "nonexistent_schedule.yaml")
 
-        response = client.get('/api/export/schedule-csv')
+        response = client.get('/t/default/api/export/schedule-csv')
         assert response.status_code == 404
 
     def test_csv_export_returns_csv(self, client, temp_data_dir):
@@ -840,7 +840,7 @@ class TestExportScheduleCSV:
         }
         schedule_file.write_text(yaml.dump(schedule_data))
 
-        response = client.get('/api/export/schedule-csv')
+        response = client.get('/t/default/api/export/schedule-csv')
         assert response.status_code == 200
         assert 'text/csv' in response.content_type
         content = response.data.decode('utf-8')
@@ -854,7 +854,7 @@ class TestExportTournament:
 
     def test_export_returns_zip(self, client, temp_data_dir):
         """Test GET /api/export/tournament returns a valid ZIP file."""
-        response = client.get('/api/export/tournament')
+        response = client.get('/t/default/api/export/tournament')
         assert response.status_code == 200
         assert 'application/zip' in response.content_type
         # Validate that the response body is a valid ZIP
@@ -864,7 +864,7 @@ class TestExportTournament:
     def test_export_contains_existing_files(self, client, temp_data_dir):
         """Test the ZIP includes data files that exist on disk."""
         # teams.yaml and courts.csv were created by the fixture
-        response = client.get('/api/export/tournament')
+        response = client.get('/t/default/api/export/tournament')
         zf = zipfile.ZipFile(io.BytesIO(response.data))
         names = zf.namelist()
         assert 'teams.yaml' in names
@@ -873,7 +873,7 @@ class TestExportTournament:
     def test_export_excludes_missing_files(self, client, temp_data_dir):
         """Test that files which don't exist are simply absent from the ZIP."""
         # results.yaml was NOT created by the fixture
-        response = client.get('/api/export/tournament')
+        response = client.get('/t/default/api/export/tournament')
         zf = zipfile.ZipFile(io.BytesIO(response.data))
         names = zf.namelist()
         assert 'results.yaml' not in names
@@ -884,14 +884,14 @@ class TestExportTournament:
         logo_path = temp_data_dir / "logo.png"
         logo_path.write_bytes(b'\x89PNG_FAKE_DATA')
 
-        response = client.get('/api/export/tournament')
+        response = client.get('/t/default/api/export/tournament')
         zf = zipfile.ZipFile(io.BytesIO(response.data))
         assert 'logo.png' in zf.namelist()
         assert zf.read('logo.png') == b'\x89PNG_FAKE_DATA'
 
     def test_export_attachment_filename(self, client, temp_data_dir):
         """Test download filename contains 'tournament_export'."""
-        response = client.get('/api/export/tournament')
+        response = client.get('/t/default/api/export/tournament')
         cd = response.headers.get('Content-Disposition', '')
         assert 'tournament_export' in cd
         assert '.zip' in cd
@@ -915,7 +915,7 @@ class TestImportTournament:
         buf = self._make_zip({'teams.yaml': teams_content})
 
         response = client.post(
-            '/api/import/tournament',
+            '/t/default/api/import/tournament',
             data={'file': (buf, 'tournament.zip')},
             content_type='multipart/form-data',
             follow_redirects=True,
@@ -931,7 +931,7 @@ class TestImportTournament:
     def test_import_no_file(self, client, temp_data_dir):
         """Test import with no file shows error."""
         response = client.post(
-            '/api/import/tournament',
+            '/t/default/api/import/tournament',
             data={},
             content_type='multipart/form-data',
             follow_redirects=True,
@@ -943,7 +943,7 @@ class TestImportTournament:
         """Test that uploading a non-ZIP file returns an error."""
         buf = io.BytesIO(b'this is not a zip')
         response = client.post(
-            '/api/import/tournament',
+            '/t/default/api/import/tournament',
             data={'file': (buf, 'bad.zip')},
             content_type='multipart/form-data',
             follow_redirects=True,
@@ -973,7 +973,7 @@ class TestTournamentCRUDCornerCases:
         """When no tournaments exist, accessing /teams should redirect to /tournaments."""
         self._delete_all_tournaments(client, temp_data_dir)
 
-        response = client.get('/teams')
+        response = client.get('/t/default/teams')
         assert response.status_code == 302
         assert '/tournaments' in response.headers.get('Location', '')
 
@@ -1007,21 +1007,18 @@ class TestTournamentCRUDCornerCases:
     # ---- 4. Delete active → session switches to remaining ----
 
     def test_delete_active_tournament_switches_to_next(self, client, temp_data_dir):
-        """Deleting the active tournament should set the remaining one as active in session."""
+        """Deleting the active tournament should set the remaining one as active."""
         # Create a second tournament (fixture already has 'default')
         self._create_tournament(client, 'Second')
 
-        # The session should currently point to 'second' (just created)
-        with client.session_transaction() as sess:
-            assert sess.get('active_tournament') == 'second'
-
-        # Delete the active tournament ('second')
+        # Delete 'second' tournament
         client.post('/api/tournaments/delete', data={'slug': 'second'})
 
-        # After fix: session should fall back to 'default' (the remaining tournament)
-        with client.session_transaction() as sess:
-            active = sess.get('active_tournament')
-            assert active == 'default'
+        # After deletion: 'default' should be the remaining active tournament
+        user_dir = temp_data_dir.parent.parent
+        reg_file = user_dir / "tournaments.yaml"
+        data = yaml.safe_load(reg_file.read_text())
+        assert data.get('active') == 'default'
 
     # ---- 5. Delete last → session cleared ----
 
@@ -1079,7 +1076,7 @@ class TestImportTournamentEdgeCases:
         """Test that a ZIP without any recognised tournament files is rejected."""
         buf = self._make_zip({'random.txt': 'hello'})
         response = client.post(
-            '/api/import/tournament',
+            '/t/default/api/import/tournament',
             data={'file': (buf, 'unknown.zip')},
             content_type='multipart/form-data',
             follow_redirects=True,
@@ -1091,7 +1088,7 @@ class TestImportTournamentEdgeCases:
         """Test that ZIP entries with path traversal are rejected."""
         buf = self._make_zip({'../teams.yaml': 'bad', 'teams.yaml': 'ok'})
         response = client.post(
-            '/api/import/tournament',
+            '/t/default/api/import/tournament',
             data={'file': (buf, 'evil.zip')},
             content_type='multipart/form-data',
             follow_redirects=True,
@@ -1108,7 +1105,7 @@ class TestImportTournamentEdgeCases:
         new_content = "Pool New:\n  teams:\n    - Bravo\n  advance: 3\n"
         buf = self._make_zip({'teams.yaml': new_content})
         client.post(
-            '/api/import/tournament',
+            '/t/default/api/import/tournament',
             data={'file': (buf, 'new.zip')},
             content_type='multipart/form-data',
             follow_redirects=True,
@@ -1131,7 +1128,7 @@ class TestImportTournamentEdgeCases:
             'logo.png': b'NEW_PNG',
         })
         client.post(
-            '/api/import/tournament',
+            '/t/default/api/import/tournament',
             data={'file': (buf, 'logo_import.zip')},
             content_type='multipart/form-data',
             follow_redirects=True,
@@ -1151,7 +1148,7 @@ class TestImportTournamentEdgeCases:
         (temp_data_dir / "courts.csv").write_text(original_courts)
 
         # Export
-        export_resp = client.get('/api/export/tournament')
+        export_resp = client.get('/t/default/api/export/tournament')
         assert export_resp.status_code == 200
 
         # Wipe current data
@@ -1161,7 +1158,7 @@ class TestImportTournamentEdgeCases:
         # Import the exported ZIP
         buf = io.BytesIO(export_resp.data)
         client.post(
-            '/api/import/tournament',
+            '/t/default/api/import/tournament',
             data={'file': (buf, 'roundtrip.zip')},
             content_type='multipart/form-data',
             follow_redirects=True,
@@ -1197,7 +1194,7 @@ class TestPublicLive:
     def test_public_live_404_for_nonexistent_user(self, temp_data_dir):
         """Public live should 404 for a user that doesn't exist."""
         with app.test_client() as anon_client:
-            response = anon_client.get('/live/nobody/default')
+            response = anon_client.get('/t/default/live/nobody/default')
             assert response.status_code == 404
 
     def test_public_live_404_for_nonexistent_tournament(self, temp_data_dir):
@@ -1417,7 +1414,7 @@ class TestUserExportImport:
         assert len(reg.get('tournaments', [])) > 0
 
         # Verify navigating to a tab does NOT redirect to /tournaments
-        resp = client.get('/teams', follow_redirects=False)
+        resp = client.get('/t/default/teams', follow_redirects=False)
         assert resp.status_code == 200
 
 
@@ -1475,7 +1472,7 @@ class TestDeleteAccount:
         assert not user_dir.exists()
 
         # Session cleared — subsequent request redirects to login
-        resp = client.get('/teams', follow_redirects=False)
+        resp = client.get('/t/default/teams', follow_redirects=False)
         assert resp.status_code in (302, 303)
         assert 'login' in resp.headers.get('Location', '').lower()
 
@@ -1556,7 +1553,7 @@ class TestShowTestButtons:
 
     def test_show_test_buttons_toggle_on(self, client, temp_data_dir):
         """Test POSTing with show_test_buttons in form data saves it as True."""
-        response = client.post('/constraints', data={
+        response = client.post('/t/default/constraints', data={
             'action': 'update_general',
             'match_duration': '25',
             'days_number': '1',
@@ -1578,7 +1575,7 @@ class TestShowTestButtons:
         constraints_file.write_text(yaml.dump({'show_test_buttons': True}))
 
         # POST without show_test_buttons (simulates unchecked checkbox)
-        response = client.post('/constraints', data={
+        response = client.post('/t/default/constraints', data={
             'action': 'update_general',
             'match_duration': '25',
             'days_number': '1',
@@ -1594,7 +1591,7 @@ class TestShowTestButtons:
 
     def test_teams_page_hides_test_button_by_default(self, client, temp_data_dir):
         """Test that GET /teams does NOT show the test button when show_test_buttons is False."""
-        response = client.get('/teams')
+        response = client.get('/t/default/teams')
         assert response.status_code == 200
         assert b'onclick="loadTestTeams()"' not in response.data
 
@@ -1603,7 +1600,7 @@ class TestShowTestButtons:
         constraints_file = temp_data_dir / "constraints.yaml"
         constraints_file.write_text(yaml.dump({'show_test_buttons': True}))
 
-        response = client.get('/teams')
+        response = client.get('/t/default/teams')
         assert response.status_code == 200
         assert b'onclick="loadTestTeams()"' in response.data
 
@@ -1613,7 +1610,7 @@ class TestInstaPage:
 
     def test_insta_page_loads(self, client, temp_data_dir):
         """GET /insta returns 200."""
-        response = client.get('/insta')
+        response = client.get('/t/default/insta')
         assert response.status_code == 200
 
     def test_insta_page_empty_tournament(self, client, temp_data_dir):
@@ -1621,7 +1618,7 @@ class TestInstaPage:
         # temp_data_dir starts with empty teams — just confirm it still renders
         teams_file = temp_data_dir / "teams.yaml"
         teams_file.write_text("")
-        response = client.get('/insta')
+        response = client.get('/t/default/insta')
         assert response.status_code == 200
 
     def test_insta_page_with_pools(self, client, temp_data_dir):
@@ -1633,7 +1630,7 @@ class TestInstaPage:
         teams_file = temp_data_dir / "teams.yaml"
         teams_file.write_text(yaml.dump(pools_data, default_flow_style=False))
 
-        response = client.get('/insta')
+        response = client.get('/t/default/insta')
         assert response.status_code == 200
         assert b'Pool Alpha' in response.data
         assert b'Pool Beta' in response.data
@@ -1647,13 +1644,13 @@ class TestInstaPage:
         teams_file = temp_data_dir / "teams.yaml"
         teams_file.write_text(yaml.dump(pools_data, default_flow_style=False))
 
-        response = client.get('/insta')
+        response = client.get('/t/default/insta')
         assert response.status_code == 200
         assert b'Gold Bracket' in response.data
 
     def test_insta_page_nav_link(self, client, temp_data_dir):
         """GET /insta, verify the response contains a reference to the insta page."""
-        response = client.get('/insta')
+        response = client.get('/t/default/insta')
         assert response.status_code == 200
         assert b'insta' in response.data.lower()
 
@@ -1663,19 +1660,19 @@ class TestAwards:
 
     def test_awards_page_loads(self, client, temp_data_dir):
         """GET /awards returns 200."""
-        response = client.get('/awards')
+        response = client.get('/t/default/awards')
         assert response.status_code == 200
 
     def test_awards_default_empty(self, client, temp_data_dir):
         """GET /awards has no awards by default (no award-specific content)."""
-        response = client.get('/awards')
+        response = client.get('/t/default/awards')
         assert response.status_code == 200
         # No award entries should exist — the empty message is shown
         assert b'No awards have been given yet' in response.data
 
     def test_add_award(self, client, temp_data_dir):
         """POST /api/awards/add with valid JSON creates an award visible on the page."""
-        response = client.post('/api/awards/add', json={
+        response = client.post('/t/default/api/awards/add', json={
             'name': 'MVP',
             'player': 'John Smith',
             'image': 'trophy.svg',
@@ -1690,14 +1687,14 @@ class TestAwards:
         assert 'id' in data['award']
 
         # Verify award appears on the awards page
-        page = client.get('/awards')
+        page = client.get('/t/default/awards')
         assert b'MVP' in page.data
         assert b'John Smith' in page.data
 
     def test_add_award_missing_fields(self, client, temp_data_dir):
         """POST /api/awards/add with missing name/player returns error."""
         # Missing player
-        resp1 = client.post('/api/awards/add', json={
+        resp1 = client.post('/t/default/api/awards/add', json={
             'name': 'MVP',
             'image': 'trophy.svg',
         })
@@ -1706,7 +1703,7 @@ class TestAwards:
         assert data1.get('success') is not True
 
         # Missing name
-        resp2 = client.post('/api/awards/add', json={
+        resp2 = client.post('/t/default/api/awards/add', json={
             'player': 'John Smith',
             'image': 'trophy.svg',
         })
@@ -1717,7 +1714,7 @@ class TestAwards:
     def test_delete_award(self, client, temp_data_dir):
         """Add an award, then delete it by ID, verify it's gone."""
         # Add
-        add_resp = client.post('/api/awards/add', json={
+        add_resp = client.post('/t/default/api/awards/add', json={
             'name': 'Best Defender',
             'player': 'Jane Doe',
             'image': 'trophy.svg',
@@ -1726,12 +1723,12 @@ class TestAwards:
         award_id = add_resp.get_json()['award']['id']
 
         # Delete
-        del_resp = client.post('/api/awards/delete', json={'id': award_id})
+        del_resp = client.post('/t/default/api/awards/delete', json={'id': award_id})
         assert del_resp.status_code == 200
         assert del_resp.get_json()['success'] is True
 
         # Verify gone from page
-        page = client.get('/awards')
+        page = client.get('/t/default/awards')
         assert b'Best Defender' not in page.data
 
     def test_upload_award_image(self, client, temp_data_dir):
@@ -1749,7 +1746,7 @@ class TestAwards:
             'image': (io.BytesIO(png_header), 'test_award.png'),
         }
         response = client.post(
-            '/api/awards/upload-image',
+            '/t/default/api/awards/upload-image',
             data=data,
             content_type='multipart/form-data',
         )
@@ -1770,7 +1767,7 @@ class TestAwards:
             b'\x00\x00\x00\x00IEND\xaeB`\x82'
         )
         upload_resp = client.post(
-            '/api/awards/upload-image',
+            '/t/default/api/awards/upload-image',
             data={'image': (io.BytesIO(png_data), 'serve_test.png')},
             content_type='multipart/form-data',
         )
@@ -1778,13 +1775,13 @@ class TestAwards:
         filename = upload_resp.get_json()['filename']
 
         # Serve the uploaded image
-        serve_resp = client.get(f'/api/awards/image/{filename}')
+        serve_resp = client.get(f'/t/default/api/awards/image/{filename}')
         assert serve_resp.status_code == 200
         assert b'PNG' in serve_resp.data
 
     def test_samples_endpoint(self, client, temp_data_dir):
         """GET /api/awards/samples returns a list (may be empty in test env)."""
-        response = client.get('/api/awards/samples')
+        response = client.get('/t/default/api/awards/samples')
         assert response.status_code == 200
         data = response.get_json()
         assert data['success'] is True
@@ -1793,14 +1790,14 @@ class TestAwards:
     def test_awards_in_export(self, client, temp_data_dir):
         """Add an award, export tournament, verify awards.yaml is in the ZIP."""
         # Add an award first
-        client.post('/api/awards/add', json={
+        client.post('/t/default/api/awards/add', json={
             'name': 'Best Scorer',
             'player': 'Alex Kim',
             'image': 'trophy.svg',
         })
 
         # Export tournament
-        export_resp = client.get('/api/export/tournament')
+        export_resp = client.get('/t/default/api/export/tournament')
         assert export_resp.status_code == 200
 
         zf = zipfile.ZipFile(io.BytesIO(export_resp.data))
@@ -1819,7 +1816,7 @@ class TestHamburgerMenu:
 
     def test_base_has_hamburger_toggle(self, client, temp_data_dir):
         """Test that rendered pages include a hamburger toggle element."""
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         html = response.data.decode()
         # Expect a checkbox or button with hamburger-related id/class
@@ -1828,7 +1825,7 @@ class TestHamburgerMenu:
 
     def test_nav_links_has_toggleable_class(self, client, temp_data_dir):
         """Test that the nav links container has a class that supports toggling."""
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         html = response.data.decode()
         assert 'nav-links' in html, \
@@ -1840,7 +1837,7 @@ class TestDarkMode:
 
     def test_page_has_dark_mode_toggle(self, client, temp_data_dir):
         """Test that rendered pages include a dark mode toggle element."""
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         html = response.data.decode()
         assert ('dark-mode' in html.lower() or 'theme-toggle' in html.lower() or
@@ -1849,7 +1846,7 @@ class TestDarkMode:
 
     def test_stylesheet_linked(self, client, temp_data_dir):
         """Test that style.css is still linked in the page."""
-        response = client.get('/')
+        response = client.get('/t/default/')
         assert response.status_code == 200
         html = response.data.decode()
         assert 'style.css' in html, \
@@ -1862,7 +1859,7 @@ class TestClearResult:
     def test_clear_result_success(self, client, temp_data_dir):
         """Save a pool result, then clear it, verify it's gone."""
         # Save a result first
-        save_resp = client.post('/api/results/pool', json={
+        save_resp = client.post('/t/default/api/results/pool', json={
             'team1': 'Alpha',
             'team2': 'Beta',
             'pool': 'Pool A',
@@ -1872,7 +1869,7 @@ class TestClearResult:
         match_key = save_resp.get_json()['match_key']
 
         # Clear the result
-        clear_resp = client.post('/api/clear-result', json={
+        clear_resp = client.post('/t/default/api/clear-result', json={
             'match_key': match_key,
         })
         assert clear_resp.status_code == 200
@@ -1886,7 +1883,7 @@ class TestClearResult:
 
     def test_clear_result_nonexistent_key(self, client, temp_data_dir):
         """Clearing a key that doesn't exist returns success (idempotent)."""
-        resp = client.post('/api/clear-result', json={
+        resp = client.post('/t/default/api/clear-result', json={
             'match_key': 'NoTeam_vs_Nobody_Pool Z',
         })
         assert resp.status_code == 200
@@ -1894,7 +1891,7 @@ class TestClearResult:
 
     def test_clear_result_missing_key(self, client, temp_data_dir):
         """POST without match_key returns error."""
-        resp = client.post('/api/clear-result', json={})
+        resp = client.post('/t/default/api/clear-result', json={})
         assert resp.status_code == 400
 
         data = resp.get_json()
@@ -1914,7 +1911,7 @@ class TestClearResult:
         }))
 
         # Save a result
-        save_resp = client.post('/api/results/pool', json={
+        save_resp = client.post('/t/default/api/results/pool', json={
             'team1': 'Alpha',
             'team2': 'Beta',
             'pool': 'Pool A',
@@ -1928,7 +1925,7 @@ class TestClearResult:
         assert results['pool_play'][match_key]['completed'] is True
 
         # Clear the result
-        clear_resp = client.post('/api/clear-result', json={'match_key': match_key})
+        clear_resp = client.post('/t/default/api/clear-result', json={'match_key': match_key})
         assert clear_resp.status_code == 200
 
         # Verify the result is gone — standings should reset
@@ -1937,7 +1934,7 @@ class TestClearResult:
             "Cleared result should not appear in pool_play results"
 
         # Tracking page should still load successfully
-        tracking_resp = client.get('/tracking')
+        tracking_resp = client.get('/t/default/tracking')
         assert tracking_resp.status_code == 200
 
 
@@ -1962,7 +1959,7 @@ class TestNavigationWithStaleSession:
         # 1. Work and show the teams page (clearing stale session), or
         # 2. Redirect to /tournaments with a helpful message
         # But it should NOT get stuck in a redirect loop
-        response = client.get('/teams', follow_redirects=False)
+        response = client.get('/t/default/teams', follow_redirects=False)
         
         # Currently this redirects to /tournaments (the bug)
         # After fix, it should clear stale session and redirect to /tournaments with message
@@ -1983,16 +1980,16 @@ class TestNavigationWithStaleSession:
         assert tournament_dir.exists()
         
         # Access /teams - should work
-        response = client.get('/teams', follow_redirects=False)
+        response = client.get('/t/default/teams', follow_redirects=False)
         assert response.status_code == 200
         assert b'Teams' in response.data or b'teams' in response.data.lower()
         
         # Access /courts - should work
-        response = client.get('/courts', follow_redirects=False)
+        response = client.get('/t/default/courts', follow_redirects=False)
         assert response.status_code == 200
         
         # Access /schedule - should work
-        response = client.get('/schedule', follow_redirects=False)
+        response = client.get('/t/default/schedule', follow_redirects=False)
         assert response.status_code == 200
     
     def test_auto_activates_first_tournament_when_none_active(self, client, temp_data_dir, monkeypatch):
@@ -2014,18 +2011,13 @@ class TestNavigationWithStaleSession:
             'tournaments': [{'slug': 'default', 'name': 'Default Tournament'}]
         }, default_flow_style=False))
         
-        # Access /teams - should auto-activate 'default' and work
-        response = client.get('/teams', follow_redirects=False)
+        # Access /t/default/teams - URL carries the slug, so it works directly
+        response = client.get('/t/default/teams', follow_redirects=False)
         assert response.status_code == 200
         
-        # Verify session was updated
+        # Verify session was updated from URL slug
         with client.session_transaction() as sess:
             assert sess.get('active_tournament') == 'default'
-        
-        # Verify tournaments.yaml was updated
-        with open(user_reg, 'r') as f:
-            updated_tournaments = yaml.safe_load(f)
-        assert updated_tournaments['active'] == 'default'
 
 
 class TestBracketScheduleRoundTrip:
@@ -2071,16 +2063,16 @@ class TestBracketScheduleRoundTrip:
         pools = self._setup_tournament_with_schedule(temp_data_dir)
 
         # Generate schedule via POST
-        resp = client.post('/schedule', follow_redirects=True)
+        resp = client.post('/t/default/schedule', follow_redirects=True)
         assert resp.status_code == 200
 
         # Generate random pool results
-        resp = client.post('/api/generate-random-results')
+        resp = client.post('/t/default/api/generate-random-results')
         assert resp.status_code == 200
         assert resp.get_json()['success'] is True
 
         # Generate random bracket results
-        resp = client.post('/api/generate-random-bracket-results')
+        resp = client.post('/t/default/api/generate-random-bracket-results')
         assert resp.status_code == 200
         assert resp.get_json()['success'] is True
 
@@ -2133,7 +2125,7 @@ class TestBracketScheduleRoundTrip:
         self._setup_tournament_with_schedule(temp_data_dir)
 
         # Save a bracket result with match_code
-        resp = client.post('/api/results/bracket', json={
+        resp = client.post('/t/default/api/results/bracket', json={
             'team1': 'A1',
             'team2': 'B2',
             'round': 'Winners Quarterfinal',
@@ -2163,7 +2155,7 @@ class TestBracketScheduleRoundTrip:
         self._setup_tournament_with_schedule(temp_data_dir)
 
         # Save a bracket result
-        client.post('/api/results/bracket', json={
+        client.post('/t/default/api/results/bracket', json={
             'team1': 'A1',
             'team2': 'B2',
             'round': 'Winners Semifinal',
@@ -2174,7 +2166,7 @@ class TestBracketScheduleRoundTrip:
         })
 
         # Clear by sending empty sets
-        resp = client.post('/api/results/bracket', json={
+        resp = client.post('/t/default/api/results/bracket', json={
             'team1': 'A1',
             'team2': 'B2',
             'round': 'Winners Semifinal',

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Tournament Allocator{% endblock %}</title>
-    <link rel="icon" href="/api/logo">
+    <link rel="icon" href="{{ tournament_base }}/api/logo">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
     .nav-user-dropdown { display:none; position:absolute; right:0; top:100%; margin-top:4px; background:var(--card-bg, #fff); border:1px solid var(--border, #e5e7eb); border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.15); min-width:160px; z-index:100; overflow:hidden; }

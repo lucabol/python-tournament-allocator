@@ -30,6 +30,35 @@ csrf = CSRFProtect(app)
 limiter = Limiter(get_remote_address, app=app, default_limits=[])
 
 
+# --- Tournament URL routing infrastructure ---
+# Routes with /t/<slug>/ prefix use URL-based tournament selection.
+# url_value_preprocessor pops 'slug' so view functions don't need it.
+# url_defaults auto-injects slug into url_for() so templates work unchanged.
+
+@app.url_value_preprocessor
+def pull_tournament_slug(endpoint, values):
+    """Extract tournament slug from URL before view function runs."""
+    if values and 'slug' in values:
+        # Only pop for tournament-scoped routes (not public routes that also have 'slug')
+        # Public routes use 'username' + 'slug' together
+        if 'username' not in (values or {}):
+            g.url_tournament_slug = values.pop('slug')
+
+@app.url_defaults
+def inject_tournament_slug(endpoint, values):
+    """Auto-inject slug into url_for() for tournament-scoped routes."""
+    if values is None:
+        return
+    if 'slug' in values:
+        return
+    slug = getattr(g, 'active_tournament', None) or '_'
+    if endpoint:
+        for rule in app.url_map.iter_rules(endpoint):
+            if 'slug' in rule.arguments and 'username' not in rule.arguments:
+                values['slug'] = slug
+                break
+
+
 def _get_or_create_secret_key() -> bytes:
     """Get SECRET_KEY from env, or generate and persist to file."""
     env_key = os.environ.get('SECRET_KEY')
@@ -1241,7 +1270,10 @@ def set_active_tournament():
     os.makedirs(g.user_tournaments_dir, exist_ok=True)
 
     tournaments = load_tournaments()
-    active_slug = session.get('active_tournament', tournaments.get('active'))
+
+    # URL-based slug takes priority over session
+    url_slug = getattr(g, 'url_tournament_slug', None)
+    active_slug = url_slug or session.get('active_tournament', tournaments.get('active'))
 
     # Auto-activate first tournament if none is active but tournaments exist
     if not active_slug and tournaments.get('tournaments'):
@@ -1258,6 +1290,7 @@ def set_active_tournament():
         if os.path.isdir(tournament_path):
             g.data_dir = tournament_path
             g.active_tournament = active_slug
+            session['active_tournament'] = active_slug
             for t in tournaments.get('tournaments', []):
                 if t['slug'] == active_slug:
                     g.tournament_name = t.get('name', active_slug)
@@ -1271,7 +1304,7 @@ def set_active_tournament():
     g.tournament_name = None
 
     # Guard: redirect to tournaments page if user has no tournaments
-    tournament_endpoints = {'tournaments', 'api_create_tournament', 'api_delete_tournament',
+    tournament_endpoints = {'tournaments', 'home', 'api_create_tournament', 'api_delete_tournament',
                             'api_clone_tournament',
                             'api_switch_tournament', 'logout', 'api_export_tournament',
                             'api_import_tournament', 'api_export_user', 'api_import_user',
@@ -1302,9 +1335,13 @@ def inject_tournament_context():
         except Exception:
             pass
     
+    slug = getattr(g, 'active_tournament', None)
+    tournament_base = f'/t/{slug}' if slug else ''
+
     return {
-        'active_tournament': getattr(g, 'active_tournament', None),
+        'active_tournament': slug,
         'tournament_name': getattr(g, 'tournament_name', None),
+        'tournament_base': tournament_base,
         'current_user': session.get('user'),
         'show_test_buttons': show_test_buttons,
         'unread_messages_count': unread_messages_count,
@@ -1330,14 +1367,14 @@ def health_check():
 def login_page():
     """Login form and authentication."""
     if 'user' in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('home'))
     if request.method == 'POST':
         username = request.form.get('username', '')
         password = request.form.get('password', '')
         if authenticate_user(username, password):
             session['user'] = username.lower().strip()
             session.permanent = True
-            return redirect(url_for('index'))
+            return redirect(url_for('home'))
         flash('Invalid username or password.', 'error')
     return render_template('login.html')
 
@@ -1346,7 +1383,7 @@ def login_page():
 def register_page():
     """Registration form and user creation."""
     if 'user' in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('home'))
     if request.method == 'POST':
         username = request.form.get('username', '')
         password = request.form.get('password', '')
@@ -1359,7 +1396,7 @@ def register_page():
                 session['user'] = username.lower().strip()
                 session.permanent = True
                 flash(msg, 'success')
-                return redirect(url_for('index'))
+                return redirect(url_for('home'))
             flash(msg, 'error')
     return render_template('register.html')
 
@@ -1416,6 +1453,18 @@ def api_delete_account():
 
 
 @app.route('/')
+def home():
+    """Redirect to tournaments list or login."""
+    if 'user' not in session:
+        return redirect(url_for('login_page'))
+    # If user has an active tournament, go directly to it
+    active = session.get('active_tournament')
+    if active:
+        return redirect(url_for('index', slug=active))
+    return redirect(url_for('tournaments'))
+
+
+@app.route('/t/<slug>/')
 def index():
     """Main page showing tournament overview."""
     pools = load_teams()
@@ -1497,7 +1546,7 @@ def index():
                          match_stats=match_stats)
 
 
-@app.route('/teams', methods=['GET', 'POST'])
+@app.route('/t/<slug>/teams', methods=['GET', 'POST'])
 @login_required
 def teams():
     """Teams management page."""
@@ -2009,7 +2058,7 @@ def public_solo_register(username, slug):
                           slug=slug)
 
 
-@app.route('/api/registrations/toggle', methods=['POST'], endpoint='api_toggle_registration')
+@app.route('/t/<slug>/api/registrations/toggle', methods=['POST'], endpoint='api_toggle_registration')
 @login_required
 def api_toggle_registration():
     """Toggle registration open/closed status."""
@@ -2019,7 +2068,7 @@ def api_toggle_registration():
     return jsonify({'success': True, 'registration_open': registrations['registration_open']})
 
 
-@app.route('/api/registrations/edit', methods=['POST'])
+@app.route('/t/<slug>/api/registrations/edit', methods=['POST'])
 @login_required
 def api_edit_registration():
     """Edit a registration (organizer only)."""
@@ -2069,7 +2118,7 @@ def api_edit_registration():
     return jsonify({'success': True})
 
 
-@app.route('/api/registrations/delete', methods=['POST'])
+@app.route('/t/<slug>/api/registrations/delete', methods=['POST'])
 @login_required
 def api_delete_registration():
     """Delete a registration (organizer only)."""
@@ -2103,7 +2152,7 @@ def api_delete_registration():
     return jsonify({'success': True})
 
 
-@app.route('/api/teams/assign_from_registration', methods=['POST'])
+@app.route('/t/<slug>/api/teams/assign_from_registration', methods=['POST'])
 @login_required
 def api_assign_from_registration():
     """Assign a registered team to a pool."""
@@ -2146,7 +2195,7 @@ def api_assign_from_registration():
     return jsonify({'success': True})
 
 
-@app.route('/api/toggle-paid', methods=['POST'])
+@app.route('/t/<slug>/api/toggle-paid', methods=['POST'])
 @login_required
 def api_toggle_paid():
     """Toggle paid status for a team."""
@@ -2174,7 +2223,7 @@ def api_toggle_paid():
     return jsonify({'success': True, 'paid': new_status})
 
 
-@app.route('/api/unpaid-teams', methods=['GET'])
+@app.route('/t/<slug>/api/unpaid-teams', methods=['GET'])
 @login_required
 def api_unpaid_teams():
     """Get list of unpaid teams with their emails."""
@@ -2196,7 +2245,7 @@ def api_unpaid_teams():
     return jsonify({'success': True, 'unpaid_teams': unpaid_teams})
 
 
-@app.route('/courts', methods=['GET', 'POST'])
+@app.route('/t/<slug>/courts', methods=['GET', 'POST'])
 @login_required
 def courts():
     """Courts management page."""
@@ -2278,7 +2327,7 @@ def courts():
 
 
 # AJAX API endpoints for auto-save
-@app.route('/api/teams/edit_pool', methods=['POST'])
+@app.route('/t/<slug>/api/teams/edit_pool', methods=['POST'])
 @login_required
 def api_edit_pool():
     """AJAX endpoint for editing pool name."""
@@ -2299,7 +2348,7 @@ def api_edit_pool():
     return jsonify({'success': True})
 
 
-@app.route('/api/teams/edit_team', methods=['POST'])
+@app.route('/t/<slug>/api/teams/edit_team', methods=['POST'])
 @login_required
 def api_edit_team():
     """AJAX endpoint for editing team name."""
@@ -2335,7 +2384,7 @@ def api_edit_team():
     return jsonify({'success': True})
 
 
-@app.route('/api/teams/update_advance', methods=['POST'])
+@app.route('/t/<slug>/api/teams/update_advance', methods=['POST'])
 @login_required
 def api_update_advance():
     """AJAX endpoint for updating advance count."""
@@ -2354,7 +2403,7 @@ def api_update_advance():
     return jsonify({'success': True})
 
 
-@app.route('/api/export-teams', methods=['GET'])
+@app.route('/t/<slug>/api/export-teams', methods=['GET'])
 @login_required
 def api_export_teams():
     """Export teams with email/phone information in importable YAML format."""
@@ -2402,7 +2451,7 @@ def api_export_teams():
     )
 
 
-@app.route('/api/courts/edit', methods=['POST'])
+@app.route('/t/<slug>/api/courts/edit', methods=['POST'])
 @login_required
 def api_edit_court():
     """AJAX endpoint for editing court name."""
@@ -2428,7 +2477,7 @@ def api_edit_court():
     return jsonify({'success': True})
 
 
-@app.route('/api/settings/update', methods=['POST'])
+@app.route('/t/<slug>/api/settings/update', methods=['POST'])
 @login_required
 def api_update_settings():
     """AJAX endpoint for updating settings."""
@@ -2479,7 +2528,7 @@ def api_update_settings():
     return jsonify({'success': True})
 
 
-@app.route('/api/reset', methods=['POST'])
+@app.route('/t/<slug>/api/reset', methods=['POST'])
 @login_required
 def api_reset_all():
     """Reset all tournament data."""
@@ -2493,7 +2542,7 @@ def api_reset_all():
     return jsonify({'success': True})
 
 
-@app.route('/api/test-data', methods=['POST'])
+@app.route('/t/<slug>/api/test-data', methods=['POST'])
 @login_required
 def api_load_test_data():
     """Load test data for development/testing."""
@@ -2536,7 +2585,7 @@ def api_load_test_data():
     return jsonify({'success': True})
 
 
-@app.route('/api/test-teams', methods=['POST'])
+@app.route('/t/<slug>/api/test-teams', methods=['POST'])
 @login_required
 def api_load_test_teams():
     """Load test teams for development/testing."""
@@ -2588,7 +2637,7 @@ def api_load_test_teams():
     return jsonify({'success': True})
 
 
-@app.route('/api/test-courts', methods=['POST'])
+@app.route('/t/<slug>/api/test-courts', methods=['POST'])
 @login_required
 def api_load_test_courts():
     """Load test courts for development/testing."""
@@ -2608,7 +2657,7 @@ def api_load_test_courts():
     return jsonify({'success': True})
 
 
-@app.route('/api/generate-random-results', methods=['POST'])
+@app.route('/t/<slug>/api/generate-random-results', methods=['POST'])
 @login_required
 def api_generate_random_results():
     """Generate random results for all scheduled pool matches."""
@@ -2671,7 +2720,7 @@ def api_generate_random_results():
     return jsonify({'success': True})
 
 
-@app.route('/api/generate-random-bracket-results', methods=['POST'])
+@app.route('/t/<slug>/api/generate-random-bracket-results', methods=['POST'])
 @login_required
 def api_generate_random_bracket_results():
     """Generate random results for all playable bracket matches."""
@@ -3129,8 +3178,8 @@ def api_generate_random_bracket_results():
     return jsonify({'success': True})
 
 
-@app.route('/settings', methods=['GET', 'POST'])
-@app.route('/constraints', methods=['GET', 'POST'])  # Keep old URL for compatibility
+@app.route('/t/<slug>/settings', methods=['GET', 'POST'])
+@app.route('/t/<slug>/constraints', methods=['GET', 'POST'])  # Keep old URL for compatibility
 @login_required
 def settings():
     """Settings management page."""
@@ -3202,7 +3251,7 @@ def settings():
 constraints = settings
 
 
-@app.route('/bracket')
+@app.route('/t/<slug>/bracket')
 def bracket():
     """Redirect to appropriate bracket based on settings."""
     constraints_data = load_constraints()
@@ -3215,7 +3264,7 @@ def bracket():
     return redirect(url_for('sbracket'))
 
 
-@app.route('/schedule', methods=['GET', 'POST'])
+@app.route('/t/<slug>/schedule', methods=['GET', 'POST'])
 @login_required
 def schedule():
     """Generate and display schedule."""
@@ -3463,7 +3512,7 @@ def schedule():
     return render_template('schedule.html', schedule=schedule_data, error=error, stats=stats)
 
 
-@app.route('/tracking')
+@app.route('/t/<slug>/tracking')
 def tracking():
     """Display schedule with result tracking."""
     # Load saved schedule
@@ -3511,7 +3560,7 @@ def tracking():
                           pending_results=pending_results)
 
 
-@app.route('/awards')
+@app.route('/t/<slug>/awards')
 def awards():
     """Awards management page."""
     awards_data = load_awards()
@@ -3538,7 +3587,7 @@ def awards():
                           all_players=sorted(all_players))
 
 
-@app.route('/messages')
+@app.route('/t/<slug>/messages')
 @login_required
 def messages():
     """Messages management page for organizers."""
@@ -3553,7 +3602,7 @@ def messages():
     return render_template('messages.html', messages=messages_list, unread_count=unread_count)
 
 
-@app.route('/api/awards/add', methods=['POST'])
+@app.route('/t/<slug>/api/awards/add', methods=['POST'])
 @login_required
 def api_awards_add():
     """Add a new award."""
@@ -3579,7 +3628,7 @@ def api_awards_add():
     return jsonify({'success': True, 'award': new_award})
 
 
-@app.route('/api/awards/delete', methods=['POST'])
+@app.route('/t/<slug>/api/awards/delete', methods=['POST'])
 @login_required
 def api_awards_delete():
     """Delete an award by ID."""
@@ -3610,7 +3659,7 @@ def api_awards_delete():
     return jsonify({'success': True})
 
 
-@app.route('/api/awards/upload-image', methods=['POST'])
+@app.route('/t/<slug>/api/awards/upload-image', methods=['POST'])
 @login_required
 def api_awards_upload_image():
     """Upload a custom award image."""
@@ -3627,7 +3676,7 @@ def api_awards_upload_image():
     return jsonify({'success': True, 'filename': filename})
 
 
-@app.route('/api/awards/image/<filename>')
+@app.route('/t/<slug>/api/awards/image/<filename>')
 def api_awards_image(filename):
     """Serve a custom award image from the tournament directory."""
     if '/' in filename or '\\' in filename or '..' in filename:
@@ -3638,7 +3687,7 @@ def api_awards_image(filename):
     return send_file(image_path)
 
 
-@app.route('/api/test-awards', methods=['POST'])
+@app.route('/t/<slug>/api/test-awards', methods=['POST'])
 @login_required
 def api_test_awards():
     """Load sample beach volleyball awards for testing."""
@@ -3655,7 +3704,7 @@ def api_test_awards():
     return jsonify({'success': True})
 
 
-@app.route('/api/awards/samples')
+@app.route('/t/<slug>/api/awards/samples')
 def api_awards_samples():
     """List available sample award images."""
     awards_dir = os.path.join(os.path.dirname(__file__), 'static', 'awards')
@@ -3918,7 +3967,7 @@ def api_message(username, slug):
     return jsonify({'success': True, 'message_id': message_id})
 
 
-@app.route('/api/messages/update', methods=['POST'])
+@app.route('/t/<slug>/api/messages/update', methods=['POST'])
 @login_required
 def api_messages_update():
     """Organizer endpoint to update message status (read/archived/deleted).
@@ -4013,19 +4062,19 @@ def _get_live_data() -> dict:
     )
 
 
-@app.route('/live')
+@app.route('/t/<slug>/live')
 def live():
     """Read-only live view of tournament standings and brackets for players."""
     return render_template('live.html', **_get_live_data(), public_mode=False)
 
 
-@app.route('/insta')
+@app.route('/t/<slug>/insta')
 def insta():
     """Instagram-friendly tournament summary page."""
     return render_template('insta.html', **_get_live_data())
 
 
-@app.route('/api/live-html')
+@app.route('/t/<slug>/api/live-html')
 def api_live_html():
     """Return only the inner HTML of the live content area (partial template)."""
     return render_template('live_content.html', **_get_live_data())
@@ -4042,7 +4091,7 @@ def _get_data_file_mtimes() -> dict:
     return {f: os.path.getmtime(f) if os.path.exists(f) else 0.0 for f in files}
 
 
-@app.route('/api/live-stream')
+@app.route('/t/<slug>/api/live-stream')
 def api_live_stream():
     """Server-Sent Events stream that notifies clients when data changes."""
 
@@ -4147,7 +4196,7 @@ def api_public_live_stream(username, slug):
     )
 
 
-@app.route('/api/logo')
+@app.route('/t/<slug>/api/logo')
 def api_logo():
     """Serve the uploaded logo, or redirect to default.
     
@@ -4176,7 +4225,7 @@ def api_logo():
     return redirect(DEFAULT_LOGO_URL)
 
 
-@app.route('/api/upload-logo', methods=['POST'])
+@app.route('/t/<slug>/api/upload-logo', methods=['POST'])
 @login_required
 def api_upload_logo():
     """Upload a custom logo image."""
@@ -4194,7 +4243,7 @@ def api_upload_logo():
     return jsonify({'success': True})
 
 
-@app.route('/api/export/schedule-csv')
+@app.route('/t/<slug>/api/export/schedule-csv')
 def api_export_schedule_csv():
     """Export the current schedule as a downloadable CSV file."""
     import io
@@ -4237,7 +4286,7 @@ def api_export_schedule_csv():
     )
 
 
-@app.route('/api/results/pool', methods=['POST'])
+@app.route('/t/<slug>/api/results/pool', methods=['POST'])
 @login_required
 def save_pool_result():
     """API endpoint to save a pool play match result."""
@@ -4320,7 +4369,7 @@ def save_pool_result():
     })
 
 
-@app.route('/api/results/bracket', methods=['POST'])
+@app.route('/t/<slug>/api/results/bracket', methods=['POST'])
 @login_required
 def save_bracket_result():
     """API endpoint to save a bracket match result."""
@@ -4411,7 +4460,7 @@ def save_bracket_result():
     })
 
 
-@app.route('/api/clear-result', methods=['POST'])
+@app.route('/t/<slug>/api/clear-result', methods=['POST'])
 @login_required
 def api_clear_result():
     """API endpoint to clear/delete a match result."""
@@ -4430,7 +4479,7 @@ def api_clear_result():
     return jsonify({'success': True})
 
 
-@app.route('/sbracket')
+@app.route('/t/<slug>/sbracket')
 def sbracket():
     """Display single elimination bracket."""
     pools = load_teams()
@@ -4470,7 +4519,7 @@ def sbracket():
                           pending_results=pending_results)
 
 
-@app.route('/schedule/single_elimination', methods=['GET', 'POST'])
+@app.route('/t/<slug>/schedule/single_elimination', methods=['GET', 'POST'])
 def schedule_single_elimination():
     """Generate and display single elimination round schedule."""
     schedule_data = None
@@ -4578,7 +4627,7 @@ def schedule_single_elimination():
                          bracket_data=bracket_data)
 
 
-@app.route('/dbracket')
+@app.route('/t/<slug>/dbracket')
 def dbracket():
     """Display double elimination bracket."""
     pools = load_teams()
@@ -4619,7 +4668,7 @@ def dbracket():
 )
 
 
-@app.route('/schedule/double_elimination', methods=['GET', 'POST'])
+@app.route('/t/<slug>/schedule/double_elimination', methods=['GET', 'POST'])
 def schedule_double_elimination():
     """Generate and display double elimination round schedule."""
     schedule_data = None
@@ -4727,7 +4776,7 @@ def schedule_double_elimination():
                          bracket_data=bracket_data)
 
 
-@app.route('/api/export/tournament')
+@app.route('/t/<slug>/api/export/tournament')
 @login_required
 def api_export_tournament():
     """Export all tournament data as a downloadable ZIP file."""
@@ -4755,7 +4804,7 @@ def api_export_tournament():
     )
 
 
-@app.route('/api/import/tournament', methods=['POST'])
+@app.route('/t/<slug>/api/import/tournament', methods=['POST'])
 @login_required
 def api_import_tournament():
     """Import tournament data from an uploaded ZIP file, replacing current data."""
@@ -5454,7 +5503,7 @@ def api_switch_tournament():
 
     name = next((t['name'] for t in data['tournaments'] if t['slug'] == slug), slug)
     flash(f'Switched to "{name}".', 'success')
-    return redirect(url_for('index'))
+    return redirect(url_for('index', slug=slug))
 
 
 if __name__ == '__main__':

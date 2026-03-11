@@ -66,8 +66,8 @@
 var liveHtmlUrl = '/api/live-html/{{ public_username }}/{{ public_slug }}';
 var liveStreamUrl = '/api/live-stream/{{ public_username }}/{{ public_slug }}';
 {% else %}
-var liveHtmlUrl = '/api/live-html';
-var liveStreamUrl = '/api/live-stream';
+var liveHtmlUrl = '{{ tournament_base }}/api/live-html';
+var liveStreamUrl = '{{ tournament_base }}/api/live-stream';
 {% endif %}
 
 document.addEventListener('DOMContentLoaded', function() {

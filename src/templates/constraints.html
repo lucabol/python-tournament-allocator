@@ -14,7 +14,7 @@
             <div class="form-group" style="grid-column: 1 / -1;">
                 <label>Logo</label>
                 <div style="display: flex; align-items: center; gap: 1rem;">
-                    <img id="logo-preview" src="/api/logo" alt="Logo" style="height: 50px; width: auto; border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px;">
+                    <img id="logo-preview" src="{{ tournament_base }}/api/logo" alt="Logo" style="height: 50px; width: auto; border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px;">
                     <label class="btn btn-success btn-sm" style="cursor: pointer; margin: 0;">
                         Upload Logo
                         <input type="file" id="logo_upload" accept="image/*" style="display: none;" onchange="uploadLogo(this)">
@@ -228,7 +228,7 @@ function updateSetting(field, value) {
         var data = Object.assign({}, _pendingSettings);
         var needsReload = 'bracket_type' in data;
         _pendingSettings = {};
-        fetch('/api/settings/update', {
+        fetch('{{ tournament_base }}/api/settings/update', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(data)
@@ -241,14 +241,14 @@ function uploadLogo(input) {
     const formData = new FormData();
     formData.append('logo', input.files[0]);
     
-    fetch('/api/upload-logo', {
+    fetch('{{ tournament_base }}/api/upload-logo', {
         method: 'POST',
         body: formData
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            document.getElementById('logo-preview').src = '/api/logo?' + Date.now();
+            document.getElementById('logo-preview').src = '{{ tournament_base }}/api/logo?' + Date.now();
         } else {
             alert(data.error || 'Upload failed');
         }
@@ -259,7 +259,7 @@ function resetAll() {
     if (!confirm('Are you sure you want to reset all data? This will delete all teams, courts, schedules, results, and settings.')) {
         return;
     }
-    fetch('/api/reset', {
+    fetch('{{ tournament_base }}/api/reset', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
     })

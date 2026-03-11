@@ -335,7 +335,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Send to server
-        fetch('/api/results/pool', {
+        fetch('{{ tournament_base }}/api/results/pool', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function generateRandomResults() {
-    fetch('/api/generate-random-results', {
+    fetch('{{ tournament_base }}/api/generate-random-results', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
     })

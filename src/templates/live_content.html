@@ -671,7 +671,7 @@
     {% if public_mode %}
     var reportApiUrl = '/api/report-result/{{ public_username }}/{{ public_slug }}';
     {% else %}
-    var reportApiUrl = '/api/report-result';
+    var reportApiUrl = '{{ tournament_base }}/api/report-result';
     {% endif %}
 
     // LocalStorage key for tracking submitted reports
@@ -788,7 +788,7 @@
         {% if public_mode %}
         var messageApiUrl = '/api/message/{{ public_username }}/{{ public_slug }}';
         {% else %}
-        var messageApiUrl = '/api/message';
+        var messageApiUrl = '{{ tournament_base }}/api/message';
         {% endif %}
         
         fetch(messageApiUrl, {

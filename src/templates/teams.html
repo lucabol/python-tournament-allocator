@@ -419,7 +419,7 @@ async function savePoolName(input, oldName) {
     const newName = input.value.trim();
     if (newName === oldName) return;
     
-    const response = await fetch('/api/teams/edit_pool', {
+    const response = await fetch('{{ tournament_base }}/api/teams/edit_pool', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({old_name: oldName, new_name: newName})
@@ -439,7 +439,7 @@ async function saveTeamName(input, poolName, oldName) {
     const newName = input.value.trim();
     if (newName === oldName) return;
     
-    const response = await fetch('/api/teams/edit_team', {
+    const response = await fetch('{{ tournament_base }}/api/teams/edit_team', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({pool_name: poolName, old_name: oldName, new_name: newName})
@@ -455,7 +455,7 @@ async function saveTeamName(input, poolName, oldName) {
 
 async function saveAdvance(input, poolName) {
     const value = parseInt(input.value);
-    await fetch('/api/teams/update_advance', {
+    await fetch('{{ tournament_base }}/api/teams/update_advance', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({pool_name: poolName, advance_count: value})
@@ -463,7 +463,7 @@ async function saveAdvance(input, poolName) {
 }
 
 function loadTestTeams() {
-    fetch('/api/test-teams', {
+    fetch('{{ tournament_base }}/api/test-teams', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
     })
@@ -478,7 +478,7 @@ function loadTestTeams() {
 // Export teams
 async function exportTeams() {
     try {
-        const response = await fetch('/api/export-teams', {
+        const response = await fetch('{{ tournament_base }}/api/export-teams', {
             method: 'GET',
             headers: {'Content-Type': 'application/json'}
         });
@@ -505,7 +505,7 @@ async function exportTeams() {
 // Toggle paid status
 async function togglePaid(checkbox, teamName) {
     try {
-        const response = await fetch('/api/toggle-paid', {
+        const response = await fetch('{{ tournament_base }}/api/toggle-paid', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({team_name: teamName})
@@ -537,7 +537,7 @@ async function showUnpaidTeams() {
     listContainer.innerHTML = '<p class="loading-message">Loading...</p>';
     
     try {
-        const response = await fetch('/api/unpaid-teams', {
+        const response = await fetch('{{ tournament_base }}/api/unpaid-teams', {
             method: 'GET',
             headers: {'Content-Type': 'application/json'}
         });
