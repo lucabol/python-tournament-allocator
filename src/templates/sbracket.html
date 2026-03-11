@@ -2,6 +2,8 @@
 
 {% block title %}Elimination Bracket - Tournament Allocator{% endblock %}
 
+{% block head_extra %}<meta http-equiv="refresh" content="30">{% endblock %}
+
 {# --- Macro: mobile bracket match item with score inputs --- #}
 {% macro mobile_bracket_match(match, scoring_format, extra_class='', pending_results=none) %}
 {% set is_bye = match.is_bye %}
